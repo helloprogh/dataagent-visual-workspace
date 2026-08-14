@@ -22,7 +22,6 @@ const emit = defineEmits<{
 }>()
 
 const showHistory = ref(false)
-const showProtocol = ref(false)
 const keyword = ref('')
 const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase()
@@ -37,12 +36,6 @@ function timeLabel(timestamp: number) {
 
 function toggleHistory() {
   showHistory.value = !showHistory.value
-  if (showHistory.value) showProtocol.value = false
-}
-
-function toggleProtocol() {
-  showProtocol.value = !showProtocol.value
-  if (showProtocol.value) showHistory.value = false
 }
 
 function select(id: string) {
@@ -63,7 +56,6 @@ function select(id: string) {
         </div>
       </div>
       <div class="assistant-actions">
-        <button title="协议联调" :class="{ active: showProtocol }" @click="toggleProtocol">&lt;/&gt;</button>
         <button title="历史对话" :class="{ active: showHistory }" @click="toggleHistory">◎</button>
         <button title="新建分析" @click="emit('create')">＋</button>
       </div>
@@ -88,9 +80,7 @@ function select(id: string) {
         @rename="emit('autoRename', $event)"
       />
 
-      <transition name="history-slide">
-        <ProtocolDebugPanel v-if="showProtocol" :active-thread-id="activeId" @close="showProtocol = false" />
-      </transition>
+      <ProtocolDebugPanel :active-thread-id="activeId" />
 
       <transition name="history-slide">
         <section v-if="showHistory" class="history-overlay">
@@ -135,3 +125,9 @@ function select(id: string) {
     </footer>
   </aside>
 </template>
+
+<style scoped>
+.assistant-body{display:grid;grid-template-rows:minmax(280px,1fr) clamp(320px,40vh,430px)}
+@media(max-height:820px){.assistant-body{grid-template-rows:minmax(240px,1fr) 300px}}
+@media(max-width:820px){.assistant-body{grid-template-rows:minmax(320px,1fr) clamp(300px,42vh,420px)}}
+</style>

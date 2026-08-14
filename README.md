@@ -16,7 +16,8 @@
    ├─ OpenCode2 v2 `/api` 接口与本机认证
    ├─ 原生事件 → 标准 AG-UI 事件转换
    ├─ threadId → sessionID 持久化映射
-   └─ mock / hybrid / replay / debug 接口
+   ├─ AG-UI frontend tools → 动态 MCP → ToolMessage 续跑
+   └─ mock / replay / debug 接口
 ```
 
 ## 快速启动
@@ -44,21 +45,21 @@ Adapter 默认读取 OpenCode2 的 service 注册文件，自动获得动态端�
 # 空工作区 + 真实 OpenCode2
 npm run dev
 
-# 空工作区 + 真实 OpenCode2 + 可视协议联调场景
+# 空工作区 + 真实 OpenCode2（兼容场景入口）
 npm run dev:scenario
 
 # 隔离的静态 Demo 数据
 npm run dev:demo
 ```
 
-`dev:scenario` 仍使用真实 OpenCode2 回答，只额外注入标准 AG-UI `workspace.render` / `workspace.agents` 调试事件，方便检查主 Agent、子 Agent、工具、思考、任务状态和可视工作区。
+`dev` 与 `dev:scenario` 都使用真实 OpenCode2，不再注入固定工作区。CopilotKit 通过标准 `RunAgentInput.tools` 下发 `workspace.render/upsert/remove/agents`，Adapter 把它们注册为动态 MCP；OpenCode2 调用后，浏览器执行工具并用标准 `ToolMessage` 回传结果。
 
 ## 关键入口
 
 | 接口 | 用途 |
 | --- | --- |
 | `POST /agent` | 前端默认 AG-UI SSE 入口，连接真实 OpenCode2 |
-| `POST /agui/hybrid` | 真实 OpenCode2 + 可视场景事件 |
+| `POST /agui/hybrid` | `/agent` 的兼容别名，不注入固定场景 |
 | `POST /agui/mock` | 不依赖 OpenCode2 的完整 AG-UI mock |
 | `POST /agui/replay` | 离线重放 OpenCode2 原生事件 |
 | `GET /debug/capabilities` | 服务状态、支持场景、界面接口目录 |

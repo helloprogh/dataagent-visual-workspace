@@ -5,7 +5,7 @@ import { createDemoDocument } from './demo-data'
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
 const STORAGE_KEY = DEMO_MODE
   ? 'dataagent.workspace.v3.demo'
-  : 'dataagent.workspace.v3.prod'
+  : 'dataagent.workspace.v4.agui'
 
 type WorkspaceMap = Record<string, WorkspaceDocument>
 
@@ -62,6 +62,14 @@ export const workspaceController = {
     const all = readAll()
     state.activeThreadId = threadId
     state.document = clone(all[threadId] ?? createInitialDocument(threadId))
+    persist()
+  },
+  snapshot() {
+    return state.document ? clone(state.document) : null
+  },
+  applyShared(document: WorkspaceDocument) {
+    if (!state.activeThreadId || document.threadId !== state.activeThreadId) return
+    state.document = clone({ ...document, threadId: state.activeThreadId })
     persist()
   },
   replace(payload: { title?: string; subtitle?: string; widgets: WorkspaceWidget[] }) {

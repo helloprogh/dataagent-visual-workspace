@@ -18,5 +18,11 @@ export const toolEnd = (toolCallId) => event('TOOL_CALL_END', { toolCallId })
 export const toolResult = (messageId, toolCallId, content, role = 'tool') =>
   event('TOOL_CALL_RESULT', { messageId, toolCallId, content, role })
 
-export const custom = (name, value) => event('CUSTOM', { name, value })
+export const stateSnapshot = (snapshot) => event('STATE_SNAPSHOT', { snapshot })
+export const stateDelta = (delta) => event('STATE_DELTA', { delta })
+export const activitySnapshot = (messageId, activityType, content, replace = true) =>
+  event('ACTIVITY_SNAPSHOT', { messageId, activityType, content, replace })
+export const activityDelta = (messageId, activityType, patch) =>
+  event('ACTIVITY_DELTA', { messageId, activityType, patch })
 
+export const custom = (name, value) => event('CUSTOM', { name, value })

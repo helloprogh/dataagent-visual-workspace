@@ -63,7 +63,7 @@ test('converts native v2 text, reasoning and execution events', () => {
   assert.deepEqual(types(converter.convert({ type: 'session.text.ended', data: { sessionID: 'ses-1', assistantMessageID: 'a1', ordinal: 0, text: 'hello' } })), ['TEXT_MESSAGE_END'])
   assert.deepEqual(types(converter.convert({ type: 'session.reasoning.delta', data: { sessionID: 'ses-1', assistantMessageID: 'a1', ordinal: 0, delta: 'think' } })), ['REASONING_START', 'REASONING_MESSAGE_START', 'REASONING_MESSAGE_CONTENT'])
   assert.deepEqual(types(converter.convert({ type: 'session.reasoning.ended', data: { sessionID: 'ses-1', assistantMessageID: 'a1', ordinal: 0, text: 'think' } })), ['REASONING_MESSAGE_END', 'REASONING_END'])
-  assert.deepEqual(types(converter.convert({ type: 'session.execution.succeeded', data: { sessionID: 'ses-1' } })), ['CUSTOM', 'RUN_FINISHED'])
+  assert.deepEqual(types(converter.convert({ type: 'session.execution.succeeded', data: { sessionID: 'ses-1' } })), ['ACTIVITY_SNAPSHOT', 'RUN_FINISHED'])
 })
 
 test('keeps one reasoning message when OpenCode2 increments ordinal', () => {
@@ -76,15 +76,17 @@ test('keeps one reasoning message when OpenCode2 increments ordinal', () => {
   assert.deepEqual(types(delta), ['REASONING_MESSAGE_CONTENT'])
   assert.deepEqual(types(ended), ['REASONING_MESSAGE_END', 'REASONING_END'])
   assert.deepEqual(new Set([...started, ...delta, ...ended].map(item => item.messageId)), new Set(['a1-reasoning']))
+  assert.deepEqual(converter.convert({ type: 'session.reasoning.ended', data: { sessionID: 'ses-1', assistantMessageID: 'a1', ordinal: 12 } }), [])
+  assert.deepEqual(converter.convert({ type: 'session.reasoning.delta', data: { sessionID: 'ses-1', assistantMessageID: 'a1', ordinal: 13, delta: 'late duplicate' } }), [])
 })
 
 test('converts native v2 tool and sub-agent lifecycle', () => {
   const converter = create()
   const started = converter.convert({ type: 'session.tool.input.started', data: { sessionID: 'ses-1', assistantMessageID: 'a1', id: 't1', name: 'task' } })
-  assert.deepEqual(types(started), ['TOOL_CALL_START', 'CUSTOM'])
+  assert.deepEqual(types(started), ['TOOL_CALL_START', 'ACTIVITY_SNAPSHOT'])
   assert.deepEqual(types(converter.convert({ type: 'session.tool.input.delta', data: { sessionID: 'ses-1', assistantMessageID: 'a1', id: 't1', delta: '{"prompt":"work"}' } })), ['TOOL_CALL_ARGS'])
   const ended = converter.convert({ type: 'session.tool.success', data: { sessionID: 'ses-1', assistantMessageID: 'a1', id: 't1', content: [{ type: 'text', text: 'done' }], executed: true } })
-  assert.deepEqual(types(ended), ['TOOL_CALL_END', 'TOOL_CALL_RESULT', 'CUSTOM'])
+  assert.deepEqual(types(ended), ['TOOL_CALL_END', 'TOOL_CALL_RESULT', 'ACTIVITY_SNAPSHOT'])
   assert.equal(ended[1].content, 'done')
 })
 
@@ -94,4 +96,17 @@ test('uses the same AG-UI step name at both lifecycle boundaries', () => {
   const ended = converter.convert({ type: 'session.step.ended', data: { sessionID: 'ses-1', assistantMessageID: 'a1', finish: 'stop', cost: 0, tokens: {} } })
   assert.equal(started[0].stepName, 'build · model-1')
   assert.equal(ended[0].stepName, started[0].stepName)
+})
+
+test('closes an active OpenCode step before finishing a paused frontend tool run', () => {
+  const converter = create()
+  converter.start()
+  const started = converter.convert({ type: 'session.step.started', data: { sessionID: 'ses-1', assistantMessageID: 'a1', agent: 'build', model: { id: 'test-model' } } })
+  const tool = converter.convert({ type: 'session.tool.input.started', data: { sessionID: 'ses-1', assistantMessageID: 'a1', id: 'tool-1', name: 'agui_frontend_workspace_render' } })
+  const finished = converter.finish()
+
+  assert.deepEqual(types(started), ['STEP_STARTED'])
+  assert.deepEqual(types(tool), ['TOOL_CALL_START'])
+  assert.deepEqual(types(finished), ['TOOL_CALL_END', 'STEP_FINISHED', 'RUN_FINISHED'])
+  assert.equal(finished[1].stepName, started[0].stepName)
 })

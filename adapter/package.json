@@ -15,5 +15,8 @@
   },
   "devDependencies": {
     "@ag-ui/core": "0.0.57"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
   }
 }
