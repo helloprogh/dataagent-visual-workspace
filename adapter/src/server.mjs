@@ -1,7 +1,7 @@
 import http from 'node:http'
 import { OpenCodeAguiConverter } from './converter.mjs'
 import { OpenCodeClient } from './opencode-client.mjs'
-import { streamMock } from './mock-scenario.mjs'
+import { createMockEvents, streamMock } from './mock-scenario.mjs'
 import { applyCors, openSse, writeSse } from './sse.mjs'
 
 const port = Number(process.env.ADAPTER_PORT ?? 3001)
@@ -44,16 +44,22 @@ const runOpenCode = async (input, res, { hybrid = false } = {}) => {
 
     const converter = new OpenCodeAguiConverter({ threadId: input.threadId, runId: input.runId, sessionId })
     for (const item of converter.start()) writeSse(res, item)
+    if (hybrid) {
+      for (const item of createMockEvents(input).filter((event) => event.type === 'CUSTOM')) writeSse(res, item)
+    }
 
-    const events = client.events(abort.signal)
+    const events = client.events(abort.signal)[Symbol.asyncIterator]()
+    let nextEvent = events.next()
     await client.promptAsync(sessionId, [{ type: 'text', text: latestUserText(input) }])
-    for await (const sourceEvent of events) {
-      for (const item of converter.convert(sourceEvent)) writeSse(res, item)
+    while (true) {
+      const current = await nextEvent
+      if (current.done) break
+      nextEvent = events.next()
+      for (const item of converter.convert(current.value)) writeSse(res, item)
       if (converter.finished) break
     }
 
     if (!converter.finished) for (const item of converter.finish()) writeSse(res, item)
-    if (hybrid && !res.writableEnded) await streamMock(input, (item) => writeSse(res, item), 0)
   } catch (error) {
     writeSse(res, { type: 'RUN_ERROR', message: error.message, code: 'ADAPTER_ERROR' })
   } finally {
@@ -122,7 +128,7 @@ export const createServer = () => http.createServer(async (req, res) => {
     }
     if (url.pathname === '/agui/replay') return await replay(body, res)
     if (url.pathname === '/agui/hybrid') return await runOpenCode(body, res, { hybrid: true })
-    if (url.pathname === '/agui') return await runOpenCode(body, res)
+    if (url.pathname === '/agui' || url.pathname === '/agent') return await runOpenCode(body, res)
     return json(res, 404, { error: 'Not found' })
   } catch (error) {
     if (!res.headersSent) return json(res, 500, { error: error.message })
@@ -137,4 +143,3 @@ if (process.argv[1] && import.meta.url === new URL(`file:///${process.argv[1].re
     console.log(`OpenCode upstream: ${openCodeBaseUrl}`)
   })
 }
-

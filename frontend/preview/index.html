@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Data Agent V5.2 · Empty Workspace</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#0b0e14;color:#f7f8fb;font-family:Inter,"Microsoft YaHei",system-ui,sans-serif}
+.shell{height:100vh;display:grid;grid-template-columns:minmax(0,3fr) 420px}
+.workspace{position:relative;overflow:hidden;border-right:1px solid rgba(255,255,255,.08);background:radial-gradient(circle at 15% -10%,rgba(114,230,244,.035),transparent 30%),radial-gradient(circle at 75% 0,rgba(177,140,255,.035),transparent 28%),linear-gradient(180deg,#10141c,#0b0e14)}
+.workspace:before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);background-size:44px 44px;mask-image:linear-gradient(#000,transparent 82%)}
+.toolbar{position:relative;z-index:2;height:112px;padding:23px 28px 18px;border-bottom:1px solid rgba(255,255,255,.1);background:linear-gradient(180deg,rgba(21,26,36,.96),rgba(16,20,28,.9));display:flex;justify-content:space-between;align-items:flex-end}
+.kicker{font-size:9px;letter-spacing:.16em;color:#9aa5b8;display:flex;align-items:center;gap:8px;font-weight:700}.kicker:before{content:"";width:28px;height:1px;background:linear-gradient(90deg,#72e6f4,#8394ff,#b18cff,#f08ac2)}
+h1{margin:7px 0 5px;font-size:28px;font-weight:640;letter-spacing:-.035em}.sub{font-size:13px;color:#a1aabd}
+.ready{display:inline-flex;margin-left:9px;gap:6px;align-items:center;padding:5px 9px;border:1px solid rgba(120,223,174,.22);border-radius:99px;color:#8de9bd;font-size:9px;vertical-align:middle;letter-spacing:.08em}.ready i{width:6px;height:6px;border-radius:50%;background:#78dfae;box-shadow:0 0 10px rgba(120,223,174,.7)}
+.meta{display:flex;gap:8px}.chip{min-width:104px;padding:9px 10px;border:1px solid rgba(255,255,255,.105);border-radius:9px;background:linear-gradient(145deg,rgba(31,37,50,.88),rgba(21,26,36,.86))}.chip small{display:block;color:#8f99ab;font-size:9px;letter-spacing:.12em}.chip b{display:block;margin-top:4px;color:#e0e4ec;font-size:11px;font-weight:560}
+.empty{position:relative;z-index:1;height:calc(100% - 112px);display:grid;place-items:center;text-align:center;padding:40px}.empty-inner{display:flex;flex-direction:column;align-items:center;margin-top:-40px}.orbit{position:relative;width:132px;height:132px;display:grid;place-items:center;border:1px solid rgba(159,174,255,.19);border-radius:50%;box-shadow:0 0 60px rgba(131,148,255,.05)}.orbit:before,.orbit:after{content:"";position:absolute;border:1px solid rgba(114,230,244,.14);border-radius:50%}.orbit:before{inset:15px;transform:rotate(45deg)}.orbit:after{inset:-14px 31px;transform:rotate(-45deg);border-color:rgba(177,140,255,.14)}.orbit b{font-size:22px;letter-spacing:.16em;color:#dce2ff}.orbit i{position:absolute;width:6px;height:6px;border-radius:50%;background:#9faeff;box-shadow:0 0 11px #8394ff}.orbit i:nth-child(1){top:10px}.orbit i:nth-child(2){right:14px;bottom:24px;background:#72e6f4}.orbit i:nth-child(3){left:6px;bottom:38px;background:#b18cff}
+.empty-kicker{margin-top:25px;color:#929daf;font-size:9px;font-weight:700;letter-spacing:.18em}.empty h2{margin:10px 0 8px;font-size:26px;font-weight:620;letter-spacing:-.025em}.empty p{max-width:620px;margin:0;color:#a7b0c0;font-size:13px;line-height:1.75}.prompts{display:flex;gap:8px;margin-top:22px;flex-wrap:wrap;justify-content:center}.prompts span{padding:8px 12px;border:1px solid rgba(255,255,255,.1);border-radius:99px;background:rgba(255,255,255,.025);color:#bac2d0;font-size:10px}.prompts span:before{content:"✦";margin-right:6px;color:#9faeff}
+.demo-link{margin-top:28px;color:#7f899c;font-size:9px;text-decoration:none}.demo-link b{color:#cbd1dd;font-weight:560}
+.assistant{position:relative;background:radial-gradient(circle at 100% -5%,rgba(177,140,255,.05),transparent 26%),linear-gradient(#151a24,#10141c 65%,#0d1118);box-shadow:-18px 0 48px rgba(0,0,0,.28);display:flex;flex-direction:column}
+.ahead{height:80px;padding:0 17px;border-bottom:1px solid rgba(255,255,255,.1);display:flex;justify-content:space-between;align-items:center}.identity{display:flex;gap:10px;align-items:center}.aorb{width:38px;height:38px;border:1px solid rgba(155,168,255,.28);border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle,rgba(114,230,244,.1),rgba(131,148,255,.07) 45%,transparent 63%)}.aorb i{width:7px;height:7px;border-radius:50%;background:#bbc2ff;box-shadow:0 0 12px rgba(131,148,255,.7)}.identity b{font-size:14px;font-weight:620}.identity span{display:block;margin-top:3px;color:#9ca6b8;font-size:10px}.actions button{width:31px;height:31px;margin-left:5px;border:1px solid rgba(255,255,255,.1);border-radius:8px;background:rgba(255,255,255,.03);color:#a3adbf}
+.thread{height:40px;padding:0 15px;border-bottom:1px solid rgba(255,255,255,.085);display:flex;align-items:center;gap:8px;color:#949daf;font-size:9px}.thread b{font-size:11px;color:#d5dae4}
+.chat{flex:1;display:grid;place-items:center;padding:24px}.welcome{text-align:center;max-width:310px}.welcome .spark{font-size:18px;color:#aab5ff}.welcome h3{margin:10px 0 8px;font-size:17px;font-weight:610}.welcome p{margin:0;color:#9fa8b9;font-size:11px;line-height:1.7}.quick{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:18px}.quick div{padding:9px;border:1px solid rgba(255,255,255,.08);border-radius:9px;background:rgba(255,255,255,.022);color:#aeb6c6;font-size:9px;text-align:left}
+.input{padding:11px 12px 13px}.ibox{height:86px;padding:12px;border:1px solid rgba(255,255,255,.13);border-radius:14px;background:linear-gradient(145deg,#1d2330,#151a24);box-shadow:0 10px 28px rgba(0,0,0,.23);color:#929caf;font-size:11px}.ibox button{float:right;margin-top:30px;width:28px;height:28px;border:0;border-radius:8px;background:linear-gradient(135deg,#7f91fb,#a589ee);color:white}.footer{height:30px;border-top:1px solid rgba(255,255,255,.085);padding:0 13px;display:flex;align-items:center;justify-content:space-between;color:#8e98aa;font-size:8px;letter-spacing:.08em}
+</style>
+</head>
+<body>
+<div class="shell">
+<section class="workspace">
+  <div class="toolbar">
+    <div><div class="kicker">INTELLIGENCE WORKSPACE</div><h1>智能分析工作区 <span class="ready"><i></i>READY</span></h1><div class="sub">告诉 Data Agent 你想分析什么，界面会随着分析过程动态生成</div></div>
+    <div class="meta"><div class="chip"><small>MODE</small><b>Agent driven</b></div><div class="chip"><small>WORKSPACE</small><b>0 modules</b></div><div class="chip"><small>DATA</small><b>Not loaded</b></div></div>
+  </div>
+  <div class="empty"><div class="empty-inner">
+    <div class="orbit"><i></i><i></i><i></i><b>AI</b></div>
+    <div class="empty-kicker">AGENT CONTROLLED WORKSPACE</div>
+    <h2>从一个分析问题开始</h2>
+    <p>生产模式不会预置任何 KPI、图表或子 Agent 数据。右侧 Data Agent 会根据真实分析过程，通过 AG-UI 动态组织这里的可视化界面。</p>
+    <div class="prompts"><span>经营概览</span><span>异常归因</span><span>趋势预测</span><span>数据质量</span></div>
+    <a class="demo-link" href="./demo.html">需要查看组件全量效果？ <b>打开 Demo Mode →</b></a>
+  </div></div>
+</section>
+<aside class="assistant">
+  <div class="ahead"><div class="identity"><div class="aorb"><i></i></div><div><b>Data Agent</b><span>Data Intelligence Copilot · ONLINE</span></div></div><div class="actions"><button>☰</button><button>＋</button></div></div>
+  <div class="thread"><span>THREAD</span><b>新分析</b><span>等待首次提问</span></div>
+  <div class="chat"><div class="welcome"><div class="spark">✦</div><h3>你想从哪里开始？</h3><p>直接描述业务问题。结构化结果会优先生成到左侧工作区，而不是堆在对话消息里。</p><div class="quick"><div>分析本月经营情况</div><div>定位销售下降原因</div><div>检查数据质量</div><div>预测未来 7 天趋势</div></div></div></div>
+  <div class="input"><div class="ibox">输入你的分析问题…<button>↑</button></div></div>
+  <div class="footer"><span>● AG-UI READY</span><span>MODEL CONTROLLED UI</span></div>
+</aside>
+</div>
+</body></html>

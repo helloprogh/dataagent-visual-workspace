@@ -1,6 +1,6 @@
 {
-  "name": "dataagent-agui-opencode-adapter",
-  "version": "1.0.0",
+  "name": "dataagent-visual-workspace",
+  "version": "5.2.0",
   "private": true,
   "workspaces": ["frontend", "adapter"],
   "scripts": {
@@ -8,6 +8,8 @@
     "dev:demo": "node scripts/dev.mjs --demo",
     "dev:adapter": "npm run dev -w adapter",
     "dev:frontend": "npm run dev -w frontend",
+    "build:demo": "npm run build:demo -w frontend",
+    "check:offline": "npm run check:offline -w frontend",
     "test": "npm test -w adapter",
     "typecheck": "npm run typecheck -w frontend",
     "build": "npm run build -w adapter && npm run build -w frontend",
@@ -17,4 +19,3 @@
     "node": ">=20"
   }
 }
-
