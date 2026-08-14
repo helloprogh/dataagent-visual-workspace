@@ -1,0 +1,20 @@
+{
+  "name": "dataagent-agui-opencode-adapter",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": ["frontend", "adapter"],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:demo": "node scripts/dev.mjs --demo",
+    "dev:adapter": "npm run dev -w adapter",
+    "dev:frontend": "npm run dev -w frontend",
+    "test": "npm test -w adapter",
+    "typecheck": "npm run typecheck -w frontend",
+    "build": "npm run build -w adapter && npm run build -w frontend",
+    "check": "npm test && npm run typecheck && npm run build"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+

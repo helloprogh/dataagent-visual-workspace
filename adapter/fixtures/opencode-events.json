@@ -1,0 +1,6 @@
+[
+  { "type": "message.updated", "properties": { "info": { "id": "msg-1", "sessionID": "ses-demo", "role": "assistant" } } },
+  { "type": "message.part.delta", "properties": { "sessionID": "ses-demo", "messageID": "msg-1", "partID": "part-1", "field": "text", "delta": "Hello from OpenCode" } },
+  { "type": "session.status", "properties": { "sessionID": "ses-demo", "status": { "type": "idle" } } }
+]
+

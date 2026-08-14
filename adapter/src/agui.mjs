@@ -1,0 +1,22 @@
+import { randomUUID } from 'node:crypto'
+
+export const event = (type, payload = {}) => ({ type, ...payload })
+
+export const runStarted = (threadId, runId) => event('RUN_STARTED', { threadId, runId })
+export const runFinished = (threadId, runId) => event('RUN_FINISHED', { threadId, runId })
+export const runError = (message, code = 'OPENCODE_ERROR') => event('RUN_ERROR', { message, code })
+
+export const textStart = (messageId = randomUUID(), role = 'assistant') =>
+  event('TEXT_MESSAGE_START', { messageId, role })
+export const textContent = (messageId, delta) => event('TEXT_MESSAGE_CONTENT', { messageId, delta })
+export const textEnd = (messageId) => event('TEXT_MESSAGE_END', { messageId })
+
+export const toolStart = (toolCallId, toolCallName, parentMessageId) =>
+  event('TOOL_CALL_START', { toolCallId, toolCallName, parentMessageId })
+export const toolArgs = (toolCallId, delta) => event('TOOL_CALL_ARGS', { toolCallId, delta })
+export const toolEnd = (toolCallId) => event('TOOL_CALL_END', { toolCallId })
+export const toolResult = (messageId, toolCallId, content, role = 'tool') =>
+  event('TOOL_CALL_RESULT', { messageId, toolCallId, content, role })
+
+export const custom = (name, value) => event('CUSTOM', { name, value })
+
