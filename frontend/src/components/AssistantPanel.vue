@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import type { ConversationRecord } from '../conversations/types'
 import ConversationChat from './conversation/ConversationChat.vue'
+import ProtocolDebugPanel from './ProtocolDebugPanel.vue'
 
 const props = defineProps<{
   conversations: ConversationRecord[]
@@ -21,6 +22,7 @@ const emit = defineEmits<{
 }>()
 
 const showHistory = ref(false)
+const showProtocol = ref(false)
 const keyword = ref('')
 const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase()
@@ -31,6 +33,16 @@ function timeLabel(timestamp: number) {
   const date = new Date(timestamp)
   const today = new Date().toDateString() === date.toDateString()
   return new Intl.DateTimeFormat('zh-CN', today ? { hour: '2-digit', minute: '2-digit' } : { month: '2-digit', day: '2-digit' }).format(date)
+}
+
+function toggleHistory() {
+  showHistory.value = !showHistory.value
+  if (showHistory.value) showProtocol.value = false
+}
+
+function toggleProtocol() {
+  showProtocol.value = !showProtocol.value
+  if (showProtocol.value) showHistory.value = false
 }
 
 function select(id: string) {
@@ -51,7 +63,8 @@ function select(id: string) {
         </div>
       </div>
       <div class="assistant-actions">
-        <button title="历史对话" :class="{ active: showHistory }" @click="showHistory = !showHistory">☰</button>
+        <button title="协议联调" :class="{ active: showProtocol }" @click="toggleProtocol">&lt;/&gt;</button>
+        <button title="历史对话" :class="{ active: showHistory }" @click="toggleHistory">◎</button>
         <button title="新建分析" @click="emit('create')">＋</button>
       </div>
     </header>
@@ -74,6 +87,10 @@ function select(id: string) {
         @changed="emit('changed')"
         @rename="emit('autoRename', $event)"
       />
+
+      <transition name="history-slide">
+        <ProtocolDebugPanel v-if="showProtocol" :active-thread-id="activeId" @close="showProtocol = false" />
+      </transition>
 
       <transition name="history-slide">
         <section v-if="showHistory" class="history-overlay">

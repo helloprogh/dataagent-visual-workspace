@@ -55,3 +55,43 @@ test('turns session errors into RUN_ERROR', () => {
   assert.equal(events[0].message, 'boom')
 })
 
+test('converts native v2 text, reasoning and execution events', () => {
+  const converter = create()
+  converter.start()
+  assert.deepEqual(types(converter.convert({ type: 'session.text.started', data: { sessionID: 'ses-1', assistantMessageID: 'a1', ordinal: 0 } })), ['TEXT_MESSAGE_START'])
+  assert.deepEqual(types(converter.convert({ type: 'session.text.delta', data: { sessionID: 'ses-1', assistantMessageID: 'a1', ordinal: 0, delta: 'hello' } })), ['TEXT_MESSAGE_CONTENT'])
+  assert.deepEqual(types(converter.convert({ type: 'session.text.ended', data: { sessionID: 'ses-1', assistantMessageID: 'a1', ordinal: 0, text: 'hello' } })), ['TEXT_MESSAGE_END'])
+  assert.deepEqual(types(converter.convert({ type: 'session.reasoning.delta', data: { sessionID: 'ses-1', assistantMessageID: 'a1', ordinal: 0, delta: 'think' } })), ['REASONING_START', 'REASONING_MESSAGE_START', 'REASONING_MESSAGE_CONTENT'])
+  assert.deepEqual(types(converter.convert({ type: 'session.reasoning.ended', data: { sessionID: 'ses-1', assistantMessageID: 'a1', ordinal: 0, text: 'think' } })), ['REASONING_MESSAGE_END', 'REASONING_END'])
+  assert.deepEqual(types(converter.convert({ type: 'session.execution.succeeded', data: { sessionID: 'ses-1' } })), ['CUSTOM', 'RUN_FINISHED'])
+})
+
+test('keeps one reasoning message when OpenCode2 increments ordinal', () => {
+  const converter = create()
+  const started = converter.convert({ type: 'session.reasoning.started', data: { sessionID: 'ses-1', assistantMessageID: 'a1', ordinal: 0 } })
+  const delta = converter.convert({ type: 'session.reasoning.delta', data: { sessionID: 'ses-1', assistantMessageID: 'a1', ordinal: 3, delta: 'think' } })
+  const ended = converter.convert({ type: 'session.reasoning.ended', data: { sessionID: 'ses-1', assistantMessageID: 'a1', ordinal: 9 } })
+
+  assert.deepEqual(types(started), ['REASONING_START', 'REASONING_MESSAGE_START'])
+  assert.deepEqual(types(delta), ['REASONING_MESSAGE_CONTENT'])
+  assert.deepEqual(types(ended), ['REASONING_MESSAGE_END', 'REASONING_END'])
+  assert.deepEqual(new Set([...started, ...delta, ...ended].map(item => item.messageId)), new Set(['a1-reasoning']))
+})
+
+test('converts native v2 tool and sub-agent lifecycle', () => {
+  const converter = create()
+  const started = converter.convert({ type: 'session.tool.input.started', data: { sessionID: 'ses-1', assistantMessageID: 'a1', id: 't1', name: 'task' } })
+  assert.deepEqual(types(started), ['TOOL_CALL_START', 'CUSTOM'])
+  assert.deepEqual(types(converter.convert({ type: 'session.tool.input.delta', data: { sessionID: 'ses-1', assistantMessageID: 'a1', id: 't1', delta: '{"prompt":"work"}' } })), ['TOOL_CALL_ARGS'])
+  const ended = converter.convert({ type: 'session.tool.success', data: { sessionID: 'ses-1', assistantMessageID: 'a1', id: 't1', content: [{ type: 'text', text: 'done' }], executed: true } })
+  assert.deepEqual(types(ended), ['TOOL_CALL_END', 'TOOL_CALL_RESULT', 'CUSTOM'])
+  assert.equal(ended[1].content, 'done')
+})
+
+test('uses the same AG-UI step name at both lifecycle boundaries', () => {
+  const converter = create()
+  const started = converter.convert({ type: 'session.step.started', data: { sessionID: 'ses-1', assistantMessageID: 'a1', agent: 'build', model: { id: 'model-1' } } })
+  const ended = converter.convert({ type: 'session.step.ended', data: { sessionID: 'ses-1', assistantMessageID: 'a1', finish: 'stop', cost: 0, tokens: {} } })
+  assert.equal(started[0].stepName, 'build · model-1')
+  assert.equal(ended[0].stepName, started[0].stepName)
+})

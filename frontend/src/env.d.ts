@@ -5,6 +5,7 @@ interface ImportMetaEnv {
   readonly VITE_AGENT_ID?: string
   readonly VITE_AGENT_DISPLAY_NAME?: string
   readonly VITE_AGUI_TOKEN?: string
+  readonly VITE_AGUI_ENDPOINT?: string
   readonly VITE_DEMO_MODE?: string
 }
 

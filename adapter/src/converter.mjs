@@ -17,6 +17,13 @@ import {
 const propsOf = (source) => source?.properties ?? source?.data ?? source ?? {}
 const idOf = (value, fallback) => value ?? fallback ?? randomUUID()
 const asText = (value) => (typeof value === 'string' ? value : value == null ? '' : JSON.stringify(value))
+const errorText = (value) => asText(value?.message ?? value?.data?.message ?? value?.name ?? value)
+const isTerminal = (status) => ['completed', 'success', 'error', 'failed'].includes(status)
+const isSubAgentTool = (name) => ['task', 'subtask', 'agent', 'delegate'].includes(String(name).toLowerCase())
+const toolContentText = (content) => {
+  if (!Array.isArray(content)) return asText(content)
+  return content.map((item) => item?.text ?? item?.content ?? item?.data ?? asText(item)).filter(Boolean).join('\n')
+}
 
 export class OpenCodeAguiConverter {
   constructor({ threadId, runId, sessionId }) {
@@ -25,10 +32,13 @@ export class OpenCodeAguiConverter {
     this.sessionId = sessionId
     this.messageIds = new Map()
     this.partIds = new Map()
-    this.toolIds = new Map()
     this.openText = new Set()
     this.openReasoning = new Set()
     this.openTools = new Set()
+    this.textHasDelta = new Set()
+    this.reasoningHasDelta = new Set()
+    this.tools = new Map()
+    this.stepNames = new Map()
     this.started = false
     this.finished = false
   }
@@ -44,6 +54,17 @@ export class OpenCodeAguiConverter {
     return this.messageIds.get(rawId)
   }
 
+  streamMessageId(raw, kind = 'text') {
+    const sourceId = raw.assistantMessageID ?? raw.messageID ?? raw.messageId ?? `assistant-${this.runId}`
+    // OpenCode2 may increment ordinal for multiple lifecycle notifications that
+    // belong to one reasoning block. AG-UI requires those notifications to use
+    // one stable messageId; otherwise every notification renders as an empty
+    // "Thought for a few seconds" entry.
+    if (kind === 'reasoning') return this.messageId(`${sourceId}-reasoning`)
+    const ordinal = Number(raw.ordinal ?? 0)
+    return this.messageId(ordinal > 0 ? `${sourceId}-${kind}-${ordinal}` : sourceId)
+  }
+
   partMessageId(raw) {
     const rawPartId = raw.partID ?? raw.partId
     const rawMessageId = raw.messageID ?? raw.messageId ?? this.partIds.get(rawPartId)
@@ -54,6 +75,12 @@ export class OpenCodeAguiConverter {
   matchesSession(raw) {
     const eventSession = raw.sessionID ?? raw.sessionId ?? raw.session?.id
     return !eventSession || !this.sessionId || eventSession === this.sessionId
+  }
+
+  openTextMessage(messageId) {
+    if (this.openText.has(messageId)) return []
+    this.openText.add(messageId)
+    return [textStart(messageId)]
   }
 
   convert(source) {
@@ -67,43 +94,104 @@ export class OpenCodeAguiConverter {
       if (info.role === 'assistant' && (info.id ?? info.messageID)) this.messageId(info.id ?? info.messageID)
       return []
     }
-
     if (type === 'message.part.updated') return this.convertPart(raw.part ?? raw)
+    if (type === 'message.part.delta') return this.convertLegacyDelta(raw)
+    if (type === 'TEXT_MESSAGE_CONTENT') return this.convertLegacyText(raw)
 
-    if (type === 'message.part.delta') {
-      const field = raw.field ?? 'text'
-      const delta = asText(raw.delta ?? raw.value)
+    if (type === 'session.text.started') return this.openTextMessage(this.streamMessageId(raw, 'text'))
+    if (type === 'session.text.delta') {
+      const messageId = this.streamMessageId(raw, 'text')
+      const delta = asText(raw.delta)
       if (!delta) return []
-      const messageId = this.partMessageId(raw)
-      if (field === 'reasoning') return this.reasoningDelta(messageId, delta)
-      if (field !== 'text') return []
-      const events = []
-      if (!this.openText.has(messageId)) {
-        this.openText.add(messageId)
-        events.push(textStart(messageId))
-      }
-      events.push(textContent(messageId, delta))
+      this.textHasDelta.add(messageId)
+      return [...this.openTextMessage(messageId), textContent(messageId, delta)]
+    }
+    if (type === 'session.text.ended') {
+      const messageId = this.streamMessageId(raw, 'text')
+      const events = this.openTextMessage(messageId)
+      if (!this.textHasDelta.has(messageId) && raw.text) events.push(textContent(messageId, raw.text))
+      if (this.openText.delete(messageId)) events.push(textEnd(messageId))
       return events
     }
 
-    if (type === 'TEXT_MESSAGE_CONTENT') {
-      const delta = asText(raw.delta ?? raw.text ?? raw.content)
+    if (type === 'session.reasoning.started') return this.openReasoningMessage(this.streamMessageId(raw, 'reasoning'))
+    if (type === 'session.reasoning.delta') {
+      const messageId = this.streamMessageId(raw, 'reasoning')
+      const delta = asText(raw.delta)
       if (!delta) return []
-      const messageId = this.partMessageId(raw)
-      const events = []
-      if (!this.openText.has(messageId)) {
-        this.openText.add(messageId)
-        events.push(textStart(messageId))
-      }
-      events.push(textContent(messageId, delta))
+      this.reasoningHasDelta.add(messageId)
+      return [...this.openReasoningMessage(messageId), event('REASONING_MESSAGE_CONTENT', { messageId, delta })]
+    }
+    if (type === 'session.reasoning.ended') {
+      const messageId = this.streamMessageId(raw, 'reasoning')
+      const events = this.openReasoningMessage(messageId)
+      if (!this.reasoningHasDelta.has(messageId) && raw.text) events.push(event('REASONING_MESSAGE_CONTENT', { messageId, delta: raw.text }))
+      events.push(...this.closeReasoning(messageId))
       return events
     }
 
-    if (type === 'session.error') return this.fail(asText(raw.error?.message ?? raw.message ?? raw.error ?? 'OpenCode run failed'))
+    if (type.startsWith('session.tool.')) return this.convertNativeTool(type, raw)
+
+    if (type === 'session.step.started') {
+      const stepName = `${raw.agent ?? 'OpenCode'} · ${raw.model?.id ?? 'step'}`
+      this.stepNames.set(raw.assistantMessageID ?? 'current', stepName)
+      return [event('STEP_STARTED', { stepName })]
+    }
+    if (type === 'session.step.ended') {
+      const key = raw.assistantMessageID ?? 'current'
+      const stepName = this.stepNames.get(key) ?? 'OpenCode step'
+      this.stepNames.delete(key)
+      return [event('STEP_FINISHED', { stepName, result: { finish: raw.finish, cost: raw.cost, tokens: raw.tokens } })]
+    }
+    if (type === 'session.step.failed') return this.fail(errorText(raw.error) || 'OpenCode step failed')
+
+    if (type === 'session.execution.started') {
+      return [custom('task.status', { mode: 'async', status: 'running', sessionId: this.sessionId, runId: this.runId })]
+    }
+    if (type === 'session.execution.succeeded') {
+      return [custom('task.status', { mode: 'async', status: 'completed', sessionId: this.sessionId, runId: this.runId }), ...this.finish()]
+    }
+    if (type === 'session.execution.failed') return this.fail(errorText(raw.error) || 'OpenCode execution failed')
+    if (type === 'session.execution.interrupted') return this.fail(`OpenCode execution interrupted: ${raw.reason ?? 'unknown'}`)
+    if (type === 'session.retry.scheduled') {
+      return [custom('task.status', { mode: 'async', status: 'retry', attempt: raw.attempt, nextAt: raw.at, error: errorText(raw.error) })]
+    }
+    if (type === 'session.inbox.enqueued') return [custom('task.status', { mode: 'async', status: 'queued', inboxId: raw.inboxID })]
+    if (type === 'session.inbox.delivered') return [custom('task.status', { mode: 'async', status: 'delivered', inboxId: raw.inboxID })]
+    if (type === 'permission.asked') {
+      const messageId = `permission-${raw.id ?? randomUUID()}`
+      return [
+        custom('task.status', { mode: 'async', status: 'waiting_permission', permission: raw }),
+        textStart(messageId),
+        textContent(messageId, `工具 ${raw.action ?? 'operation'} 正在等待授权。请打开“协议联调”面板处理。`),
+        textEnd(messageId),
+      ]
+    }
+
+    if (type === 'session.error') return this.fail(errorText(raw.error ?? raw.message) || 'OpenCode run failed')
     if (type === 'session.idle' || (type === 'session.status' && (raw.status?.type ?? raw.status) === 'idle')) return this.finish()
     if (type === 'step-start' || type === 'step.started') return [event('STEP_STARTED', { stepName: raw.name ?? raw.title ?? 'OpenCode step' })]
     if (type === 'step-finish' || type === 'step.finished') return [event('STEP_FINISHED', { stepName: raw.name ?? raw.title ?? 'OpenCode step' })]
     return []
+  }
+
+  convertLegacyDelta(raw) {
+    const field = raw.field ?? 'text'
+    const delta = asText(raw.delta ?? raw.value)
+    if (!delta) return []
+    const messageId = this.partMessageId(raw)
+    if (field === 'reasoning') return this.reasoningDelta(messageId, delta)
+    if (field !== 'text') return []
+    this.textHasDelta.add(messageId)
+    return [...this.openTextMessage(messageId), textContent(messageId, delta)]
+  }
+
+  convertLegacyText(raw) {
+    const delta = asText(raw.delta ?? raw.text ?? raw.content)
+    if (!delta) return []
+    const messageId = this.partMessageId(raw)
+    this.textHasDelta.add(messageId)
+    return [...this.openTextMessage(messageId), textContent(messageId, delta)]
   }
 
   convertPart(part) {
@@ -111,26 +199,19 @@ export class OpenCodeAguiConverter {
     const messageId = this.partMessageId(part)
     if (kind === 'text') {
       const delta = asText(part.delta ?? part.text ?? part.content)
-      const events = []
-      if (!this.openText.has(messageId)) {
-        this.openText.add(messageId)
-        events.push(textStart(messageId))
-      }
+      const events = this.openTextMessage(messageId)
       if (delta) events.push(textContent(messageId, delta))
       if (part.time?.end || part.done || part.status === 'completed') {
-        events.push(textEnd(messageId))
-        this.openText.delete(messageId)
+        if (this.openText.delete(messageId)) events.push(textEnd(messageId))
       }
       return events
     }
-
     if (kind === 'reasoning') {
       const events = this.reasoningDelta(messageId, asText(part.delta ?? part.text ?? part.content))
       if (part.time?.end || part.done || part.status === 'completed') events.push(...this.closeReasoning(messageId))
       return events
     }
-
-    if (kind === 'tool' || kind === 'tool-invocation') return this.convertTool(part, messageId)
+    if (kind === 'tool' || kind === 'tool-invocation') return this.convertLegacyTool(part, messageId)
     if (kind === 'subtask') return [custom('subagent.started', {
       agentId: part.id ?? part.partID,
       name: part.name ?? part.agent ?? 'Sub Agent',
@@ -140,57 +221,130 @@ export class OpenCodeAguiConverter {
     return []
   }
 
+  openReasoningMessage(messageId) {
+    if (this.openReasoning.has(messageId)) return []
+    this.openReasoning.add(messageId)
+    return [event('REASONING_START', { messageId }), event('REASONING_MESSAGE_START', { messageId, role: 'reasoning' })]
+  }
+
   reasoningDelta(messageId, delta) {
-    const events = []
-    if (!this.openReasoning.has(messageId)) {
-      this.openReasoning.add(messageId)
-      events.push(event('REASONING_START', {}), event('REASONING_MESSAGE_START', { messageId, role: 'assistant' }))
-    }
+    const events = this.openReasoningMessage(messageId)
     if (delta) events.push(event('REASONING_MESSAGE_CONTENT', { messageId, delta }))
     return events
   }
 
   closeReasoning(messageId) {
     if (!this.openReasoning.delete(messageId)) return []
-    return [event('REASONING_MESSAGE_END', { messageId }), event('REASONING_END', {})]
+    return [event('REASONING_MESSAGE_END', { messageId }), event('REASONING_END', { messageId })]
   }
 
-  convertTool(part, parentMessageId) {
-    const state = part.state ?? part.status ?? {}
-    const status = typeof state === 'string' ? state : state.status
-    const rawToolId = part.callID ?? part.callId ?? part.id ?? part.partID
-    const toolCallId = idOf(rawToolId, `tool-${randomUUID()}`)
-    this.toolIds.set(rawToolId, toolCallId)
-    const name = part.tool ?? part.name ?? 'tool'
-    const events = []
-    if (!this.openTools.has(toolCallId) && ['pending', 'running', 'completed', 'success'].includes(status)) {
-      this.openTools.add(toolCallId)
-      events.push(toolStart(toolCallId, name, parentMessageId))
-      const input = state.input ?? part.input ?? state.args ?? part.args
-      if (input != null) events.push(toolArgs(toolCallId, asText(input)))
+  toolState(raw) {
+    const toolCallId = idOf(raw.id ?? raw.callID ?? raw.callId ?? raw.partID, `tool-${randomUUID()}`)
+    if (!this.tools.has(toolCallId)) this.tools.set(toolCallId, {
+      id: toolCallId,
+      name: raw.name ?? raw.tool ?? 'tool',
+      parentMessageId: this.messageId(raw.assistantMessageID ?? raw.messageID ?? raw.messageId ?? `assistant-${this.runId}`),
+      args: '',
+    })
+    const state = this.tools.get(toolCallId)
+    if (raw.name ?? raw.tool) state.name = raw.name ?? raw.tool
+    return state
+  }
+
+  startTool(state) {
+    if (this.openTools.has(state.id)) return []
+    this.openTools.add(state.id)
+    const events = [toolStart(state.id, state.name, state.parentMessageId)]
+    if (isSubAgentTool(state.name)) events.push(custom('subagent.started', {
+      agentId: state.id,
+      name: state.name,
+      task: state.args,
+      status: 'running',
+    }))
+    return events
+  }
+
+  convertNativeTool(type, raw) {
+    const state = this.toolState(raw)
+    if (type === 'session.tool.input.started') return this.startTool(state)
+    if (type === 'session.tool.input.delta') {
+      const delta = asText(raw.delta)
+      state.args += delta
+      return delta ? [...this.startTool(state), toolArgs(state.id, delta)] : this.startTool(state)
     }
-    if (status === 'running' && (name === 'task' || part.type === 'subtask')) {
+    if (type === 'session.tool.input.ended') {
+      const text = asText(raw.text)
+      const events = this.startTool(state)
+      if (!state.args && text) events.push(toolArgs(state.id, text))
+      state.args = text || state.args
+      return events
+    }
+    if (type === 'session.tool.called') {
+      const events = this.startTool(state)
+      if (!state.args && raw.input != null) {
+        state.args = asText(raw.input)
+        events.push(toolArgs(state.id, state.args))
+      }
+      return events
+    }
+    if (type === 'session.tool.progress') {
+      return [custom(isSubAgentTool(state.name) ? 'subagent.progress' : 'tool.progress', {
+        agentId: state.id,
+        toolCallId: state.id,
+        name: state.name,
+        status: 'running',
+        ...raw.metadata,
+      })]
+    }
+    if (type === 'session.tool.success' || type === 'session.tool.failed') {
+      const events = this.startTool(state)
+      if (this.openTools.delete(state.id)) events.push(toolEnd(state.id))
+      const failed = type === 'session.tool.failed'
+      const output = failed ? errorText(raw.error) : toolContentText(raw.content)
+      events.push(toolResult(`result-${state.id}`, state.id, output || (failed ? 'Tool failed' : 'Tool completed')))
+      if (isSubAgentTool(state.name)) events.push(custom(failed ? 'subagent.failed' : 'subagent.completed', {
+        agentId: state.id,
+        name: state.name,
+        status: failed ? 'failed' : 'completed',
+        summary: output,
+      }))
+      return events
+    }
+    return []
+  }
+
+  convertLegacyTool(part, parentMessageId) {
+    const stateValue = part.state ?? part.status ?? {}
+    const status = typeof stateValue === 'string' ? stateValue : stateValue.status
+    const state = this.toolState({ ...part, assistantMessageID: parentMessageId })
+    const events = []
+    if (['pending', 'running', 'completed', 'success', 'error', 'failed'].includes(status)) {
+      events.push(...this.startTool(state))
+      const input = stateValue.input ?? part.input ?? stateValue.args ?? part.args
+      if (!state.args && input != null) {
+        state.args = asText(input)
+        events.push(toolArgs(state.id, state.args))
+      }
+    }
+    if (status === 'running' && isSubAgentTool(state.name)) {
       events.push(custom('subagent.progress', {
-        agentId: rawToolId,
-        name: part.metadata?.agent ?? part.agent ?? 'Sub Agent',
+        agentId: state.id,
+        name: part.metadata?.agent ?? part.agent ?? state.name,
         progress: part.metadata?.progress ?? 50,
         step: part.metadata?.step ?? 'Working',
         status: 'running',
       }))
     }
-    if (['completed', 'success', 'error', 'failed'].includes(status)) {
-      if (this.openTools.delete(toolCallId)) events.push(toolEnd(toolCallId))
-      const output = state.output ?? state.result ?? part.output ?? state.error ?? ''
-      events.push(toolResult(`result-${toolCallId}`, toolCallId, asText(output)))
-      if (name === 'task' || part.type === 'subtask') {
-        events.push(custom(status === 'error' || status === 'failed' ? 'subagent.failed' : 'subagent.completed', {
-          agentId: rawToolId,
-          name: part.metadata?.agent ?? part.agent ?? 'Sub Agent',
-          status: status === 'error' || status === 'failed' ? 'failed' : 'completed',
-          summary: asText(output),
-          duration: part.time?.end && part.time?.start ? part.time.end - part.time.start : undefined,
-        }))
-      }
+    if (isTerminal(status)) {
+      if (this.openTools.delete(state.id)) events.push(toolEnd(state.id))
+      const output = stateValue.output ?? stateValue.result ?? part.output ?? stateValue.error ?? ''
+      events.push(toolResult(`result-${state.id}`, state.id, asText(output)))
+      if (isSubAgentTool(state.name)) events.push(custom(status === 'error' || status === 'failed' ? 'subagent.failed' : 'subagent.completed', {
+        agentId: state.id,
+        name: part.metadata?.agent ?? part.agent ?? state.name,
+        status: status === 'error' || status === 'failed' ? 'failed' : 'completed',
+        summary: asText(output),
+      }))
     }
     return events
   }
@@ -198,7 +352,7 @@ export class OpenCodeAguiConverter {
   closeOpenEvents() {
     const events = []
     for (const messageId of this.openText) events.push(textEnd(messageId))
-    for (const messageId of this.openReasoning) events.push(...this.closeReasoning(messageId))
+    for (const messageId of [...this.openReasoning]) events.push(...this.closeReasoning(messageId))
     for (const toolCallId of this.openTools) events.push(toolEnd(toolCallId))
     this.openText.clear()
     this.openTools.clear()
@@ -217,4 +371,3 @@ export class OpenCodeAguiConverter {
     return [...this.closeOpenEvents(), runError(message)]
   }
 }
-

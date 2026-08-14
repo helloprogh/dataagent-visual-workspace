@@ -15,7 +15,7 @@ test('mock endpoint streams a complete AG-UI run', async (t) => {
   assert.equal(response.status, 200)
   const body = await response.text()
   assert.match(body, /"type":"RUN_STARTED"/)
-  assert.match(body, /"type":"CUSTOM","name":"workspace.render"/)
+  assert.match(body, /"type":"TOOL_CALL_START".*"toolCallName":"workspace.render"/)
+  assert.match(body, /"type":"REASONING_MESSAGE_CONTENT"/)
   assert.match(body, /"type":"RUN_FINISHED"/)
 })
-

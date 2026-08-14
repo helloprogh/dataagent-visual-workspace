@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "dev:demo": "node scripts/dev.mjs --demo",
+    "dev:scenario": "node scripts/dev.mjs --scenario",
     "dev:adapter": "npm run dev -w adapter",
     "dev:frontend": "npm run dev -w frontend",
     "build:demo": "npm run build:demo -w frontend",
+    "build:scenario": "npm run build:scenario -w frontend",
     "check:offline": "npm run check:offline -w frontend",
     "test": "npm test -w adapter",
     "typecheck": "npm run typecheck -w frontend",

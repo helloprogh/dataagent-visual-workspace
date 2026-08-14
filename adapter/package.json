@@ -12,6 +12,8 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@ag-ui/core": "0.0.57"
   }
 }
-

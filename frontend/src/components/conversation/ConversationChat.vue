@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { CopilotChat, useAgent } from '@copilotkit/vue/v2'
 import type { AbstractAgent } from '@ag-ui/client'
 import { conversationRepository, deriveConversationName } from '../../conversations/local-repository'
+import { workspaceController } from '../../workspace/store'
 
 const props = defineProps<{
   agentId: string
@@ -18,8 +19,8 @@ let persistTimer: number | undefined
 let currentAgent: AbstractAgent | null = null
 let currentThreadId = ''
 const chatLabels = computed(() => ({
-  chatInputPlaceholder: '告诉我你想看什么数据，我会直接更新左侧工作区…',
-  welcomeMessageText: `我是 ${props.agentDisplayName}。你可以让我重构左侧分析界面、追踪异常、拆解原因或展示 SQL。`,
+  chatInputPlaceholder: '告诉我你想分析什么，我会通过本地 OpenCode2 实时回答并更新工作区。',
+  welcomeMessageText: `我是 ${props.agentDisplayName}。当前已通过 adapter 连接本地 OpenCode2 service。`,
   modalHeaderTitle: props.agentDisplayName,
 })) as any
 
@@ -52,6 +53,21 @@ watch([agent, () => props.threadId], ([nextAgent, nextThreadId], _, onCleanup) =
   const subscription = nextAgent.subscribe({
     onMessagesChanged: ({ agent: changedAgent }) => persistSnapshot(threadId, changedAgent),
     onStateChanged: ({ agent: changedAgent }) => persistSnapshot(threadId, changedAgent),
+    onCustomEvent: ({ event }) => {
+      if (event.name === 'workspace.render') {
+        const value = event.value as any
+        workspaceController.replace({ title: value.title, subtitle: value.subtitle, widgets: value.widgets ?? [] })
+      }
+      if (event.name === 'workspace.agents') {
+        const value = event.value as any
+        workspaceController.upsert({ id:'agent-graph', component:'ui.agentGraph', colSpan:8, minHeight:350, props:{ title:'智能分析编排', orchestrator:value.orchestrator, agents:value.agents ?? [] } })
+        workspaceController.upsert({ id:'agent-activity', component:'ui.agentActivity', colSpan:4, minHeight:350, props:{ title:'实时协作', items:value.activities ?? [] } })
+        if (value.timeline?.length) {
+          const totalMs = Math.max(...value.timeline.map((item: any) => item.startMs + item.durationMs), 1)
+          workspaceController.upsert({ id:'agent-timeline', component:'ui.agentTimeline', colSpan:12, props:{ title:'并行执行时间线', totalMs, items:value.timeline } })
+        }
+      }
+    },
   })
   hydrated.value = true
   onCleanup(() => {
@@ -62,7 +78,7 @@ watch([agent, () => props.threadId], ([nextAgent, nextThreadId], _, onCleanup) =
 }, { immediate: true })
 
 function onSubmitMessage(value: string) {
-  if (props.displayName === '新对话') emit('rename', deriveConversationName(value))
+  if (props.displayName === '新对话' || props.displayName === '新分析') emit('rename', deriveConversationName(value))
 }
 
 onBeforeUnmount(() => {
@@ -72,7 +88,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="conversation-chat visual-chat">
+  <div class="conversation-chat visual-chat dark">
     <div v-if="!hydrated" class="chat-loading"><el-skeleton :rows="5" animated /></div>
     <CopilotChat
       v-else
