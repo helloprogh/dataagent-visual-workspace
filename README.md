@@ -1,92 +1,79 @@
 # Data Agent Visual Workspace V5.2
 
-完整的 Data Agent 可视工作区工程。Vue 前端是项目主体，OpenCode2 → AG-UI Adapter 是用于本地联调和协议转换的辅助服务。
+完整的 Data Agent 可视工作区工程。Vue 前端是项目主体，OpenCode2 → AG-UI Adapter 是本地联调、协议转换和会话桥接服务。
 
-## Repository layout
+## 工程结构
 
 ```text
 .
-├── frontend/   Data Agent Visual Workspace V5.2
-│   ├── Vue 3 + Vite + Element Plus
-│   ├── CopilotKit Vue + @ag-ui/client
-│   ├── empty workspace / Demo Mode
-│   ├── generative UI component registry
-│   ├── conversation persistence
-│   └── workspace.render / upsert / remove / agents
-│
-└── adapter/    Local OpenCode2 AG-UI development adapter
-    ├── OpenCode2 API proxy
-    ├── OpenCode2 event → standard AG-UI conversion
-    ├── mock / hybrid / replay endpoints
-    └── protocol and end-to-end tests
+├─ frontend/   Vue 3 + CopilotKit + AG-UI 可视工作区
+│  ├─ 空工作区 / Demo Mode / OpenCode2 场景模式
+│  ├─ Generative UI 组件注册表
+│  ├─ 主 Agent 聊天与本地会话列表
+│  └─ 协议联调与接口能力面板
+└─ adapter/    本地 OpenCode2 → AG-UI Adapter
+   ├─ 自动发现 `opencode2 serve --service`
+   ├─ OpenCode2 v2 `/api` 接口与本机认证
+   ├─ 原生事件 → 标准 AG-UI 事件转换
+   ├─ threadId → sessionID 持久化映射
+   └─ mock / hybrid / replay / debug 接口
 ```
 
-前端的完整说明、组件清单和 Agent 指令见 [frontend/README.md](frontend/README.md)。
+## 快速启动
 
-## Quick start
+要求 Node.js 20.19 或更高版本，并确保本地 OpenCode2 service 正在运行：
 
-要求 Node.js 20.19 或更高版本。
-
-```bash
+```powershell
+opencode2 serve --service
 npm install
 npm run dev
 ```
 
 启动后：
 
-- Visual Workspace: <http://127.0.0.1:5173>
-- Adapter: <http://127.0.0.1:3001>
-- Adapter health: <http://127.0.0.1:3001/health>
+- 前端：<http://127.0.0.1:5173>
+- Adapter：<http://127.0.0.1:3001>
+- 健康检查：<http://127.0.0.1:3001/health>
+- 能力清单：<http://127.0.0.1:3001/debug/capabilities>
 
-默认前端通过 `/api/agui` 代理到 Adapter 的标准 `/agent` 接口。Adapter 再连接本地 OpenCode2：
+Adapter 默认读取 OpenCode2 的 service 注册文件，自动获得动态端口和本机认证，不需要把密码写进项目。也可以通过 `OPENCODE_BASE_URL`、`OPENCODE_PASSWORD` 显式覆盖。
 
-```powershell
-opencode serve --hostname 127.0.0.1 --port 4096
-$env:OPENCODE_BASE_URL='http://127.0.0.1:4096'
-npm run dev
-```
-
-## Empty workspace and Demo Mode
-
-生产式空工作区：
+## 三种前端模式
 
 ```bash
+# 空工作区 + 真实 OpenCode2
 npm run dev
-```
 
-内置完整演示数据：
+# 空工作区 + 真实 OpenCode2 + 可视协议联调场景
+npm run dev:scenario
 
-```bash
+# 隔离的静态 Demo 数据
 npm run dev:demo
 ```
 
-两种模式分别使用：
+`dev:scenario` 仍使用真实 OpenCode2 回答，只额外注入标准 AG-UI `workspace.render` / `workspace.agents` 调试事件，方便检查主 Agent、子 Agent、工具、思考、任务状态和可视工作区。
 
-```text
-dataagent.workspace.v3.prod
-dataagent.workspace.v3.demo
-```
+## 关键入口
 
-## Adapter endpoints
-
-| Endpoint | Purpose |
+| 接口 | 用途 |
 | --- | --- |
-| `POST /agent` | 前端默认入口，连接 OpenCode2 并输出标准 AG-UI SSE |
-| `POST /agui` | `/agent` 的显式别名 |
-| `POST /agui/mock` | 无需 OpenCode2 的标准 AG-UI mock 流 |
-| `POST /agui/hybrid` | OpenCode2 真实事件 + Workspace 调试事件 |
-| `POST /agui/replay` | 离线重放捕获的 OpenCode2 事件 |
-| `/opencode/*` | OpenCode2 API 透传 |
+| `POST /agent` | 前端默认 AG-UI SSE 入口，连接真实 OpenCode2 |
+| `POST /agui/hybrid` | 真实 OpenCode2 + 可视场景事件 |
+| `POST /agui/mock` | 不依赖 OpenCode2 的完整 AG-UI mock |
+| `POST /agui/replay` | 离线重放 OpenCode2 原生事件 |
+| `GET /debug/capabilities` | 服务状态、支持场景、界面接口目录 |
+| `GET /debug/sessions` | threadId / sessionID 映射与任务状态 |
+| `GET /debug/sessions/:threadId/context` | 当前会话活动上下文 |
+| `/opencode/*` | 带本机认证的 OpenCode2 `/api` 透传 |
 
-协议映射见 [adapter/docs/EVENT-MAPPING.md](adapter/docs/EVENT-MAPPING.md)。
+完整接口见 [adapter/docs/UI-INTERFACES.md](adapter/docs/UI-INTERFACES.md)，事件转换见 [adapter/docs/EVENT-MAPPING.md](adapter/docs/EVENT-MAPPING.md)。
 
-## Validation
+## 验证
 
 ```bash
-npm run check:offline
 npm test
 npm run typecheck
 npm run build
+npm run build:scenario
 npm run build:demo
 ```
-

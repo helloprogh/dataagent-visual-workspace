@@ -2,12 +2,7 @@ import { reactive } from 'vue'
 import type { WorkspaceDocument, WorkspaceWidget } from './types'
 import { createDemoDocument } from './demo-data'
 
-// V3 intentionally does not read the previous V2 workspace key.
-// V2 seeded every new thread with mock data, so reusing it could leak demo
-// content into production after upgrading to the Empty Workspace behavior.
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
-// Production and demo persistence are deliberately isolated so switching
-// VITE_DEMO_MODE can never surface demo KPI/Agent data in production.
 const STORAGE_KEY = DEMO_MODE
   ? 'dataagent.workspace.v3.demo'
   : 'dataagent.workspace.v3.prod'

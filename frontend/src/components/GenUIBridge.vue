@@ -21,7 +21,6 @@ const workspaceWidgetSchema = z.object({
   minHeight: z.number().optional(),
 })
 
-// These are real browser-side tools. Their handlers mutate the 75% visual workspace.
 useFrontendTool({
   name: 'workspace.render',
   description: 'Replace the main Data Agent visual workspace. Use this when a user asks for a dashboard, overview, multi-part analysis, or when the visual composition should materially change. Prefer registered ui.* components and compose them into a 12-column grid.',
@@ -86,7 +85,6 @@ useFrontendTool({
   render: renderWorkspaceStatus,
 })
 
-// Backward-compatible renderers for backend-emitted UI tools.
 for (const item of genUIRegistry) {
   useRenderTool({ name: item.name, parameters: item.schema, render: item.component })
 }
