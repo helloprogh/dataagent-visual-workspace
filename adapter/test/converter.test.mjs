@@ -66,6 +66,18 @@ test('converts native v2 text, reasoning and execution events', () => {
   assert.deepEqual(types(converter.convert({ type: 'session.execution.succeeded', data: { sessionID: 'ses-1' } })), ['CUSTOM', 'RUN_FINISHED'])
 })
 
+test('keeps one reasoning message when OpenCode2 increments ordinal', () => {
+  const converter = create()
+  const started = converter.convert({ type: 'session.reasoning.started', data: { sessionID: 'ses-1', assistantMessageID: 'a1', ordinal: 0 } })
+  const delta = converter.convert({ type: 'session.reasoning.delta', data: { sessionID: 'ses-1', assistantMessageID: 'a1', ordinal: 3, delta: 'think' } })
+  const ended = converter.convert({ type: 'session.reasoning.ended', data: { sessionID: 'ses-1', assistantMessageID: 'a1', ordinal: 9 } })
+
+  assert.deepEqual(types(started), ['REASONING_START', 'REASONING_MESSAGE_START'])
+  assert.deepEqual(types(delta), ['REASONING_MESSAGE_CONTENT'])
+  assert.deepEqual(types(ended), ['REASONING_MESSAGE_END', 'REASONING_END'])
+  assert.deepEqual(new Set([...started, ...delta, ...ended].map(item => item.messageId)), new Set(['a1-reasoning']))
+})
+
 test('converts native v2 tool and sub-agent lifecycle', () => {
   const converter = create()
   const started = converter.convert({ type: 'session.tool.input.started', data: { sessionID: 'ses-1', assistantMessageID: 'a1', id: 't1', name: 'task' } })

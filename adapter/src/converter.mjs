@@ -55,7 +55,12 @@ export class OpenCodeAguiConverter {
   }
 
   streamMessageId(raw, kind = 'text') {
-    const sourceId = raw.assistantMessageID ?? raw.messageID ?? raw.messageId
+    const sourceId = raw.assistantMessageID ?? raw.messageID ?? raw.messageId ?? `assistant-${this.runId}`
+    // OpenCode2 may increment ordinal for multiple lifecycle notifications that
+    // belong to one reasoning block. AG-UI requires those notifications to use
+    // one stable messageId; otherwise every notification renders as an empty
+    // "Thought for a few seconds" entry.
+    if (kind === 'reasoning') return this.messageId(`${sourceId}-reasoning`)
     const ordinal = Number(raw.ordinal ?? 0)
     return this.messageId(ordinal > 0 ? `${sourceId}-${kind}-${ordinal}` : sourceId)
   }

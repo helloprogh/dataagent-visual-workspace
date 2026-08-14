@@ -88,7 +88,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="conversation-chat visual-chat">
+  <div class="conversation-chat visual-chat dark">
     <div v-if="!hydrated" class="chat-loading"><el-skeleton :rows="5" animated /></div>
     <CopilotChat
       v-else

@@ -9,6 +9,13 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
+export function compactReasoningMessages(messages: Message[]): Message[] {
+  return messages.filter(message => {
+    if (message.role !== 'reasoning') return true
+    return typeof message.content === 'string' && message.content.trim().length > 0
+  })
+}
+
 export function createThreadId(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(26))
   const suffix = Array.from(bytes, value => ALPHABET[value % ALPHABET.length]).join('')
@@ -37,7 +44,7 @@ export class LocalConversationRepository implements ConversationRepository {
 
   get(id: string): ConversationRecord | undefined {
     const found = readAll().find(item => item.id === id)
-    return found ? clone(found) : undefined
+    return found ? clone({ ...found, messages: compactReasoningMessages(found.messages) }) : undefined
   }
 
   create(displayName = DEFAULT_NAME): ConversationRecord {
@@ -70,7 +77,7 @@ export class LocalConversationRepository implements ConversationRepository {
     const all = readAll()
     const item = all.find(record => record.id === id)
     if (!item) return
-    item.messages = clone(messages)
+    item.messages = clone(compactReasoningMessages(messages))
     item.state = clone(state)
     item.updatedAt = Date.now()
     writeAll(all)
