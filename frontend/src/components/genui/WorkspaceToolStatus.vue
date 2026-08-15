@@ -11,7 +11,7 @@ defineProps<{
   <div class="workspace-command-status compact">
     <span class="workspace-command-icon">⌁</span>
     <div>
-      <b>{{ status === 'complete' ? '分析工作区已同步' : '正在组织可视化…' }}</b>
+      <b>{{ status === 'complete' ? '数据编排工作区已同步' : '正在组织交付工作区…' }}</b>
       <small>{{ name }}</small>
     </div>
   </div>

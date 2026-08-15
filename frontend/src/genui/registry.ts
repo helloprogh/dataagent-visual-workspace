@@ -35,14 +35,14 @@ const metricSchema = z.object({
 const seriesItemSchema = z.object({ label: z.string(), value: z.number() })
 
 export const genUIRegistry: GenUIEntry[] = [
-  { name:'ui.markdown', title:'Markdown 内容', description:'展示模型动态生成的标题、说明、列表和分析文本', component:MarkdownPanel, schema:z.object({ title:z.string().optional(), content:z.string() }) },
+  { name:'ui.markdown', title:'Markdown 内容', description:'展示模型动态生成的标题、说明、清单和交付文档', component:MarkdownPanel, schema:z.object({ title:z.string().optional(), content:z.string() }) },
   { name:'ui.agentGraph', title:'多 Agent 编排', description:'展示主 Agent 与子 Agent 的协作拓扑、状态、进度、工具与输出', component:AgentGraph, schema:z.object({ title:z.string().optional(), orchestrator:z.object({id:z.string(),name:z.string(),role:z.string().optional(),task:z.string().optional(),status:z.enum(['pending','running','done','error','waiting']).optional(),progress:z.number().optional(),durationMs:z.number().optional(),summary:z.string().optional(),tools:z.array(z.string()).optional(),output:z.string().optional()}).optional(), agents:z.array(z.object({id:z.string(),name:z.string(),role:z.string().optional(),task:z.string().optional(),status:z.enum(['pending','running','done','error','waiting']).optional(),progress:z.number().optional(),durationMs:z.number().optional(),summary:z.string().optional(),tools:z.array(z.string()).optional(),output:z.string().optional()})).optional() }) },
   { name:'ui.agentTimeline', title:'Agent 并行时间线', description:'展示多个子 Agent 的并行/串行执行时序和耗时', component:AgentTimeline, schema:z.object({ title:z.string().optional(), totalMs:z.number().optional(), items:z.array(z.object({id:z.string(),name:z.string(),label:z.string().optional(),startMs:z.number(),durationMs:z.number(),status:z.enum(['pending','running','done','error','waiting']).optional()})).optional() }) },
   { name:'ui.agentActivity', title:'Agent 实时活动', description:'展示子 Agent 的实时任务事件、状态变化和关键输出', component:AgentActivity, schema:z.object({ title:z.string().optional(), items:z.array(z.object({id:z.string().optional(),time:z.string().optional(),agent:z.string(),message:z.string(),status:z.enum(['info','running','success','warning','error']).optional(),meta:z.string().optional()})).optional() }) },
   {
     name: 'ui.executiveSummary',
-    title: 'AI 分析摘要',
-    description: '聚合结论、置信度、关键变化和主题标签',
+    title: '交付摘要',
+    description: '聚合需求范围、方案结论、关键进展、风险和交付标签',
     component: ExecutiveSummary,
     schema: z.object({
       title: z.string().optional(),
@@ -63,8 +63,8 @@ export const genUIRegistry: GenUIEntry[] = [
   },
   {
     name: 'ui.kpis',
-    title: '指标驾驶舱',
-    description: '并排展示多个关键指标',
+    title: '状态概览',
+    description: '并排展示需求开发与数据交付的关键状态',
     component: KpiGroup,
     schema: z.object({ title: z.string().optional(), items: z.array(metricSchema) }),
   },
@@ -146,8 +146,8 @@ export const genUIRegistry: GenUIEntry[] = [
   },
   {
     name: 'ui.insights',
-    title: '洞察列表',
-    description: '展示异常、变化与业务结论',
+    title: '问题与结论清单',
+    description: '展示待澄清事项、风险、变化与交付结论',
     component: InsightList,
     schema: z.object({
       title: z.string().optional(),
@@ -161,8 +161,8 @@ export const genUIRegistry: GenUIEntry[] = [
   },
   {
     name: 'ui.analysisPlan',
-    title: '分析计划',
-    description: '展示 Data Agent 的分析步骤与进度',
+    title: '交付计划',
+    description: '展示 Specification、数据方案、数据集成、ETL 开发、治理验证与交付进度',
     component: AnalysisPlan,
     schema: z.object({
       title: z.string().optional(),
@@ -176,7 +176,7 @@ export const genUIRegistry: GenUIEntry[] = [
   {
     name: 'ui.queryTrace',
     title: 'Agent 执行链路',
-    description: '展示意图理解、语义匹配、SQL、执行和洞察链路',
+    description: '展示需求澄清、Specification、数据方案、数据集成、ETL 开发、治理验证与交付链路',
     component: QueryTrace,
     schema: z.object({
       title: z.string().optional(), durationMs: z.number().optional(),

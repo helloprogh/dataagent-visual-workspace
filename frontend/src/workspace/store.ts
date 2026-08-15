@@ -4,8 +4,15 @@ import { createDemoDocument } from './demo-data'
 
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true'
 const STORAGE_KEY = DEMO_MODE
-  ? 'dataagent.workspace.v3.demo'
+  ? 'dataagent.workspace.v4.demo.sa-delivery'
   : 'dataagent.workspace.v4.agui'
+const DEFAULT_WORKSPACE_TITLE = 'Workspace'
+const DEFAULT_WORKSPACE_SUBTITLE = '描述你的数据业务目标，我将与你逐步澄清需求，并自主完成 Specification、数据方案、数据集成、ETL 开发、治理验证与交付。'
+const LEGACY_WORKSPACE_TITLES = new Set(['智能分析工作区'])
+const LEGACY_WORKSPACE_SUBTITLES = new Set([
+  '告诉 Data Agent 你想分析什么，界面会随着分析过程动态生成',
+  '通过右侧 Data Agent 控制分析界面',
+])
 
 type WorkspaceMap = Record<string, WorkspaceDocument>
 
@@ -96,8 +103,8 @@ function writeAll(all: WorkspaceMap) {
 function createEmptyDocument(threadId: string): WorkspaceDocument {
   return {
     threadId,
-    title: '智能分析工作区',
-    subtitle: '告诉 Data Agent 你想分析什么，界面会随着分析过程动态生成',
+    title: DEFAULT_WORKSPACE_TITLE,
+    subtitle: DEFAULT_WORKSPACE_SUBTITLE,
     updatedAt: Date.now(),
     widgets: [],
   }
@@ -115,10 +122,10 @@ function normalizeDocument(value: unknown, threadId: string): WorkspaceDocument 
   return {
     threadId,
     title: typeof document.title === 'string' && document.title.trim()
-      ? document.title
+      ? (LEGACY_WORKSPACE_TITLES.has(document.title) ? DEFAULT_WORKSPACE_TITLE : document.title)
       : fallback.title,
     subtitle: typeof document.subtitle === 'string'
-      ? document.subtitle
+      ? (LEGACY_WORKSPACE_SUBTITLES.has(document.subtitle) ? DEFAULT_WORKSPACE_SUBTITLE : document.subtitle)
       : fallback.subtitle,
     updatedAt: typeof document.updatedAt === 'number' && Number.isFinite(document.updatedAt)
       ? document.updatedAt
@@ -165,7 +172,7 @@ export const workspaceController = {
     if (!state.activeThreadId) return
     state.document = {
       threadId: state.activeThreadId,
-      title: payload.title || state.document?.title || '智能分析工作区',
+      title: payload.title || state.document?.title || DEFAULT_WORKSPACE_TITLE,
       subtitle: payload.subtitle ?? state.document?.subtitle,
       updatedAt: Date.now(),
       widgets: normalizeWidgets(payload.widgets),
@@ -192,8 +199,8 @@ export const workspaceController = {
   clear() {
     if (!state.document) return
     state.document.widgets = []
-    state.document.title = '智能分析工作区'
-    state.document.subtitle = '告诉 Data Agent 你想分析什么，界面会随着分析过程动态生成'
+    state.document.title = DEFAULT_WORKSPACE_TITLE
+    state.document.subtitle = DEFAULT_WORKSPACE_SUBTITLE
     state.document.updatedAt = Date.now()
     persist()
   },

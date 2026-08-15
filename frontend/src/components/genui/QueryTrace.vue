@@ -17,7 +17,7 @@ defineProps<{
     <div class="gen-title-row">
       <div>
         <span class="eyebrow">AGENT TRACE</span>
-        <span class="gen-title">{{ title || '分析执行链路' }}</span>
+        <span class="gen-title">{{ title || '需求交付链路' }}</span>
       </div>
       <span v-if="durationMs !== undefined" class="trace-duration">{{ durationMs }} ms</span>
     </div>

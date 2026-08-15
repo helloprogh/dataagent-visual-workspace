@@ -11,7 +11,7 @@ defineProps<{
 
 <template>
   <div class="gen-card">
-    <div class="gen-title">{{ title || '分析计划' }}</div>
+    <div class="gen-title">{{ title || '交付计划' }}</div>
     <div class="analysis-plan">
       <div v-for="(step, index) in steps || []" :key="`${step.title}-${index}`" class="plan-step">
         <span class="plan-node" :class="step.status || 'pending'">{{ index + 1 }}</span>

@@ -51,18 +51,18 @@ function select(id: string) {
         <div class="assistant-orb"><span></span></div>
         <div>
           <div class="assistant-name"><b>{{ agentDisplayName }}</b><span>ONLINE</span></div>
-          <small>Data Intelligence Copilot</small>
+          <small>SA Data Delivery Copilot</small>
         </div>
       </div>
       <div class="assistant-actions">
         <button title="历史对话" :class="{ active: showHistory }" @click="toggleHistory">◎</button>
-        <button title="新建分析" @click="emit('create')">＋</button>
+        <button title="新建需求" @click="emit('create')">＋</button>
       </div>
     </header>
 
     <div class="assistant-context">
       <span>THREAD</span>
-      <b>{{ activeConversation?.displayName || '新分析' }}</b>
+      <b>{{ activeConversation?.displayName || '新需求' }}</b>
       <i></i>
       <small>{{ activeId.slice(0, 18) }}</small>
     </div>
@@ -82,10 +82,10 @@ function select(id: string) {
       <transition name="history-slide">
         <section v-if="showHistory" class="history-overlay">
           <div class="history-head">
-            <div><span>CONVERSATION MEMORY</span><h3>历史分析</h3></div>
+            <div><span>REQUIREMENT MEMORY</span><h3>需求记录</h3></div>
             <button @click="showHistory = false">×</button>
           </div>
-          <el-input v-model="keyword" clearable placeholder="搜索历史分析" class="history-search" />
+          <el-input v-model="keyword" clearable placeholder="搜索需求记录" class="history-search" />
           <div class="history-list">
             <article
               v-for="item in filtered"
@@ -97,7 +97,7 @@ function select(id: string) {
               <div class="history-node"><i></i></div>
               <div class="history-copy">
                 <b>{{ item.displayName }}</b>
-                <small>{{ timeLabel(item.updatedAt) }} · {{ item.messages.length }} messages</small>
+                <small>{{ timeLabel(item.updatedAt) }} · {{ item.messages.length }} 条消息</small>
               </div>
               <el-dropdown trigger="click" @click.stop>
                 <button class="history-more" @click.stop>•••</button>
@@ -109,16 +109,16 @@ function select(id: string) {
                 </template>
               </el-dropdown>
             </article>
-            <div v-if="filtered.length === 0" class="history-empty">没有匹配的历史分析</div>
+            <div v-if="filtered.length === 0" class="history-empty">没有匹配的需求记录</div>
           </div>
-          <button class="history-new" @click="emit('create'); showHistory = false">＋ 创建新的分析线程</button>
+          <button class="history-new" @click="emit('create'); showHistory = false">＋ 创建新的数据需求</button>
         </section>
       </transition>
     </div>
 
     <footer class="assistant-footer">
       <span><i></i> AG-UI STREAM</span>
-      <span>MODEL CONTROLLED UI</span>
+      <span>SA DELIVERY WORKSPACE</span>
     </footer>
   </aside>
 </template>

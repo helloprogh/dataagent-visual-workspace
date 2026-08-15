@@ -19,13 +19,13 @@ const updatedAt = computed(() => {
 
     <header class="visual-toolbar">
       <div class="visual-title-block">
-        <div class="visual-kicker"><span></span> INTELLIGENCE WORKSPACE</div>
+        <div class="visual-kicker"><span></span> DATA ORCHESTRATION WORKSPACE</div>
         <div class="visual-title-row">
-          <h1>{{ document?.title || '智能分析工作区' }}</h1>
+          <h1>{{ document?.title || 'Workspace' }}</h1>
           <span v-if="demoMode" class="mode-badge demo">DEMO MODE</span>
           <span v-else class="live-badge"><i></i> READY</span>
         </div>
-        <p>{{ document?.subtitle || '通过右侧 Data Agent 控制分析界面' }}</p>
+        <p>{{ document?.subtitle || '描述你的数据业务目标，我将与你逐步澄清需求，并自主完成 Specification、数据方案、数据集成、ETL 开发、治理验证与交付。' }}</p>
       </div>
 
       <div class="visual-toolbar-meta">
@@ -64,14 +64,16 @@ const updatedAt = computed(() => {
 
       <div v-else class="workspace-empty">
         <div class="empty-orbit"><i></i><i></i><i></i><span>AI</span></div>
-        <div class="empty-kicker">AGENT CONTROLLED WORKSPACE</div>
-        <h2>从一个分析问题开始</h2>
-        <p>生产模式不会预置任何 KPI、图表或子 Agent 数据。告诉右侧 Data Agent 你的目标，它会通过 AG-UI 动态组织这里的分析界面。</p>
+        <div class="empty-kicker">SA DATA DELIVERY WORKSPACE</div>
+        <h2>从一个数据业务目标开始</h2>
+        <p>描述你的数据业务目标，我将与你逐步澄清需求，并自主完成 Specification、数据方案、数据集成、ETL 开发、治理验证与交付。</p>
         <div class="empty-prompts">
-          <span>经营概览</span>
-          <span>异常归因</span>
-          <span>趋势预测</span>
-          <span>数据质量</span>
+          <span>Specification</span>
+          <span>数据方案</span>
+          <span>数据集成</span>
+          <span>ETL 开发</span>
+          <span>治理验证</span>
+          <span>交付</span>
         </div>
       </div>
     </div>

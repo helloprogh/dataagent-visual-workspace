@@ -23,6 +23,6 @@ watchEffect(() => {
 <template>
   <div class="workspace-command-status">
     <span class="workspace-command-icon">⌁</span>
-    <div><b>分析工作区已重构</b><small>{{ widgets?.length || 0 }} 个智能模块</small></div>
+    <div><b>数据编排工作区已更新</b><small>{{ widgets?.length || 0 }} 个工作模块</small></div>
   </div>
 </template>
