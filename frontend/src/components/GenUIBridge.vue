@@ -3,6 +3,7 @@ import { useFrontendTool, useRenderTool } from '@copilotkit/vue/v2'
 import { h } from 'vue'
 import { z } from 'zod'
 import { genUIRegistry } from '../genui/registry'
+import type { WorkspaceWidget } from '../workspace/types'
 import { workspaceController } from '../workspace/store'
 import GenericRenderer from './genui/GenericRenderer.vue'
 import ToolStatus from './genui/ToolStatus.vue'
@@ -19,13 +20,25 @@ const syncWorkspaceState = (agent: any) => {
   agent.setState({ ...(agent.state ?? {}), workspace })
 }
 
-const workspaceWidgetSchema = z.object({
+const widgetLayoutSchema = {
   id: z.string().describe('Stable widget id used for later updates'),
-  component: z.string().describe('Registered component name, for example ui.markdown, ui.kpis or ui.lineChart'),
-  props: z.record(z.string(), z.unknown()).default({}),
   colSpan: z.union([z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7), z.literal(8), z.literal(9), z.literal(12)]).optional(),
   minHeight: z.number().optional(),
-})
+}
+
+// `props: Record<string, unknown>` made the model guess third-party chart
+// formats. A discriminated union sends each registered component's real
+// contract through RunAgentInput.tools and the OpenCode2 MCP catalog.
+const widgetVariants = genUIRegistry.map(item => z.object({
+  ...widgetLayoutSchema,
+  component: z.literal(item.name).describe(item.title),
+  props: item.schema.describe(item.description),
+}))
+
+const workspaceWidgetSchema = z.discriminatedUnion(
+  'component',
+  widgetVariants as [any, any, ...any[]],
+) as z.ZodType<WorkspaceWidget>
 
 useFrontendTool({
   name: 'workspace.render',

@@ -85,6 +85,11 @@ const ensureFrontendTools = async (threadId, tools, adapterBaseUrl) => {
   const url = `${adapterBaseUrl}/mcp/frontend`
   const signature = JSON.stringify({ url, catalog })
   if (mcpRegistrations.get(serverName) === signature) return
+  // OpenCode caches the catalog for an active MCP connection. Reconnect when
+  // the AG-UI frontend publishes a changed component/tool schema.
+  await client.disconnectMcp(serverName).catch((error) => {
+    if (!/not found|404|unknown/i.test(error.message)) throw error
+  })
   await client.addMcp(serverName, url)
   await client.connectMcp(serverName).catch((error) => {
     if (!/already|connected|409/i.test(error.message)) throw error

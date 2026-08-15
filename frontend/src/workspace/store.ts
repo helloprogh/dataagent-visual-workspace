@@ -13,6 +13,47 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined
+}
+
+function normalizeChartWidget(widget: WorkspaceWidget): WorkspaceWidget {
+  if (!['ui.lineChart', 'ui.barChart', 'ui.donutChart'].includes(widget.component)) return clone(widget)
+  const props = clone(widget.props ?? {})
+  const chartData = asRecord(props.data)
+  const datasets = Array.isArray(chartData?.datasets) ? chartData.datasets : []
+  const firstDataset = asRecord(datasets[0])
+  const labels = Array.isArray(chartData?.labels)
+    ? chartData.labels
+    : (Array.isArray(props.labels) ? props.labels : [])
+  const values = Array.isArray(firstDataset?.data)
+    ? firstDataset.data
+    : (Array.isArray(props.values) ? props.values : [])
+  const points = labels.map((label, index) => ({
+    label: String(label),
+    value: Number(values[index]),
+  })).filter(point => Number.isFinite(point.value))
+
+  if (points.length) {
+    if (widget.component === 'ui.lineChart' && !Array.isArray(props.points)) props.points = points
+    if (widget.component !== 'ui.lineChart' && !Array.isArray(props.items)) props.items = points
+  }
+
+  const options = asRecord(props.options)
+  const optionTitle = asRecord(options?.title)
+  if (!props.title) {
+    const title = optionTitle?.text ?? firstDataset?.label
+    if (typeof title === 'string' && title.trim()) props.title = title
+  }
+  return { ...clone(widget), props }
+}
+
+function normalizeWidgets(widgets: WorkspaceWidget[]): WorkspaceWidget[] {
+  return widgets.map(normalizeChartWidget)
+}
+
 function readAll(): WorkspaceMap {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -61,7 +102,9 @@ export const workspaceController = {
     if (!threadId) return
     const all = readAll()
     state.activeThreadId = threadId
-    state.document = clone(all[threadId] ?? createInitialDocument(threadId))
+    const document = clone(all[threadId] ?? createInitialDocument(threadId))
+    document.widgets = normalizeWidgets(document.widgets)
+    state.document = document
     persist()
   },
   snapshot() {
@@ -69,7 +112,7 @@ export const workspaceController = {
   },
   applyShared(document: WorkspaceDocument) {
     if (!state.activeThreadId || document.threadId !== state.activeThreadId) return
-    state.document = clone({ ...document, threadId: state.activeThreadId })
+    state.document = clone({ ...document, threadId: state.activeThreadId, widgets: normalizeWidgets(document.widgets) })
     persist()
   },
   replace(payload: { title?: string; subtitle?: string; widgets: WorkspaceWidget[] }) {
@@ -79,7 +122,7 @@ export const workspaceController = {
       title: payload.title || state.document?.title || '智能分析工作区',
       subtitle: payload.subtitle ?? state.document?.subtitle,
       updatedAt: Date.now(),
-      widgets: clone(payload.widgets),
+      widgets: normalizeWidgets(payload.widgets),
     }
     persist()
   },
@@ -87,8 +130,9 @@ export const workspaceController = {
     if (!state.document) return
     const widgets = [...state.document.widgets]
     const index = widgets.findIndex(item => item.id === widget.id)
-    if (index >= 0) widgets[index] = clone(widget)
-    else widgets.push(clone(widget))
+    const normalized = normalizeChartWidget(widget)
+    if (index >= 0) widgets[index] = normalized
+    else widgets.push(normalized)
     state.document.widgets = widgets
     state.document.updatedAt = Date.now()
     persist()

@@ -26,6 +26,8 @@ No custom top-level properties are added:
 
 CopilotKit registers `workspace.render`, `workspace.upsert`, `workspace.remove`, and `workspace.agents` with `useFrontendTool`. Their schemas are sent in standard `RunAgentInput.tools`; the Adapter exposes them to OpenCode2 as a dynamic MCP server and maps native MCP tool calls back to AG-UI `TOOL_CALL_*` events.
 
+`workspace.render/upsert` use a discriminated widget union: every `ui.*` component carries its actual props schema. For example, `ui.lineChart` uses `points: [{ label, value }]`. The workspace store also normalizes common Chart.js `data.labels/datasets` payloads for compatibility with models or sessions that retained an older tool catalog.
+
 After a browser handler runs, CopilotKit sends a standard `ToolMessage`. The Adapter resolves the pending MCP call and resumes the same OpenCode2 session. Workspace data is carried in `RunAgentInput.state` and synchronized by `STATE_SNAPSHOT`; task and sub-agent status use `ACTIVITY_SNAPSHOT`.
 
 ## Conversation persistence

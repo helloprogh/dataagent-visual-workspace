@@ -39,6 +39,8 @@ Adapter 在提交 OpenCode2 `prompt` 的同时消费事件流；界面侧的 `/a
 
 前端用 `useFrontendTool` 注册 `workspace.render/upsert/remove/agents`。这些 schema 随 `RunAgentInput.tools` 下发，Adapter 动态注册为 OpenCode2 MCP 工具。工具在浏览器执行后以标准 `ToolMessage` 返回，Adapter 解析等待中的 MCP 调用并续跑原会话。
 
+工作区 widget schema 按 `component` 区分并携带真实 props 结构；schema 变化时 Adapter 会重新连接动态 MCP 以刷新 OpenCode2 catalog。图表组件兼容常见 Chart.js 输入并转换为本项目的 `points/items` 数据结构。
+
 ## 4. 思考过程
 
 `GET /api/event` 中的 `session.reasoning.started/delta/ended` 转换为标准 `REASONING_*` 事件。模型不提供 reasoning 时，界面不会伪造真实思考内容；已经结束的 reasoning 会忽略迟到重复事件。

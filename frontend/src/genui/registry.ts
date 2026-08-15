@@ -84,7 +84,7 @@ export const genUIRegistry: GenUIEntry[] = [
   {
     name: 'ui.lineChart',
     title: '趋势折线图',
-    description: '展示时间序列和趋势',
+    description: '展示时间序列和趋势。必须使用 points: [{ label, value }]，不要使用 Chart.js 的 data/datasets/options 格式',
     component: LineChart,
     schema: z.object({ title: z.string().optional(), unit: z.string().optional(), points: z.array(seriesItemSchema) }),
   },
