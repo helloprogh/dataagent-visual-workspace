@@ -1,4 +1,4 @@
-import type { Message, State } from '@ag-ui/client'
+import type { Interrupt, Message, State } from '@ag-ui/client'
 import type { ConversationRecord, ConversationRepository } from './types'
 
 const STORAGE_KEY = 'dataagent.conversations.v2.agui'
@@ -79,6 +79,15 @@ export class LocalConversationRepository implements ConversationRepository {
     if (!item) return
     item.messages = clone(compactReasoningMessages(messages))
     item.state = clone(state)
+    item.updatedAt = Date.now()
+    writeAll(all)
+  }
+
+  saveInterrupts(id: string, interrupts: Interrupt[]): void {
+    const all = readAll()
+    const item = all.find(record => record.id === id)
+    if (!item) return
+    item.pendingInterrupts = clone(interrupts)
     item.updatedAt = Date.now()
     writeAll(all)
   }

@@ -28,7 +28,7 @@ const taskActivity = (runId, content) => activitySnapshot(`task-${runId}`, 'data
 const subagentActivity = (id, content) => activitySnapshot(`subagent-${id}`, 'dataagent.subagent', content)
 
 export class OpenCodeAguiConverter {
-  constructor({ threadId, runId, sessionId }) {
+  constructor({ threadId, runId, sessionId, resumedToolCallIds = [] }) {
     this.threadId = threadId
     this.runId = runId
     this.sessionId = sessionId
@@ -38,6 +38,7 @@ export class OpenCodeAguiConverter {
     this.openReasoning = new Set()
     this.closedReasoning = new Set()
     this.openTools = new Set()
+    this.resumedToolCallIds = new Set(resumedToolCallIds.map(String))
     this.textHasDelta = new Set()
     this.reasoningHasDelta = new Set()
     this.tools = new Map()
@@ -167,15 +168,7 @@ export class OpenCodeAguiConverter {
     }
     if (type === 'session.inbox.enqueued') return [taskActivity(this.runId, { mode: 'async', status: 'queued', inboxId: raw.inboxID })]
     if (type === 'session.inbox.delivered') return [taskActivity(this.runId, { mode: 'async', status: 'delivered', inboxId: raw.inboxID })]
-    if (type === 'permission.asked') {
-      const messageId = `permission-${raw.id ?? randomUUID()}`
-      return [
-        taskActivity(this.runId, { mode: 'async', status: 'waiting_permission', permission: raw }),
-        textStart(messageId),
-        textContent(messageId, `工具 ${raw.action ?? 'operation'} 正在等待授权。请打开“协议联调”面板处理。`),
-        textEnd(messageId),
-      ]
-    }
+    if (type === 'permission.asked') return this.interrupt(raw)
 
     if (type === 'session.error') return this.fail(errorText(raw.error ?? raw.message) || 'OpenCode run failed')
     if (type === 'session.idle' || (type === 'session.status' && (raw.status?.type ?? raw.status) === 'idle')) return this.finish()
@@ -287,6 +280,8 @@ export class OpenCodeAguiConverter {
 
   convertNativeTool(type, raw) {
     const state = this.toolState(raw)
+    const resumed = this.resumedToolCallIds.has(String(state.id))
+    if (resumed && type !== 'session.tool.success' && type !== 'session.tool.failed') return []
     if (type === 'session.tool.input.started') return this.startTool(state)
     if (type === 'session.tool.input.delta') {
       const delta = asText(raw.delta)
@@ -295,7 +290,7 @@ export class OpenCodeAguiConverter {
     }
     if (type === 'session.tool.input.ended') {
       const text = asText(raw.text)
-      const events = this.startTool(state)
+      const events = resumed ? [] : this.startTool(state)
       if (!state.args && text) events.push(toolArgs(state.id, text))
       state.args = text || state.args
       return events
@@ -322,7 +317,7 @@ export class OpenCodeAguiConverter {
       )]
     }
     if (type === 'session.tool.success' || type === 'session.tool.failed') {
-      const events = this.startTool(state)
+      const events = resumed ? [] : this.startTool(state)
       if (this.openTools.delete(state.id)) events.push(toolEnd(state.id))
       const failed = type === 'session.tool.failed'
       const output = failed ? errorText(raw.error) : toolContentText(raw.content)
@@ -388,10 +383,45 @@ export class OpenCodeAguiConverter {
     return events
   }
 
-  finish() {
+  interrupt(raw) {
+    const requestId = String(raw.id ?? raw.requestID ?? raw.requestId ?? randomUUID())
+    const explicitToolCallId = raw.toolCallID ?? raw.toolCallId ?? raw.callID ?? raw.callId ?? raw.partID
+    const toolCallId = explicitToolCallId ?? [...this.openTools].at(-1)
+    const action = raw.action ?? raw.permission ?? raw.type ?? 'operation'
+    const resources = raw.resources ?? raw.patterns ?? raw.paths
+    const interrupt = {
+      id: requestId,
+      reason: toolCallId ? 'tool_call' : 'input_required',
+      message: `工具 ${action} 请求人工授权。`,
+      ...(toolCallId ? { toolCallId: String(toolCallId) } : {}),
+      responseSchema: {
+        type: 'object',
+        required: ['decision'],
+        properties: {
+          decision: {
+            type: 'string',
+            enum: ['once', 'always', 'reject'],
+            title: '授权决定',
+          },
+        },
+        additionalProperties: false,
+      },
+      metadata: {
+        source: 'opencode2',
+        action,
+        ...(resources ? { resources } : {}),
+      },
+    }
+    return [
+      taskActivity(this.runId, { mode: 'async', status: 'waiting_permission', permission: raw }),
+      ...this.finish({ type: 'interrupt', interrupts: [interrupt] }),
+    ]
+  }
+
+  finish(outcome) {
     if (this.finished) return []
     this.finished = true
-    return [...this.closeOpenEvents(), runFinished(this.threadId, this.runId)]
+    return [...this.closeOpenEvents(), runFinished(this.threadId, this.runId, outcome)]
   }
 
   fail(message) {

@@ -77,6 +77,42 @@ const promptWithContext = (input, text) => {
   ].join('\n')
 }
 
+const resumeSignature = (resume) => JSON.stringify([...resume]
+  .map((item) => ({ interruptId: item.interruptId, status: item.status, payload: item.payload }))
+  .sort((left, right) => String(left.interruptId).localeCompare(String(right.interruptId))))
+
+const applyResume = async (threadId, sessionId, resume) => {
+  const signature = resumeSignature(resume)
+  const pending = await registry.pendingInterrupts(threadId)
+  if (!pending.length) {
+    const receipt = await registry.lastResume(threadId)
+    if (receipt?.signature === signature) {
+      return { resumedToolCallIds: receipt.resumedToolCallIds ?? [], replayed: true }
+    }
+    throw new Error('Thread does not have a pending AG-UI interrupt')
+  }
+  const entries = new Map(resume.map((item) => [item.interruptId, item]))
+  const pendingIds = new Set(pending.map((item) => item.id))
+  const uncovered = pending.filter((item) => !entries.has(item.id)).map((item) => item.id)
+  const unknown = resume.filter((item) => !pendingIds.has(item.interruptId)).map((item) => item.interruptId)
+  if (entries.size !== resume.length) throw new Error('RunAgentInput.resume contains duplicate interrupt ids')
+  if (uncovered.length || unknown.length) {
+    throw new Error(`RunAgentInput.resume must cover all pending interrupts${uncovered.length ? `; missing: ${uncovered.join(', ')}` : ''}${unknown.length ? `; unknown: ${unknown.join(', ')}` : ''}`)
+  }
+  const replies = pending.map((interrupt) => {
+    const entry = entries.get(interrupt.id)
+    const decision = entry.status === 'cancelled' ? 'reject' : entry.payload?.decision
+    if (!['once', 'always', 'reject'].includes(decision)) {
+      throw new Error(`Interrupt ${interrupt.id} requires payload.decision to be once, always, or reject`)
+    }
+    return { requestId: interrupt.id, decision, message: entry.payload?.message }
+  })
+  await Promise.all(replies.map((item) => client.replyPermission(sessionId, item.requestId, item.decision, item.message)))
+  const resumedToolCallIds = pending.map((item) => item.toolCallId).filter(Boolean)
+  await registry.resolveInterrupts(threadId, { signature, resumedToolCallIds, resolvedAt: Date.now() })
+  return { resumedToolCallIds, replayed: false }
+}
+
 const ensureFrontendTools = async (threadId, tools, adapterBaseUrl) => {
   const catalog = frontendTools.updateCatalog(threadId, tools)
   if (!catalog.length) return
@@ -126,6 +162,7 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl } = {}) => {
   let timedOut = false
   let promptFailure
   let pausedForFrontendTool = false
+  let pausedForInterrupt = false
   const timeout = setTimeout(() => {
     timedOut = true
     abort.abort()
@@ -134,18 +171,35 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl } = {}) => {
   try {
     const text = latestUserText(input).trim()
     const results = toolMessages(input)
-    if (!text && !results.length) throw new Error('RunAgentInput does not contain a user or tool message')
+    const resume = Array.isArray(input.resume) ? input.resume : []
+    if (!text && !results.length && !resume.length) throw new Error('RunAgentInput does not contain a user message, tool result, or resume entry')
     await ensureFrontendTools(input.threadId, input.tools ?? [], adapterBaseUrl)
     const sessionId = await resolveSession(input.threadId)
-    const converter = new OpenCodeAguiConverter({ threadId: input.threadId, runId: input.runId, sessionId })
+    const pending = await registry.pendingInterrupts(input.threadId)
+    const converter = new OpenCodeAguiConverter({
+      threadId: input.threadId,
+      runId: input.runId,
+      sessionId,
+      resumedToolCallIds: pending.map((item) => item.toolCallId).filter(Boolean),
+    })
     const knownFrontendCalls = new Map()
     for (const item of converter.start()) writeSse(res, item)
     writeSse(res, stateSnapshot(input.state ?? {}))
+    if (pending.length && !resume.length) {
+      throw new Error('Thread has pending AG-UI interrupts; RunAgentInput.resume must resolve all of them before new input')
+    }
     const events = client.events(abort.signal)[Symbol.asyncIterator]()
     let nextEvent = events.next()
     const acceptedResults = frontendTools.acceptToolMessages(input.threadId, results)
     let promptPromise
-    if (!acceptedResults.length) {
+    if (resume.length) {
+      const resumeResult = await applyResume(input.threadId, sessionId, resume)
+      if (resumeResult.replayed) {
+        nextEvent.catch(() => undefined)
+        for (const item of converter.finish()) writeSse(res, item)
+        return
+      }
+    } else if (!acceptedResults.length) {
       promptPromise = client.prompt(sessionId, promptWithContext(input, text), {
         aguiThreadId: input.threadId,
         aguiRunId: input.runId,
@@ -174,7 +228,14 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl } = {}) => {
         })
       }
       const knownFrontendCall = currentToolId ? knownFrontendCalls.get(String(currentToolId)) : undefined
-      for (const item of converter.convert(current.value)) {
+      const converted = converter.convert(current.value)
+      const interruptEvent = converted.find((item) => item.type === 'RUN_FINISHED' && item.outcome?.type === 'interrupt')
+      if (interruptEvent) {
+        await registry.setPendingInterrupts(input.threadId, interruptEvent.outcome.interrupts)
+        pausedForInterrupt = true
+      }
+      for (const item of converted) {
+        if (item === interruptEvent) writeSse(res, stateSnapshot(input.state ?? {}))
         writeSse(res, item.type === 'TOOL_CALL_START' && knownFrontendCall
           ? { ...item, toolCallName: knownFrontendCall.toolName }
           : item)
@@ -192,7 +253,7 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl } = {}) => {
         break
       }
     }
-    if (promptPromise && !pausedForFrontendTool) await promptPromise
+    if (promptPromise && !pausedForFrontendTool && !pausedForInterrupt) await promptPromise
     if (promptFailure) throw promptFailure
     if (!converter.finished) for (const item of converter.finish()) writeSse(res, item)
   } catch (error) {
@@ -226,81 +287,6 @@ const replay = async (body, res) => {
   res.end()
 }
 
-const proxyOpenCode = async (req, res, pathname) => {
-  const targetPath = pathname.slice('/opencode'.length) || '/'
-  const body = ['GET', 'HEAD'].includes(req.method) ? undefined : Buffer.concat(await collect(req))
-  const headers = { ...req.headers }
-  delete headers.host
-  delete headers.authorization
-  const response = await client.proxy(targetPath, { method: req.method, headers, body })
-  applyCors(res)
-  res.writeHead(response.status, Object.fromEntries(response.headers.entries()))
-  if (response.body) for await (const chunk of response.body) res.write(chunk)
-  res.end()
-}
-
-const collect = async (stream) => {
-  const chunks = []
-  for await (const chunk of stream) chunks.push(chunk)
-  return chunks
-}
-
-const debugSessions = async () => {
-  const mappings = await registry.list()
-  return Promise.all(mappings.map(async (mapping) => {
-    try {
-      const [session, inbox, permissions] = await Promise.all([
-        client.getSession(mapping.sessionId),
-        client.inbox(mapping.sessionId),
-        client.permissions(mapping.sessionId),
-      ])
-      return {
-        ...mapping,
-        connected: true,
-        title: session?.title,
-        agent: session?.agent,
-        model: session?.model,
-        tokens: session?.tokens,
-        cost: session?.cost,
-        location: session?.location,
-        queueSize: Array.isArray(inbox) ? inbox.length : 0,
-        permissions: Array.isArray(permissions) ? permissions : [],
-      }
-    } catch (error) {
-      return { ...mapping, connected: false, error: error.message }
-    }
-  }))
-}
-
-const sessionRoute = (pathname) => {
-  const match = pathname.match(/^\/debug\/sessions\/([^/]+)(?:\/(context|background|interrupt)|\/permissions\/([^/]+)\/reply)?$/)
-  return match ? { threadId: decodeURIComponent(match[1]), action: match[2] ?? (match[3] ? 'permission' : undefined), requestId: match[3] ? decodeURIComponent(match[3]) : undefined } : undefined
-}
-
-const handleDebugSession = async (req, res, route) => {
-  const mapping = await registry.get(route.threadId)
-  if (!mapping?.sessionId) return json(res, 404, { error: 'Thread is not mapped to an OpenCode session' })
-  if (req.method === 'GET' && route.action === 'context') {
-    const data = await client.context(mapping.sessionId)
-    return json(res, 200, { threadId: route.threadId, sessionId: mapping.sessionId, data })
-  }
-  if (req.method === 'POST' && route.action === 'background') {
-    await client.background(mapping.sessionId)
-    return json(res, 200, { ok: true, threadId: route.threadId, sessionId: mapping.sessionId, status: 'backgrounded' })
-  }
-  if (req.method === 'POST' && route.action === 'interrupt') {
-    await client.interrupt(mapping.sessionId)
-    return json(res, 200, { ok: true, threadId: route.threadId, sessionId: mapping.sessionId, status: 'interrupted' })
-  }
-  if (req.method === 'POST' && route.action === 'permission') {
-    const body = await readBody(req)
-    if (!['once', 'always', 'reject'].includes(body.reply)) return json(res, 400, { error: 'reply must be once, always, or reject' })
-    await client.replyPermission(mapping.sessionId, route.requestId, body.reply, body.message)
-    return json(res, 200, { ok: true, threadId: route.threadId, sessionId: mapping.sessionId, requestId: route.requestId, reply: body.reply })
-  }
-  return json(res, 404, { error: 'Not found' })
-}
-
 export const createServer = () => http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host ?? '127.0.0.1'}`)
   if (req.method === 'OPTIONS') {
@@ -309,12 +295,6 @@ export const createServer = () => http.createServer(async (req, res) => {
     return res.end()
   }
   try {
-    if (req.method === 'GET' && url.pathname === '/debug/sessions') {
-      return json(res, 200, { sessions: await debugSessions() })
-    }
-    const debugSession = sessionRoute(url.pathname)
-    if (debugSession) return await handleDebugSession(req, res, debugSession)
-    if (url.pathname.startsWith('/opencode/')) return await proxyOpenCode(req, res, url.pathname + url.search)
     if (url.pathname === '/mcp/frontend') {
       const body = req.method === 'POST' ? await readBody(req) : undefined
       return await handleFrontendMcp(req, res, body)
@@ -329,8 +309,7 @@ export const createServer = () => http.createServer(async (req, res) => {
     }
     if (url.pathname === '/agui/replay') return await replay(body, res)
     const adapterBaseUrl = `http://${req.headers.host ?? `127.0.0.1:${port}`}`
-    if (url.pathname === '/agui/hybrid') return await runOpenCode(body, res, { adapterBaseUrl })
-    if (url.pathname === '/agui' || url.pathname === '/agent') return await runOpenCode(body, res, { adapterBaseUrl })
+    if (url.pathname === '/agent') return await runOpenCode(body, res, { adapterBaseUrl })
     return json(res, 404, { error: 'Not found' })
   } catch (error) {
     if (!res.headersSent) return json(res, 500, { error: error.message })
