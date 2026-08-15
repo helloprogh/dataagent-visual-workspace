@@ -143,32 +143,12 @@ export class OpenCodeClient {
     return this.json('/api/mcp', {}, 'Unable to list OpenCode MCP servers')
   }
 
-  async context(sessionId) {
-    return this.json(`/api/session/${encodeURIComponent(sessionId)}/context`, {}, 'Unable to read OpenCode context')
-  }
-
-  async inbox(sessionId) {
-    return this.json(`/api/session/${encodeURIComponent(sessionId)}/inbox`, {}, 'Unable to read OpenCode inbox')
-  }
-
-  async permissions(sessionId) {
-    return this.json(`/api/session/${encodeURIComponent(sessionId)}/permission`, {}, 'Unable to read OpenCode permissions')
-  }
-
   async replyPermission(sessionId, requestId, reply, message) {
     return this.json(`/api/session/${encodeURIComponent(sessionId)}/permission/${encodeURIComponent(requestId)}/reply`, {
       method: 'POST',
       headers: jsonHeaders,
       body: JSON.stringify({ reply, message }),
     }, 'Unable to reply to OpenCode permission')
-  }
-
-  async background(sessionId) {
-    return this.json(`/api/session/${encodeURIComponent(sessionId)}/background`, { method: 'POST' }, 'Unable to background OpenCode tools')
-  }
-
-  async interrupt(sessionId) {
-    return this.json(`/api/session/${encodeURIComponent(sessionId)}/interrupt`, { method: 'POST' }, 'Unable to interrupt OpenCode session')
   }
 
   async *events(signal) {
@@ -178,11 +158,6 @@ export class OpenCodeClient {
     })
     if (!response.ok) throw new Error(await errorMessage(response, 'Unable to subscribe to OpenCode events'))
     yield* parseSse(response)
-  }
-
-  async proxy(pathname, init) {
-    const target = pathname.startsWith('/api/') ? pathname : `/api${pathname.startsWith('/') ? pathname : `/${pathname}`}`
-    return this.request(target, init)
   }
 
   async diagnostics() {

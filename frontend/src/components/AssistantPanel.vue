@@ -2,7 +2,6 @@
 import { computed, ref } from 'vue'
 import type { ConversationRecord } from '../conversations/types'
 import ConversationChat from './conversation/ConversationChat.vue'
-import ProtocolDebugPanel from './ProtocolDebugPanel.vue'
 
 const props = defineProps<{
   conversations: ConversationRecord[]
@@ -80,8 +79,6 @@ function select(id: string) {
         @rename="emit('autoRename', $event)"
       />
 
-      <ProtocolDebugPanel :active-thread-id="activeId" />
-
       <transition name="history-slide">
         <section v-if="showHistory" class="history-overlay">
           <div class="history-head">
@@ -125,9 +122,3 @@ function select(id: string) {
     </footer>
   </aside>
 </template>
-
-<style scoped>
-.assistant-body{display:grid;grid-template-rows:minmax(280px,1fr) clamp(320px,40vh,430px)}
-@media(max-height:820px){.assistant-body{grid-template-rows:minmax(240px,1fr) 300px}}
-@media(max-width:820px){.assistant-body{grid-template-rows:minmax(320px,1fr) clamp(300px,42vh,420px)}}
-</style>

@@ -13,7 +13,7 @@ Adapter 负责完整的 AG-UI run 生命周期。OpenCode2 原生事件不会原
 | `session.tool.input.* / called` | `TOOL_CALL_START / ARGS` |
 | `session.tool.progress` | `ACTIVITY_SNAPSHOT`；task 类工具携带子 Agent 活动信息 |
 | `session.tool.success/failed` | `TOOL_CALL_END / RESULT` + `ACTIVITY_SNAPSHOT` |
-| `permission.asked` | `ACTIVITY_SNAPSHOT`（waiting_permission）+ 常驻授权区 |
+| `permission.asked` | `ACTIVITY_SNAPSHOT`（waiting_permission）+ `RUN_FINISHED.outcome.interrupts` |
 | `session.retry.scheduled` | `ACTIVITY_SNAPSHOT`（retry） |
 | `session.execution.succeeded` / `session.status=idle` | 关闭未完成事件，输出 `RUN_FINISHED` |
 | `session.execution.failed/interrupted` | 关闭未完成事件，输出 `RUN_ERROR` |
@@ -23,6 +23,8 @@ Adapter 负责完整的 AG-UI run 生命周期。OpenCode2 原生事件不会原
 - `REASONING_START`、`REASONING_END` 与 `REASONING_MESSAGE_*` 使用同一个 `messageId`，reasoning 消息角色为 `reasoning`。
 - `STEP_STARTED` 与 `STEP_FINISHED` 使用同一个 `stepName`。
 - 当前端工具暂停一次 Run 时，Adapter 会先关闭仍活动的 OpenCode step，再发送 `RUN_FINISHED`，满足 AG-UI 的事件配对约束。
+- OpenCode2 工具授权使用标准 AG-UI Interrupt/Resume：授权卡片只读取 `RUN_FINISHED.outcome.interrupts`，决定只通过下一次 `RunAgentInput.resume` 回传；没有自定义授权接口。
+- 恢复运行只发送原 `toolCallId` 的 `TOOL_CALL_RESULT`，不重复发送已在中断前完成的工具调用开始、参数和结束事件。
 - OpenCode2 终态文本是完整值；如果此前已收到 delta，Adapter 只用终态事件关闭消息，避免重复内容。
 - Adapter 先建立 `/api/event` 订阅，再调用 `/api/session/:id/prompt`，避免丢失快速事件。
 - `RunAgentInput.tools` 会被注册到名为 `agui_frontend` 的动态 MCP 服务。OpenCode2 调用后，Adapter 发出标准 `TOOL_CALL_*`；浏览器执行 CopilotKit handler，再用标准 `ToolMessage` 回传结果并继续同一 OpenCode2 会话。

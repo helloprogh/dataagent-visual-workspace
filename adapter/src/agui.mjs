@@ -28,7 +28,11 @@ export const normalizeState = (snapshot) => {
 }
 
 export const runStarted = (threadId, runId) => event('RUN_STARTED', { threadId, runId })
-export const runFinished = (threadId, runId) => event('RUN_FINISHED', { threadId, runId })
+export const runFinished = (threadId, runId, outcome = { type: 'success' }) => event('RUN_FINISHED', {
+  threadId,
+  runId,
+  ...(outcome ? { outcome } : {}),
+})
 export const runError = (message, code = 'OPENCODE_ERROR') => event('RUN_ERROR', { message, code })
 
 export const textStart = (messageId = randomUUID(), role = 'assistant') =>

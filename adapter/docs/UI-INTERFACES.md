@@ -1,90 +1,91 @@
-# 界面使用的接口清单
+# 界面接口契约
 
-## 1. 总体链路
+## 唯一前端接口
+
+浏览器只依赖一个标准 AG-UI SSE 入口：
 
 ```text
 CopilotChat
   POST /api/agui (Vite proxy)
-    → POST /agent 或 /agui/hybrid
-      → RunAgentInput.tools 注册到 agui_frontend MCP
-      → POST /api/session
-      → GET  /api/event
-      → POST /api/session/:sessionID/prompt
-      ← OpenCode2 native events
-      → TOOL_CALL_* → 浏览器工具 → ToolMessage → MCP result
+    → POST /agent
+      → OpenCode2 session / event / prompt / permission
+      → dynamic frontend MCP
     ← standard AG-UI SSE
 ```
 
-Adapter 在提交 OpenCode2 `prompt` 的同时消费事件流；界面侧的 `/agent` 是持续到当前运行暂停或完成的 AG-UI SSE 请求。因此界面既能看到异步任务状态，又能获得标准、完整的 AG-UI run。
+前端不请求 Adapter 的会话映射、上下文、权限、健康检查或 capability 接口。`threadId → OpenCode2 sessionID`、权限请求 ID 和 MCP 注册都由 Adapter 内部维护。
 
-## 2. 主 Agent
+## 普通运行
 
-| 界面接口 | OpenCode2 接口 | 说明 |
-| --- | --- | --- |
-| `POST /agent` | `POST /api/session` | thread 首次运行时创建主 Agent 会话 |
-| `POST /agent` | `POST /api/session/:sessionID/prompt` | 提交最新 user message，并发消费事件流 |
-| `POST /agent` | `GET /api/event` | 接收文本、思考、步骤、工具、执行状态 |
+`POST /agent` 接收标准 `RunAgentInput`，Adapter 在提交 OpenCode2 prompt 的同时消费原生事件流，并持续返回 AG-UI SSE：
 
-同一个 `threadId` 始终复用同一个 OpenCode2 `sessionID`。
+- 文本：`TEXT_MESSAGE_START / CONTENT / END`
+- 思考：`REASONING_*`
+- 步骤：`STEP_STARTED / STEP_FINISHED`
+- 工具：`TOOL_CALL_*`
+- 状态：`STATE_SNAPSHOT`、`ACTIVITY_SNAPSHOT`
+- 终态：`RUN_FINISHED` 或 `RUN_ERROR`
 
-## 3. 子 Agent 与工具调用
+同一个 `threadId` 始终复用同一个 OpenCode2 session；映射、待处理 interrupt 与最近一次 resume 回执持久化在 Adapter 内部，不暴露给浏览器。
 
-子 Agent 是 OpenCode2 `task`、`subtask`、`agent`、`delegate` 工具调用的语义扩展，不需要额外 HTTP run 接口。
+## 人工授权：Interrupt / Resume
 
-| OpenCode2 事件 | 界面事件 |
-| --- | --- |
-| `session.tool.input.started/delta/ended` | `TOOL_CALL_START / TOOL_CALL_ARGS` |
-| `session.tool.called/progress` | 工具执行中；task 类工具输出 `ACTIVITY_SNAPSHOT` |
-| `session.tool.success/failed` | `TOOL_CALL_END / TOOL_CALL_RESULT` + 子 Agent Activity 终态 |
+OpenCode2 发出 `permission.asked` 时，Adapter 关闭当前仍活动的消息、工具和步骤生命周期，并通过同一条 SSE 输出：
 
-前端用 `useFrontendTool` 注册 `workspace.render/upsert/remove/agents`。这些 schema 随 `RunAgentInput.tools` 下发，Adapter 动态注册为 OpenCode2 MCP 工具。工具在浏览器执行后以标准 `ToolMessage` 返回，Adapter 解析等待中的 MCP 调用并续跑原会话。
+```json
+{
+  "type": "RUN_FINISHED",
+  "threadId": "thread-1",
+  "runId": "run-1",
+  "outcome": {
+    "type": "interrupt",
+    "interrupts": [{
+      "id": "permission-1",
+      "reason": "tool_call",
+      "toolCallId": "tool-1",
+      "message": "工具 shell 请求人工授权。",
+      "responseSchema": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": ["once", "always", "reject"]
+          }
+        },
+        "required": ["decision"]
+      }
+    }]
+  }
+}
+```
 
-工作区 widget schema 按 `component` 区分并携带真实 props 结构；schema 变化时 Adapter 会重新连接动态 MCP 以刷新 OpenCode2 catalog。图表组件兼容常见 Chart.js 输入并转换为本项目的 `points/items` 数据结构。
+界面从 AG-UI client 的 `pendingInterrupts` 读取这些数据，并在输入框上方显示授权卡片。用户完成所有待处理决定后，界面仍调用 `POST /agent`：
 
-## 4. 思考过程
+```json
+{
+  "threadId": "thread-1",
+  "runId": "run-2",
+  "resume": [{
+    "interruptId": "permission-1",
+    "status": "resolved",
+    "payload": { "decision": "once" }
+  }]
+}
+```
 
-`GET /api/event` 中的 `session.reasoning.started/delta/ended` 转换为标准 `REASONING_*` 事件。模型不提供 reasoning 时，界面不会伪造真实思考内容；已经结束的 reasoning 会忽略迟到重复事件。
+Adapter 校验 resume 覆盖全部待处理 interrupt，再调用 OpenCode2 permission reply 并继续原 session。恢复后的工具结果使用原 `toolCallId`，不会重复发送 `TOOL_CALL_START / ARGS / END`。存在待处理 interrupt 时，缺少 `resume` 的新输入会返回 `RUN_ERROR`；完全相同的 resume 重试由持久化回执安全去重。
 
-## 5. 同步 / 异步任务状态
+## 前端工具与生成式工作区
 
-| 界面接口 | OpenCode2 接口 | 用途 |
-| --- | --- | --- |
-| `POST /agent` | `POST /api/session/:sessionID/prompt` | 状态通过同一 AG-UI SSE 返回 |
-| `GET /debug/sessions` | `GET /api/session/:sessionID/inbox` | 查看当前排队数量 |
-| `POST /debug/sessions/:threadId/background` | `POST /api/session/:sessionID/background` | 把可后台化的阻塞工具转入后台观察 |
-| `POST /debug/sessions/:threadId/interrupt` | `POST /api/session/:sessionID/interrupt` | 终止当前执行 |
+前端通过 `RunAgentInput.tools` 注册 `workspace.render/upsert/remove/agents`。Adapter 将这些工具注册为内部动态 MCP；OpenCode2 调用后，Adapter 输出标准 `TOOL_CALL_*`，浏览器执行 handler，再通过标准 `ToolMessage` 和同一个 `/agent` 入口续跑。
 
-界面状态包括 `queued`、`delivered`、`running`、`retry`、`waiting_permission`、`completed` 和错误/中断，统一使用 `ACTIVITY_SNAPSHOT`。
+工作区状态通过 `RunAgentInput.state` 与 `STATE_SNAPSHOT` 同步。任务和子 Agent 状态通过 `ACTIVITY_SNAPSHOT` 同步，不需要额外 HTTP 接口。
 
-## 6. 工具授权
+## 开发入口
 
-| 界面接口 | OpenCode2 接口 | 用途 |
-| --- | --- | --- |
-| `GET /debug/sessions` | `GET /api/session/:sessionID/permission` | 获取待处理授权 |
-| `POST /debug/sessions/:threadId/permissions/:requestId/reply` | `POST /api/session/:sessionID/permission/:requestID/reply` | `once` / `always` / `reject` |
-
-## 7. 上下文
-
-`GET /debug/sessions/:threadId/context` 转换为 `GET /api/session/:sessionID/context`，返回最近一次 compaction 之后的活动上下文。OpenCode2 session 本身保存历史，因此 Adapter 只提交当前最新用户消息，不重复发送整段聊天历史。
-
-当前 workspace 还会通过标准 `RunAgentInput.state` 下发，并由 `STATE_SNAPSHOT` 回送，保证刷新、切换会话和工具续跑时界面状态一致。
-
-## 8. 会话切换
-
-前端本地会话切换会改变 CopilotKit `threadId`。Adapter 使用 `adapter/.data/thread-sessions.json` 持久化 `threadId → sessionID`：
-
-- 新 thread：创建新 OpenCode2 session；
-- 切回旧 thread：复用原 session 与上下文；
-- Adapter 重启：恢复映射；
-- 上游 session 已删除：自动清理失效映射并重建。
-
-`GET /debug/sessions` 用于联调面板显示所有已映射会话，但不会暴露 OpenCode2 service 密码。
-
-## 9. 运行与场景调试
+以下入口仅用于 Adapter 测试，不是生产前端依赖：
 
 | 接口 | 用途 |
 | --- | --- |
-| `POST /agui/hybrid` | `/agent` 兼容别名，不注入固定场景 |
 | `POST /agui/mock` | 不连接 OpenCode2 的标准 AG-UI mock |
 | `POST /agui/replay` | 重放捕获的 OpenCode2 原生事件 |
-| `/opencode/*` | 自动补本机认证的 OpenCode2 `/api` 透传 |

@@ -35,15 +35,40 @@ export class SessionRegistry {
     return record
   }
 
+  async pendingInterrupts(threadId) {
+    const record = await this.get(threadId)
+    return Array.isArray(record?.pendingInterrupts) ? record.pendingInterrupts : []
+  }
+
+  async setPendingInterrupts(threadId, interrupts) {
+    await this.ready
+    const record = this.sessions.get(threadId)
+    if (!record) throw new Error('Thread is not mapped to an OpenCode session')
+    record.pendingInterrupts = interrupts
+    delete record.lastResume
+    record.updatedAt = Date.now()
+    await this.save()
+  }
+
+  async resolveInterrupts(threadId, receipt) {
+    await this.ready
+    const record = this.sessions.get(threadId)
+    if (!record) throw new Error('Thread is not mapped to an OpenCode session')
+    delete record.pendingInterrupts
+    record.lastResume = receipt
+    record.updatedAt = Date.now()
+    await this.save()
+  }
+
+  async lastResume(threadId) {
+    const record = await this.get(threadId)
+    return record?.lastResume
+  }
+
   async delete(threadId) {
     await this.ready
     this.sessions.delete(threadId)
     await this.save()
-  }
-
-  async list() {
-    await this.ready
-    return [...this.sessions.entries()].map(([threadId, record]) => ({ threadId, ...record }))
   }
 
   async save() {

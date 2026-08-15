@@ -55,6 +55,59 @@ test('turns session errors into RUN_ERROR', () => {
   assert.equal(events[0].message, 'boom')
 })
 
+test('turns OpenCode permission requests into a standard AG-UI interrupt', () => {
+  const converter = create()
+  converter.convert({
+    type: 'session.tool.input.ended',
+    data: { sessionID: 'ses-1', assistantMessageID: 'a1', id: 'tool-1', name: 'shell', text: '{"command":"npm test"}' },
+  })
+  const events = converter.convert({
+    type: 'permission.asked',
+    data: { sessionID: 'ses-1', id: 'permission-1', action: 'shell', resources: ['npm test'] },
+  })
+  const finished = events.at(-1)
+
+  assert.deepEqual(types(events), ['ACTIVITY_SNAPSHOT', 'TOOL_CALL_END', 'RUN_FINISHED'])
+  assert.equal(finished.outcome.type, 'interrupt')
+  assert.deepEqual(finished.outcome.interrupts[0], {
+    id: 'permission-1',
+    reason: 'tool_call',
+    message: '工具 shell 请求人工授权。',
+    toolCallId: 'tool-1',
+    responseSchema: {
+      type: 'object',
+      required: ['decision'],
+      properties: {
+        decision: {
+          type: 'string',
+          enum: ['once', 'always', 'reject'],
+          title: '授权决定',
+        },
+      },
+      additionalProperties: false,
+    },
+    metadata: { source: 'opencode2', action: 'shell', resources: ['npm test'] },
+  })
+})
+
+test('resumed tool calls emit only the result in the new run', () => {
+  const converter = new OpenCodeAguiConverter({
+    threadId: 'thread-1',
+    runId: 'run-2',
+    sessionId: 'ses-1',
+    resumedToolCallIds: ['tool-1'],
+  })
+
+  assert.deepEqual(converter.convert({
+    type: 'session.tool.input.ended',
+    data: { sessionID: 'ses-1', assistantMessageID: 'a1', id: 'tool-1', name: 'shell', text: '{}' },
+  }), [])
+  assert.deepEqual(types(converter.convert({
+    type: 'session.tool.success',
+    data: { sessionID: 'ses-1', assistantMessageID: 'a1', id: 'tool-1', name: 'shell', content: 'done' },
+  })), ['TOOL_CALL_RESULT'])
+})
+
 test('converts native v2 text, reasoning and execution events', () => {
   const converter = create()
   converter.start()

@@ -19,3 +19,16 @@ test('native OpenCode2 reasoning events become schema-valid AG-UI events', () =>
   validate(converter.convert({ type: 'session.reasoning.ended', data: { sessionID: 'ses-schema', assistantMessageID: 'm1', ordinal: 0, text: 'thinking' } }))
   validate(converter.convert({ type: 'session.execution.succeeded', data: { sessionID: 'ses-schema' } }))
 })
+
+test('OpenCode2 permissions become schema-valid AG-UI interrupt outcomes', () => {
+  const converter = new OpenCodeAguiConverter({ threadId: 'thread-schema', runId: 'run-schema', sessionId: 'ses-schema' })
+  validate(converter.start())
+  validate(converter.convert({
+    type: 'session.tool.input.ended',
+    data: { sessionID: 'ses-schema', assistantMessageID: 'm1', id: 'tool-1', name: 'shell', text: '{}' },
+  }))
+  validate(converter.convert({
+    type: 'permission.asked',
+    data: { sessionID: 'ses-schema', id: 'permission-1', action: 'shell' },
+  }))
+})
