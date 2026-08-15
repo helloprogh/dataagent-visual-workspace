@@ -28,6 +28,8 @@ CopilotKit registers `workspace.render`, `workspace.upsert`, `workspace.remove`,
 
 `workspace.render/upsert` use a discriminated widget union: every `ui.*` component carries its actual props schema. For example, `ui.lineChart` uses `points: [{ label, value }]`. The workspace store also normalizes common Chart.js `data.labels/datasets` payloads for compatibility with models or sessions that retained an older tool catalog.
 
+`ui.areaChart` uses the same `points: [{ label, value }]` series contract and renders a filled trend area. For compatibility with older browser state, serialized `workspace.widgets` JSON is parsed before persistence and rendering instead of being treated as an empty workspace.
+
 After a browser handler runs, CopilotKit sends a standard `ToolMessage`. The Adapter resolves the pending MCP call and resumes the same OpenCode2 session. Workspace data is carried in `RunAgentInput.state` and synchronized by `STATE_SNAPSHOT`; task and sub-agent status use `ACTIVITY_SNAPSHOT`.
 
 ## Conversation persistence

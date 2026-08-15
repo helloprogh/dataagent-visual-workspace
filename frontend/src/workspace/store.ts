@@ -24,8 +24,20 @@ function isWorkspaceWidget(value: unknown): value is WorkspaceWidget {
   return Boolean(widget && typeof widget.id === 'string' && typeof widget.component === 'string')
 }
 
+function parseSerializedValue(value: unknown): unknown {
+  let parsed = value
+  for (let attempt = 0; attempt < 2 && typeof parsed === 'string'; attempt += 1) {
+    try {
+      parsed = JSON.parse(parsed)
+    } catch {
+      return value
+    }
+  }
+  return parsed
+}
+
 function normalizeChartWidget(widget: WorkspaceWidget): WorkspaceWidget {
-  if (!['ui.lineChart', 'ui.barChart', 'ui.donutChart'].includes(widget.component)) return clone(widget)
+  if (!['ui.lineChart', 'ui.areaChart', 'ui.barChart', 'ui.donutChart'].includes(widget.component)) return clone(widget)
   const props = clone(widget.props ?? {})
   const chartData = asRecord(props.data)
   const datasets = Array.isArray(chartData?.datasets) ? chartData.datasets : []
@@ -42,8 +54,8 @@ function normalizeChartWidget(widget: WorkspaceWidget): WorkspaceWidget {
   })).filter(point => Number.isFinite(point.value))
 
   if (points.length) {
-    if (widget.component === 'ui.lineChart' && !Array.isArray(props.points)) props.points = points
-    if (widget.component !== 'ui.lineChart' && !Array.isArray(props.items)) props.items = points
+    if (['ui.lineChart', 'ui.areaChart'].includes(widget.component) && !Array.isArray(props.points)) props.points = points
+    if (!['ui.lineChart', 'ui.areaChart'].includes(widget.component) && !Array.isArray(props.items)) props.items = points
   }
 
   const options = asRecord(props.options)
@@ -56,11 +68,12 @@ function normalizeChartWidget(widget: WorkspaceWidget): WorkspaceWidget {
 }
 
 function normalizeWidgets(widgets: unknown): WorkspaceWidget[] {
-  const candidates = Array.isArray(widgets)
-    ? widgets
-    : isWorkspaceWidget(widgets)
-      ? [widgets]
-      : Object.values(asRecord(widgets) ?? {})
+  const parsed = parseSerializedValue(widgets)
+  const candidates = Array.isArray(parsed)
+    ? parsed
+    : isWorkspaceWidget(parsed)
+      ? [parsed]
+      : Object.values(asRecord(parsed) ?? {})
 
   return candidates.filter(isWorkspaceWidget).map(normalizeChartWidget)
 }

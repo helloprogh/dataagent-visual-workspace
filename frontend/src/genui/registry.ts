@@ -4,6 +4,7 @@ import KpiGroup from '../components/genui/KpiGroup.vue'
 import DataTable from '../components/genui/DataTable.vue'
 import BarChart from '../components/genui/BarChart.vue'
 import LineChart from '../components/genui/LineChart.vue'
+import AreaChart from '../components/genui/AreaChart.vue'
 import DonutChart from '../components/genui/DonutChart.vue'
 import SqlPanel from '../components/genui/SqlPanel.vue'
 import InsightList from '../components/genui/InsightList.vue'
@@ -86,6 +87,13 @@ export const genUIRegistry: GenUIEntry[] = [
     title: '趋势折线图',
     description: '展示时间序列和趋势。必须使用 points: [{ label, value }]，不要使用 Chart.js 的 data/datasets/options 格式',
     component: LineChart,
+    schema: z.object({ title: z.string().optional(), unit: z.string().optional(), points: z.array(seriesItemSchema) }),
+  },
+  {
+    name: 'ui.areaChart',
+    title: '区域趋势图',
+    description: '展示带面积填充的时间序列趋势。必须使用 points: [{ label, value }]，不要使用 Chart.js 的 data/datasets/options 格式',
+    component: AreaChart,
     schema: z.object({ title: z.string().optional(), unit: z.string().optional(), points: z.array(seriesItemSchema) }),
   },
   {

@@ -28,6 +28,7 @@ Adapter 负责完整的 AG-UI run 生命周期。OpenCode2 原生事件不会原
 - `RunAgentInput.tools` 会被注册到名为 `agui_frontend` 的动态 MCP 服务。OpenCode2 调用后，Adapter 发出标准 `TOOL_CALL_*`；浏览器执行 CopilotKit handler，再用标准 `ToolMessage` 回传结果并继续同一 OpenCode2 会话。
 - 当前端组件 schema 变化时，Adapter 会重新连接动态 MCP，避免 OpenCode2 继续使用旧 catalog。工作区还会把常见 Chart.js `labels/datasets` 输入兼容转换为原生 `points/items`。
 - Workspace 通过 `RunAgentInput.state` 和 `STATE_SNAPSHOT` 同步，不依赖 Hybrid 静态场景注入。
+- Adapter 会在发出 `STATE_SNAPSHOT` 前把字符串化的 `workspace.widgets` JSON 还原为结构化值，保证标准事件中的工作区组件不是二次编码字符串。
 - 已关闭的 reasoning 生命周期忽略迟到的重复 delta/ended 事件，避免界面连续出现空的思考卡片。
 - 下一条预取事件的 abort rejection 会被主动消费，Adapter 不会在 run 完成后因未处理的取消而退出。
 - 旧版 `message.part.*` 事件仍保留兼容转换，便于 fixture replay。

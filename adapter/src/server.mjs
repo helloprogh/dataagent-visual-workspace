@@ -1,6 +1,6 @@
 import http from 'node:http'
 import { randomUUID } from 'node:crypto'
-import { stateSnapshot } from './agui.mjs'
+import { normalizeState, stateSnapshot } from './agui.mjs'
 import { OpenCodeAguiConverter } from './converter.mjs'
 import { FrontendToolBridge } from './frontend-tool-bridge.mjs'
 import { createFrontendMcpHandler } from './mcp-frontend-server.mjs'
@@ -120,6 +120,7 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl } = {}) => {
     ...rawInput,
     threadId: rawInput.threadId || `thread-${randomUUID()}`,
     runId: rawInput.runId || `run-${randomUUID()}`,
+    state: normalizeState(rawInput.state),
   }
   openSse(res)
   const abort = new AbortController()
