@@ -5,7 +5,6 @@ import { OpenCodeAguiConverter } from './converter.mjs'
 import { FrontendToolBridge } from './frontend-tool-bridge.mjs'
 import { createFrontendMcpHandler } from './mcp-frontend-server.mjs'
 import { OpenCodeClient } from './opencode-client.mjs'
-import { interfaceCatalog, nativeEventMapping, supportedScenarios } from './capabilities.mjs'
 import { streamMock } from './mock-scenario.mjs'
 import { SessionRegistry } from './session-registry.mjs'
 import { applyCors, openSse, writeSse } from './sse.mjs'
@@ -310,14 +309,6 @@ export const createServer = () => http.createServer(async (req, res) => {
     return res.end()
   }
   try {
-    if (req.method === 'GET' && url.pathname === '/health') {
-      const upstream = await client.diagnostics()
-      return json(res, 200, { ok: true, service: 'opencode-agui-adapter', upstream })
-    }
-    if (req.method === 'GET' && url.pathname === '/debug/capabilities') {
-      const upstream = await client.diagnostics()
-      return json(res, 200, { service: 'opencode-agui-adapter', upstream, scenarios: supportedScenarios, interfaces: interfaceCatalog, eventMapping: nativeEventMapping })
-    }
     if (req.method === 'GET' && url.pathname === '/debug/sessions') {
       return json(res, 200, { sessions: await debugSessions() })
     }

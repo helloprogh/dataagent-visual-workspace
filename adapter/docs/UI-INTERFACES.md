@@ -80,12 +80,10 @@ Adapter 在提交 OpenCode2 `prompt` 的同时消费事件流；界面侧的 `/a
 
 `GET /debug/sessions` 用于联调面板显示所有已映射会话，但不会暴露 OpenCode2 service 密码。
 
-## 9. 协议与场景调试
+## 9. 运行与场景调试
 
 | 接口 | 用途 |
 | --- | --- |
-| `GET /health` | Adapter 与 OpenCode2 健康状态 |
-| `GET /debug/capabilities` | 连接、版本、支持场景、接口目录与事件映射 |
 | `POST /agui/hybrid` | `/agent` 兼容别名，不注入固定场景 |
 | `POST /agui/mock` | 不连接 OpenCode2 的标准 AG-UI mock |
 | `POST /agui/replay` | 重放捕获的 OpenCode2 原生事件 |

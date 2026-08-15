@@ -10,7 +10,7 @@
 │  ├─ 空工作区 / Demo Mode / OpenCode2 场景模式
 │  ├─ Generative UI 组件注册表
 │  ├─ 主 Agent 聊天与本地会话列表
-│  └─ 协议联调与接口能力面板
+│  └─ 会话、授权与上下文联调面板
 └─ adapter/    本地 OpenCode2 → AG-UI Adapter
    ├─ 自动发现 `opencode2 serve --service`
    ├─ OpenCode2 v2 `/api` 接口与本机认证
@@ -34,8 +34,6 @@ npm run dev
 
 - 前端：<http://127.0.0.1:5173>
 - Adapter：<http://127.0.0.1:3001>
-- 健康检查：<http://127.0.0.1:3001/health>
-- 能力清单：<http://127.0.0.1:3001/debug/capabilities>
 
 Adapter 默认读取 OpenCode2 的 service 注册文件，自动获得动态端口和本机认证，不需要把密码写进项目。也可以通过 `OPENCODE_BASE_URL`、`OPENCODE_PASSWORD` 显式覆盖。
 
@@ -62,7 +60,6 @@ npm run dev:demo
 | `POST /agui/hybrid` | `/agent` 的兼容别名，不注入固定场景 |
 | `POST /agui/mock` | 不依赖 OpenCode2 的完整 AG-UI mock |
 | `POST /agui/replay` | 离线重放 OpenCode2 原生事件 |
-| `GET /debug/capabilities` | 服务状态、支持场景、界面接口目录 |
 | `GET /debug/sessions` | threadId / sessionID 映射与任务状态 |
 | `GET /debug/sessions/:threadId/context` | 当前会话活动上下文 |
 | `/opencode/*` | 带本机认证的 OpenCode2 `/api` 透传 |
