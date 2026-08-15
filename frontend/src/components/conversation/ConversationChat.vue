@@ -74,7 +74,7 @@ async function uploadAttachment(file: File) {
   return {
     type: 'url' as const,
     value: String(source),
-    mimeType: uploaded?.mimeType ?? uploaded?.mime_type ?? uploaded?.contentType ?? file.type || 'application/octet-stream',
+    mimeType: (uploaded?.mimeType ?? uploaded?.mime_type ?? uploaded?.contentType ?? file.type) || 'application/octet-stream',
     metadata: {
       ...(fileId ? { fileId: String(fileId) } : {}),
       filename: uploaded?.filename ?? uploaded?.name ?? file.name,
