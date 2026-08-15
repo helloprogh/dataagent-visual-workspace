@@ -29,6 +29,7 @@ let currentThreadId = ''
 const hasInterrupts = computed(() => pendingInterrupts.value.length > 0)
 const chatLabels = computed(() => ({
   chatInputPlaceholder: '描述你的数据业务目标，我将与你逐步澄清需求，并自主完成Specification、数据方案、数据集成、ETL开发、治理验证与交付。',
+  chatInputToolbarAddButtonLabel: '上传文件',
   welcomeMessageText: `我是 ${props.agentDisplayName}，你的 SA 数据需求开发与交付助手。`,
   modalHeaderTitle: props.agentDisplayName,
 })) as any
@@ -271,6 +272,28 @@ onBeforeUnmount(() => {
 .permission-copy{display:flex;flex-direction:column;gap:4px}.permission-copy b{color:#f0ddaa;font-size:11px}.permission-copy p{margin:0;color:#c6bdab;font-size:10px;line-height:1.5}.permission-copy code{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#918a7c;font-size:8.5px}
 .permission-actions{display:flex;gap:7px;margin-top:9px}.permission-actions button{padding:7px 10px;border:1px solid rgba(230,197,116,.25);border-radius:7px;background:rgba(230,197,116,.075);color:#ead9aa;font-size:9.5px;cursor:pointer;transition:.16s}.permission-actions button:hover,.permission-actions button.selected{border-color:#e2c570;background:#d7b85f;color:#17140d}.permission-actions button.reject{margin-left:auto;border-color:rgba(240,111,130,.27);background:rgba(240,111,130,.07);color:#efadb7}.permission-actions button.reject:hover,.permission-actions button.reject.selected{border-color:#dc7181;background:#c75c6d;color:#fff}.permission-actions button:disabled{opacity:.45;cursor:wait}
 .agui-permission>small{display:block;margin-top:9px;color:#9c9588;font-size:8.5px}.permission-error{margin:9px 0 0;color:#ff9cac;font-size:9px}.permission-rise-enter-active,.permission-rise-leave-active{transition:.2s ease}.permission-rise-enter-from,.permission-rise-leave-to{opacity:0;transform:translateY(8px)}
+
+/* CopilotKit attachment queue — visually aligned with the SA delivery workspace. */
+:deep([data-testid="copilot-chat-attachment-queue"]){gap:8px!important;padding:0 14px 9px!important;margin:0!important;align-items:center}
+:deep([data-testid="copilot-chat-attachment-item"]){position:relative!important;border:1px solid rgba(226,197,112,.17)!important;border-radius:12px!important;background:linear-gradient(145deg,rgba(37,37,42,.96),rgba(23,24,29,.98))!important;box-shadow:0 8px 22px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.035)!important;overflow:hidden!important;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+:deep([data-testid="copilot-chat-attachment-item"]:hover){border-color:rgba(226,197,112,.34)!important;box-shadow:0 10px 28px rgba(0,0,0,.28),0 0 0 1px rgba(226,197,112,.04) inset!important;transform:translateY(-1px)}
+:deep([data-testid="copilot-chat-attachment-item"][data-card-type="document"]){min-width:196px!important;max-width:264px!important;min-height:54px!important;padding:8px 34px 8px 9px!important}
+:deep([data-testid="copilot-chat-attachment-item"][data-card-type="audio"]){min-width:230px!important;max-width:290px!important;padding:8px 34px 8px 9px!important}
+:deep([data-testid="copilot-chat-attachment-item"][data-card-type="image"]),:deep([data-testid="copilot-chat-attachment-item"][data-card-type="video"]){width:58px!important;height:58px!important;border-radius:12px!important}
+:deep([data-testid="copilot-chat-attachment-image-thumbnail"]),:deep([data-testid="copilot-chat-attachment-video-thumbnail"]),:deep([data-testid="copilot-chat-attachment-video-fallback"]){border-radius:11px!important}
+:deep([data-testid="copilot-chat-attachment-document-button"]){gap:9px!important;color:#e9e5dc!important;align-items:center!important;cursor:pointer!important}
+:deep([data-testid="copilot-chat-attachment-document-button"]>div:first-child){width:36px!important;height:36px!important;border:1px solid rgba(231,204,130,.23)!important;border-radius:10px!important;background:linear-gradient(145deg,rgba(222,190,103,.22),rgba(121,106,75,.11))!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.065)!important;color:#f0d995!important;font-size:9px!important;font-weight:800!important;letter-spacing:.04em!important}
+:deep([data-testid="copilot-chat-attachment-document-filename"]){display:block!important;max-width:170px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;color:#eeeae1!important;font-size:10.5px!important;font-weight:650!important;line-height:1.35!important;letter-spacing:.005em!important}
+:deep([data-testid="copilot-chat-attachment-document-button"]>div:last-child>span:last-child){display:flex!important;align-items:center!important;margin-top:3px!important;color:#89857b!important;font-size:8px!important;line-height:1!important;letter-spacing:.04em!important}
+:deep([data-testid="copilot-chat-attachment-document-button"]>div:last-child>span:last-child)::before{content:'';display:inline-block;width:5px;height:5px;margin-right:5px;border-radius:50%;background:#74cba8;box-shadow:0 0 8px rgba(116,203,168,.38)}
+:deep([data-testid="copilot-chat-attachment-item"]>button[aria-label="Remove attachment"]){top:7px!important;right:7px!important;width:18px!important;height:18px!important;border:1px solid rgba(255,255,255,.07)!important;background:rgba(9,10,13,.58)!important;color:#9f9b92!important;font-size:8px!important;opacity:.78!important;backdrop-filter:blur(8px);transition:.16s ease}
+:deep([data-testid="copilot-chat-attachment-item"]>button[aria-label="Remove attachment"]:hover){border-color:rgba(233,125,140,.32)!important;background:rgba(144,62,76,.52)!important;color:#fff!important;opacity:1!important;transform:scale(1.06)}
+:deep([data-testid="copilot-chat-attachment-uploading-overlay"]){gap:7px!important;background:linear-gradient(135deg,rgba(15,16,20,.90),rgba(29,27,23,.88))!important;backdrop-filter:blur(7px)}
+:deep([data-testid="copilot-chat-attachment-uploading-overlay"]>div){width:15px!important;height:15px!important;border-width:1.5px!important;border-color:rgba(239,216,153,.95)!important;border-top-color:transparent!important}
+:deep([data-testid="copilot-chat-attachment-uploading-overlay"])::after{content:'UPLOADING';color:#d8c58d;font-size:7.5px;font-weight:750;letter-spacing:.12em}
+:deep([data-testid="copilot-chat-drop-overlay"]){margin:10px!important;border:1px dashed rgba(226,197,112,.55)!important;border-radius:16px!important;background:radial-gradient(circle at 50% 44%,rgba(226,197,112,.13),rgba(17,18,22,.90) 66%)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.025),0 18px 48px rgba(0,0,0,.32)!important;backdrop-filter:blur(12px)}
+:deep([data-testid="copilot-chat-drop-overlay"] span){color:#e5cf91!important;font-size:10px!important;font-weight:700!important;letter-spacing:.06em!important}
+
 .has-interrupts :deep([data-testid="copilot-chat-input-shell"]){opacity:.48;pointer-events:none}.has-interrupts :deep([data-testid="copilot-chat-input-textarea"]){cursor:not-allowed}
-@media(max-width:540px){.agui-permission{left:8px;right:8px;bottom:96px}.permission-actions{flex-wrap:wrap}.permission-actions button.reject{margin-left:0}}
+@media(max-width:540px){.agui-permission{left:8px;right:8px;bottom:96px}.permission-actions{flex-wrap:wrap}.permission-actions button.reject{margin-left:0}:deep([data-testid="copilot-chat-attachment-queue"]){padding-left:8px!important;padding-right:8px!important}:deep([data-testid="copilot-chat-attachment-item"][data-card-type="document"]){min-width:178px!important;max-width:100%!important}:deep([data-testid="copilot-chat-attachment-document-filename"]){max-width:145px!important}}
 </style>
