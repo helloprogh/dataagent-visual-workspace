@@ -4,6 +4,7 @@ import { CopilotChat, useAgent } from '@copilotkit/vue/v2'
 import type { AbstractAgent, Interrupt, ResumeEntry } from '@ag-ui/client'
 import { conversationRepository, deriveConversationName } from '../../conversations/local-repository'
 import { workspaceController } from '../../workspace/store'
+import ReasoningAwareAssistantMessage from './ReasoningAwareAssistantMessage.vue'
 import ReasoningProcessCard from './ReasoningProcessCard.vue'
 
 const props = defineProps<{
@@ -149,6 +150,13 @@ onBeforeUnmount(() => {
       :throttle-ms="60"
       @submit-message="onSubmitMessage"
     >
+      <template #assistant-message="{ message, messages, isRunning }">
+        <ReasoningAwareAssistantMessage
+          :message="message"
+          :messages="messages"
+          :is-running="isRunning"
+        />
+      </template>
       <template #reasoning-message="{ message, messages, isRunning }">
         <ReasoningProcessCard
           :message="message"
