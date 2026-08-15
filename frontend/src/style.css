@@ -199,9 +199,6 @@ body{
   color:#dce2eb!important;
 }
 
-.visual-chat [data-message-id^="reasoning-"] button{color:#929daf!important}
-.visual-chat [data-message-id^="reasoning-"] button:hover{color:#cbd2dd!important}
-.visual-chat [data-message-id^="reasoning-"] button+div{color:#aeb8c7!important}
 .visual-chat .tool-status{
   border-color:rgba(164,178,255,.14)!important;
   background:linear-gradient(135deg,rgba(35,42,57,.92),rgba(24,29,40,.94))!important;
