@@ -25,7 +25,7 @@ let currentAgent: AbstractAgent | null = null
 let currentThreadId = ''
 const hasInterrupts = computed(() => pendingInterrupts.value.length > 0)
 const chatLabels = computed(() => ({
-  chatInputPlaceholder: '描述你的数据业务目标，我会与你逐步澄清，并推进 Specification、数据方案、数据集成、ETL 开发、治理验证与交付。',
+  chatInputPlaceholder: '描述你的数据业务目标，我将与你逐步澄清需求，并自主完成Specification、数据方案、数据集成、ETL开发、治理验证与交付。',
   welcomeMessageText: `我是 ${props.agentDisplayName}，你的 SA 数据需求开发与交付助手。`,
   modalHeaderTitle: props.agentDisplayName,
 })) as any
