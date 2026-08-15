@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { CopilotChat, useAgent } from '@copilotkit/vue/v2'
 import type { AbstractAgent, Interrupt, ResumeEntry } from '@ag-ui/client'
+import { ElMessage } from 'element-plus'
 import { conversationRepository, deriveConversationName } from '../../conversations/local-repository'
 import { workspaceController } from '../../workspace/store'
 import ReasoningAwareAssistantMessage from './ReasoningAwareAssistantMessage.vue'
@@ -31,6 +32,56 @@ const chatLabels = computed(() => ({
   welcomeMessageText: `我是 ${props.agentDisplayName}，你的 SA 数据需求开发与交付助手。`,
   modalHeaderTitle: props.agentDisplayName,
 })) as any
+
+const uploadUrl = import.meta.env.VITE_AGUI_UPLOAD_URL || '/api/agui/upload'
+const attachmentsConfig = computed(() => ({
+  enabled: true,
+  accept: '*/*',
+  maxSize: 20 * 1024 * 1024,
+  onUpload: uploadAttachment,
+  onUploadFailed: ({ message }: { message: string }) => ElMessage.error(message),
+}))
+
+async function uploadAttachment(file: File) {
+  const formData = new FormData()
+  formData.append('file', file, file.name)
+  const headers = new Headers()
+  const token = import.meta.env.VITE_AGUI_TOKEN
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+
+  const response = await fetch(uploadUrl, {
+    method: 'POST',
+    headers,
+    body: formData,
+  })
+  if (!response.ok) {
+    let detail = ''
+    try {
+      const body = await response.json()
+      detail = body?.message ?? body?.error?.message ?? body?.error ?? ''
+    } catch {
+      detail = await response.text().catch(() => '')
+    }
+    throw new Error(`文件上传失败 (${response.status})${detail ? `: ${detail}` : ''}`)
+  }
+
+  const body = await response.json()
+  const uploaded = body?.data ?? body?.file ?? body
+  const fileId = uploaded?.fileId ?? uploaded?.file_id ?? uploaded?.id
+  const source = uploaded?.url ?? uploaded?.uri ?? uploaded?.downloadUrl ?? uploaded?.download_url ?? uploaded?.path ?? fileId
+  if (!source) throw new Error('上传接口未返回 fileId 或文件地址')
+
+  return {
+    type: 'url' as const,
+    value: String(source),
+    mimeType: uploaded?.mimeType ?? uploaded?.mime_type ?? uploaded?.contentType ?? file.type || 'application/octet-stream',
+    metadata: {
+      ...(fileId ? { fileId: String(fileId) } : {}),
+      filename: uploaded?.filename ?? uploaded?.name ?? file.name,
+      size: uploaded?.size ?? file.size,
+    },
+  }
+}
 
 function persistSnapshot(threadId: string, target: AbstractAgent, immediate = false) {
   const save = () => {
@@ -147,6 +198,7 @@ onBeforeUnmount(() => {
       :agent-id="agentId"
       :thread-id="threadId"
       :labels="chatLabels"
+      :attachments="attachmentsConfig"
       :throttle-ms="60"
       @submit-message="onSubmitMessage"
     >
