@@ -23,7 +23,7 @@ function refreshConversations() {
 function ensureConversation() {
   refreshConversations()
   if (conversations.value.length === 0) {
-    const created = conversationRepository.create('新分析')
+    const created = conversationRepository.create('新需求')
     refreshConversations()
     activeId.value = created.id
     return
@@ -59,7 +59,7 @@ async function renameConversation(id: string) {
   const current = conversationRepository.get(id)
   if (!current) return
   try {
-    const { value } = await ElMessageBox.prompt('输入分析线程名称', '重命名', {
+    const { value } = await ElMessageBox.prompt('输入需求名称', '重命名', {
       inputValue: current.displayName,
       inputPattern: /\S+/,
       inputErrorMessage: '名称不能为空',
@@ -75,7 +75,7 @@ async function renameConversation(id: string) {
 
 async function removeConversation(id: string) {
   try {
-    await ElMessageBox.confirm('删除后将清除当前浏览器保存的历史分析与消息，是否继续？', '删除分析线程', {
+    await ElMessageBox.confirm('删除后将清除当前浏览器保存的需求记录与消息，是否继续？', '删除需求', {
       type: 'warning',
       confirmButtonText: '删除',
       cancelButtonText: '取消',

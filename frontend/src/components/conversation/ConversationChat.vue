@@ -4,6 +4,7 @@ import { CopilotChat, useAgent } from '@copilotkit/vue/v2'
 import type { AbstractAgent, Interrupt, ResumeEntry } from '@ag-ui/client'
 import { conversationRepository, deriveConversationName } from '../../conversations/local-repository'
 import { workspaceController } from '../../workspace/store'
+import ReasoningProcessCard from './ReasoningProcessCard.vue'
 
 const props = defineProps<{
   agentId: string
@@ -25,8 +26,8 @@ let currentAgent: AbstractAgent | null = null
 let currentThreadId = ''
 const hasInterrupts = computed(() => pendingInterrupts.value.length > 0)
 const chatLabels = computed(() => ({
-  chatInputPlaceholder: '告诉我你想分析什么，我会通过本地 OpenCode2 实时回答并更新工作区。',
-  welcomeMessageText: `我是 ${props.agentDisplayName}。当前已通过 adapter 连接本地 OpenCode2 service。`,
+  chatInputPlaceholder: '描述你的数据业务目标，我将与你逐步澄清需求，并自主完成Specification、数据方案、数据集成、ETL开发、治理验证与交付。',
+  welcomeMessageText: `我是 ${props.agentDisplayName}，你的 SA 数据需求开发与交付助手。`,
   modalHeaderTitle: props.agentDisplayName,
 })) as any
 
@@ -127,7 +128,7 @@ watch([agent, () => props.threadId], ([nextAgent, nextThreadId], _, onCleanup) =
 }, { immediate: true })
 
 function onSubmitMessage(value: string) {
-  if (props.displayName === '新对话' || props.displayName === '新分析') emit('rename', deriveConversationName(value))
+  if (props.displayName === '新需求' || props.displayName === '新对话' || props.displayName === '新分析') emit('rename', deriveConversationName(value))
 }
 
 onBeforeUnmount(() => {
@@ -147,7 +148,15 @@ onBeforeUnmount(() => {
       :labels="chatLabels"
       :throttle-ms="60"
       @submit-message="onSubmitMessage"
-    />
+    >
+      <template #reasoning-message="{ message, messages, isRunning }">
+        <ReasoningProcessCard
+          :message="message"
+          :messages="messages"
+          :is-running="isRunning"
+        />
+      </template>
+    </CopilotChat>
 
     <transition name="permission-rise">
       <section v-if="hasInterrupts" class="agui-permission" role="alert" aria-live="assertive">

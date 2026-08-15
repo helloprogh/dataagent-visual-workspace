@@ -37,14 +37,14 @@ function timeLabel(timestamp: number) {
       <div class="brand-mark">D</div>
       <div>
         <b>Data Agent</b>
-        <span>数据分析工作台</span>
+        <span>数据编排作业台</span>
       </div>
     </div>
 
-    <el-button class="new-chat" type="primary" @click="emit('create')">+ 新建对话</el-button>
-    <el-input v-model="keyword" clearable placeholder="搜索历史对话" class="conversation-search" />
+    <el-button class="new-chat" type="primary" @click="emit('create')">+ 新建需求</el-button>
+    <el-input v-model="keyword" clearable placeholder="搜索需求记录" class="conversation-search" />
 
-    <div class="conversation-section-title">历史对话</div>
+    <div class="conversation-section-title">需求记录</div>
     <div class="conversation-list">
       <div
         v-for="item in filtered"
@@ -70,7 +70,7 @@ function timeLabel(timestamp: number) {
           </template>
         </el-dropdown>
       </div>
-      <div v-if="filtered.length === 0" class="conversation-empty">暂无匹配对话</div>
+      <div v-if="filtered.length === 0" class="conversation-empty">暂无匹配需求</div>
     </div>
   </aside>
 </template>

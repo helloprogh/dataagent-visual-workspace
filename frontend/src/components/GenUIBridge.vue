@@ -42,7 +42,7 @@ const workspaceWidgetSchema = z.discriminatedUnion(
 
 useFrontendTool({
   name: 'workspace.render',
-  description: 'Replace the main Data Agent visual workspace. Use this when a user asks for a dashboard, overview, multi-part analysis, or when the visual composition should materially change. Prefer registered ui.* components and compose them into a 12-column grid.',
+  description: 'Replace the main SA data delivery workspace. Use it to present requirement clarification, Specification, data solution, integration, ETL development, governance validation, delivery status, or other multi-part work. Prefer registered ui.* components and compose them into a 12-column grid.',
   parameters: z.object({
     title: z.string().optional(),
     subtitle: z.string().optional(),
@@ -96,7 +96,7 @@ useFrontendTool({
     activities: z.array(z.object({ id:z.string().optional(), time:z.string().optional(), agent:z.string(), message:z.string(), status:z.enum(['info','running','success','warning','error']).optional(), meta:z.string().optional() })).optional(),
   }),
   handler: async ({ orchestrator, agents, timeline, activities }, { agent }) => {
-    workspaceController.upsert({ id:'agent-graph', component:'ui.agentGraph', colSpan:8, minHeight:350, props:{ title:'智能分析编排', orchestrator, agents } })
+    workspaceController.upsert({ id:'agent-graph', component:'ui.agentGraph', colSpan:8, minHeight:350, props:{ title:'数据交付编排', orchestrator, agents } })
     workspaceController.upsert({ id:'agent-activity', component:'ui.agentActivity', colSpan:4, minHeight:350, props:{ title:'实时协作', items:activities || [] } })
     if (timeline?.length) {
       const totalMs = Math.max(...timeline.map(item => item.startMs + item.durationMs), 1)
