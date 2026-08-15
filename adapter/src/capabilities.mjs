@@ -10,14 +10,14 @@ export const supportedScenarios = [
     id: 'sub-agent',
     label: '子 Agent / 委派任务',
     status: 'supported',
-    description: 'task、subtask、agent、delegate 工具会额外产生 subagent.started/progress/completed/failed。',
-    events: ['TOOL_CALL_*', 'CUSTOM subagent.*'],
+    description: 'task、subtask、agent、delegate 工具在同一 AG-UI Run 中以标准 Activity 生命周期呈现。',
+    events: ['TOOL_CALL_*', 'ACTIVITY_SNAPSHOT'],
   },
   {
     id: 'tool-call',
     label: '工具调用',
     status: 'supported',
-    description: '完整转换工具输入流、执行中状态、成功结果与失败结果。',
+    description: '完整转换工具输入流、执行中状态、成功结果与失败结果；前端工具通过 RunAgentInput.tools 动态下发。',
     events: ['TOOL_CALL_START', 'TOOL_CALL_ARGS', 'TOOL_CALL_END', 'TOOL_CALL_RESULT'],
   },
   {
@@ -32,21 +32,21 @@ export const supportedScenarios = [
     label: '工具授权',
     status: 'supported',
     description: 'OpenCode2 工具等待授权时保持运行，并在联调面板中支持单次允许、始终允许或拒绝。',
-    events: ['permission.asked', 'CUSTOM task.status(waiting_permission)'],
+    events: ['permission.asked', 'ACTIVITY_SNAPSHOT'],
   },
   {
     id: 'task-status',
     label: '同步 / 异步任务状态',
     status: 'supported',
-    description: '界面保持 AG-UI SSE 同步运行；OpenCode2 prompt 异步入队，并保留 queued/running/retry/completed 状态。',
-    events: ['CUSTOM task.status', 'RUN_FINISHED', 'RUN_ERROR'],
+    description: '界面保持 AG-UI SSE 运行；OpenCode2 prompt 并发消费事件流，并以标准 Activity 保留 queued/running/retry/completed 状态。',
+    events: ['ACTIVITY_SNAPSHOT', 'RUN_FINISHED', 'RUN_ERROR'],
   },
   {
     id: 'context',
     label: '上下文',
     status: 'supported',
-    description: '每个 AG-UI thread 复用一个 OpenCode2 session；调试接口可读取压缩点之后的活动上下文。',
-    events: ['session context'],
+    description: '每个 AG-UI thread 复用一个 OpenCode2 session；前端 workspace state 与 context 随 RunAgentInput 下发并由 STATE_SNAPSHOT 同步。',
+    events: ['STATE_SNAPSHOT', 'RunAgentInput.context'],
   },
   {
     id: 'session-switch',
@@ -57,10 +57,10 @@ export const supportedScenarios = [
   },
   {
     id: 'visual-workspace',
-    label: '动态工作区场景',
-    status: 'debug',
-    description: 'Hybrid 调试入口把标准 workspace.render / workspace.agents 工具调用与真实 OpenCode2 回答组合在同一运行中。',
-    events: ['workspace.render', 'workspace.agents'],
+    label: '动态可视工作区',
+    status: 'supported',
+    description: 'CopilotKit 注册 workspace.render/upsert/remove/agents；Adapter 将工具 schema 暴露为动态 MCP，OpenCode2 原生调用后通过标准 AG-UI ToolMessage 续跑。',
+    events: ['RunAgentInput.tools', 'TOOL_CALL_*', 'ToolMessage', 'STATE_SNAPSHOT'],
   },
 ]
 
@@ -70,6 +70,12 @@ export const interfaceCatalog = [
     ui: 'POST /agent',
     upstream: ['POST /api/session', 'POST /api/session/:sessionID/prompt', 'GET /api/event'],
     purpose: '创建或复用会话，提交消息，返回标准 AG-UI SSE。',
+  },
+  {
+    consumer: '可视工作区 / 前端工具',
+    ui: 'POST /agent · RunAgentInput.tools / ToolMessage',
+    upstream: ['POST /api/mcp/agui_frontend', 'POST /mcp/frontend', 'GET /api/event → session.tool.*'],
+    purpose: '动态注册 workspace.render/upsert/remove/agents，让 OpenCode2 调用浏览器工具并用结果继续当前会话。',
   },
   {
     consumer: '子 Agent 与工具状态',
@@ -118,9 +124,9 @@ export const interfaceCatalog = [
 export const nativeEventMapping = {
   'session.text.*': 'TEXT_MESSAGE_*',
   'session.reasoning.*': 'REASONING_*',
-  'session.tool.*': 'TOOL_CALL_* + CUSTOM subagent.* / tool.progress',
+  'session.tool.*': 'TOOL_CALL_* + ACTIVITY_SNAPSHOT',
   'session.step.*': 'STEP_*',
-  'session.execution.*': 'CUSTOM task.status + RUN_FINISHED / RUN_ERROR',
+  'session.execution.*': 'ACTIVITY_SNAPSHOT + RUN_FINISHED / RUN_ERROR',
   'session.status=idle': 'RUN_FINISHED',
-  'session.retry.scheduled': 'CUSTOM task.status(retry)',
+  'session.retry.scheduled': 'ACTIVITY_SNAPSHOT(retry)',
 }

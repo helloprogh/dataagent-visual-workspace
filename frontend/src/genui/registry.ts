@@ -4,6 +4,7 @@ import KpiGroup from '../components/genui/KpiGroup.vue'
 import DataTable from '../components/genui/DataTable.vue'
 import BarChart from '../components/genui/BarChart.vue'
 import LineChart from '../components/genui/LineChart.vue'
+import AreaChart from '../components/genui/AreaChart.vue'
 import DonutChart from '../components/genui/DonutChart.vue'
 import SqlPanel from '../components/genui/SqlPanel.vue'
 import InsightList from '../components/genui/InsightList.vue'
@@ -20,6 +21,7 @@ import Heatmap from '../components/genui/Heatmap.vue'
 import AgentGraph from '../components/genui/AgentGraph.vue'
 import AgentTimeline from '../components/genui/AgentTimeline.vue'
 import AgentActivity from '../components/genui/AgentActivity.vue'
+import MarkdownPanel from '../components/genui/MarkdownPanel.vue'
 import type { GenUIEntry } from './types'
 
 const metricSchema = z.object({
@@ -33,6 +35,7 @@ const metricSchema = z.object({
 const seriesItemSchema = z.object({ label: z.string(), value: z.number() })
 
 export const genUIRegistry: GenUIEntry[] = [
+  { name:'ui.markdown', title:'Markdown 内容', description:'展示模型动态生成的标题、说明、列表和分析文本', component:MarkdownPanel, schema:z.object({ title:z.string().optional(), content:z.string() }) },
   { name:'ui.agentGraph', title:'多 Agent 编排', description:'展示主 Agent 与子 Agent 的协作拓扑、状态、进度、工具与输出', component:AgentGraph, schema:z.object({ title:z.string().optional(), orchestrator:z.object({id:z.string(),name:z.string(),role:z.string().optional(),task:z.string().optional(),status:z.enum(['pending','running','done','error','waiting']).optional(),progress:z.number().optional(),durationMs:z.number().optional(),summary:z.string().optional(),tools:z.array(z.string()).optional(),output:z.string().optional()}).optional(), agents:z.array(z.object({id:z.string(),name:z.string(),role:z.string().optional(),task:z.string().optional(),status:z.enum(['pending','running','done','error','waiting']).optional(),progress:z.number().optional(),durationMs:z.number().optional(),summary:z.string().optional(),tools:z.array(z.string()).optional(),output:z.string().optional()})).optional() }) },
   { name:'ui.agentTimeline', title:'Agent 并行时间线', description:'展示多个子 Agent 的并行/串行执行时序和耗时', component:AgentTimeline, schema:z.object({ title:z.string().optional(), totalMs:z.number().optional(), items:z.array(z.object({id:z.string(),name:z.string(),label:z.string().optional(),startMs:z.number(),durationMs:z.number(),status:z.enum(['pending','running','done','error','waiting']).optional()})).optional() }) },
   { name:'ui.agentActivity', title:'Agent 实时活动', description:'展示子 Agent 的实时任务事件、状态变化和关键输出', component:AgentActivity, schema:z.object({ title:z.string().optional(), items:z.array(z.object({id:z.string().optional(),time:z.string().optional(),agent:z.string(),message:z.string(),status:z.enum(['info','running','success','warning','error']).optional(),meta:z.string().optional()})).optional() }) },
@@ -82,8 +85,15 @@ export const genUIRegistry: GenUIEntry[] = [
   {
     name: 'ui.lineChart',
     title: '趋势折线图',
-    description: '展示时间序列和趋势',
+    description: '展示时间序列和趋势。必须使用 points: [{ label, value }]，不要使用 Chart.js 的 data/datasets/options 格式',
     component: LineChart,
+    schema: z.object({ title: z.string().optional(), unit: z.string().optional(), points: z.array(seriesItemSchema) }),
+  },
+  {
+    name: 'ui.areaChart',
+    title: '区域趋势图',
+    description: '展示带面积填充的时间序列趋势。必须使用 points: [{ label, value }]，不要使用 Chart.js 的 data/datasets/options 格式',
+    component: AreaChart,
     schema: z.object({ title: z.string().optional(), unit: z.string().optional(), points: z.array(seriesItemSchema) }),
   },
   {

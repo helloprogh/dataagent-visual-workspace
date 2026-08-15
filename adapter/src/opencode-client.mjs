@@ -111,6 +111,38 @@ export class OpenCodeClient {
     }, 'OpenCode prompt failed')
   }
 
+  async addMcp(server, url) {
+    return this.json(`/api/mcp/${encodeURIComponent(server)}`, {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify({
+        config: {
+          type: 'remote',
+          url,
+          oauth: false,
+          codemode: false,
+          timeout: { startup: 30000, catalog: 30000, execution: 600000 },
+        },
+      }),
+    }, 'Unable to register AG-UI frontend MCP server')
+  }
+
+  async connectMcp(server) {
+    return this.json(`/api/mcp/${encodeURIComponent(server)}/connect`, {
+      method: 'POST',
+    }, 'Unable to connect AG-UI frontend MCP server')
+  }
+
+  async disconnectMcp(server) {
+    return this.json(`/api/mcp/${encodeURIComponent(server)}/disconnect`, {
+      method: 'POST',
+    }, 'Unable to disconnect AG-UI frontend MCP server')
+  }
+
+  async listMcp() {
+    return this.json('/api/mcp', {}, 'Unable to list OpenCode MCP servers')
+  }
+
   async context(sessionId) {
     return this.json(`/api/session/${encodeURIComponent(sessionId)}/context`, {}, 'Unable to read OpenCode context')
   }

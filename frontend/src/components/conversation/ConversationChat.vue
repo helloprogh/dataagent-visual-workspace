@@ -50,23 +50,17 @@ watch([agent, () => props.threadId], ([nextAgent, nextThreadId], _, onCleanup) =
     nextAgent.setMessages(conversation.messages)
     nextAgent.setState(conversation.state)
   }
+  // Workspace tools persist synchronously in the dedicated per-thread store.
+  // A throttled conversation snapshot can lag behind the latest tool result,
+  // so it must not overwrite the newer workspace when a page is reloaded.
+  const workspace = workspaceController.snapshot()
+  if (workspace) nextAgent.setState({ ...(nextAgent.state ?? {}), workspace })
   const subscription = nextAgent.subscribe({
     onMessagesChanged: ({ agent: changedAgent }) => persistSnapshot(threadId, changedAgent),
-    onStateChanged: ({ agent: changedAgent }) => persistSnapshot(threadId, changedAgent),
-    onCustomEvent: ({ event }) => {
-      if (event.name === 'workspace.render') {
-        const value = event.value as any
-        workspaceController.replace({ title: value.title, subtitle: value.subtitle, widgets: value.widgets ?? [] })
-      }
-      if (event.name === 'workspace.agents') {
-        const value = event.value as any
-        workspaceController.upsert({ id:'agent-graph', component:'ui.agentGraph', colSpan:8, minHeight:350, props:{ title:'智能分析编排', orchestrator:value.orchestrator, agents:value.agents ?? [] } })
-        workspaceController.upsert({ id:'agent-activity', component:'ui.agentActivity', colSpan:4, minHeight:350, props:{ title:'实时协作', items:value.activities ?? [] } })
-        if (value.timeline?.length) {
-          const totalMs = Math.max(...value.timeline.map((item: any) => item.startMs + item.durationMs), 1)
-          workspaceController.upsert({ id:'agent-timeline', component:'ui.agentTimeline', colSpan:12, props:{ title:'并行执行时间线', totalMs, items:value.timeline } })
-        }
-      }
+    onStateChanged: ({ agent: changedAgent }) => {
+      const workspace = (changedAgent.state as { workspace?: unknown })?.workspace
+      if (workspace && typeof workspace === 'object') workspaceController.applyShared(workspace as any)
+      persistSnapshot(threadId, changedAgent)
     },
   })
   hydrated.value = true

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 interface Scenario {
   id: string
@@ -30,15 +30,16 @@ interface SessionItem {
 }
 
 const props = defineProps<{ activeThreadId: string }>()
-const emit = defineEmits<{ close: [] }>()
 const loading = ref(false)
 const error = ref('')
 const capabilities = ref<any>()
 const sessions = ref<SessionItem[]>([])
 const context = ref<any[]>()
 const contextLoading = ref(false)
+let refreshTimer: number | undefined
 
 const activeSession = computed(() => sessions.value.find(item => item.threadId === props.activeThreadId))
+const pendingPermissions = computed(() => activeSession.value?.permissions ?? [])
 const contextSummary = computed(() => {
   if (!context.value) return ''
   const roles = context.value.reduce<Record<string, number>>((result, item) => {
@@ -57,6 +58,7 @@ async function requestJson(url: string, init?: RequestInit) {
 }
 
 async function refresh() {
+  if (loading.value) return
   loading.value = true
   error.value = ''
   try {
@@ -101,8 +103,17 @@ async function replyPermission(requestId: string, reply: 'once' | 'always' | 're
   }
 }
 
-watch(() => props.activeThreadId, () => { context.value = undefined })
-onMounted(refresh)
+watch(() => props.activeThreadId, () => {
+  context.value = undefined
+  refresh()
+})
+onMounted(() => {
+  refresh()
+  refreshTimer = window.setInterval(refresh, 2500)
+})
+onBeforeUnmount(() => {
+  if (refreshTimer) window.clearInterval(refreshTimer)
+})
 </script>
 
 <template>
@@ -114,7 +125,6 @@ onMounted(refresh)
       </div>
       <div class="protocol-actions">
         <button title="刷新" :disabled="loading" @click="refresh">↻</button>
-        <button title="关闭" @click="emit('close')">×</button>
       </div>
     </header>
 
@@ -134,6 +144,29 @@ onMounted(refresh)
           <code>Vue</code><em>→</em><code>POST /agent</code><em>→</em><code>Adapter</code><em>→</em><code>/api/event</code>
         </div>
       </article>
+
+      <section class="authorization-section" :class="{ pending: pendingPermissions.length }">
+        <div class="authorization-head">
+          <div>
+            <span>TOOL AUTHORIZATION</span>
+            <b>{{ pendingPermissions.length ? `${pendingPermissions.length} 项等待处理` : '当前无需授权' }}</b>
+          </div>
+          <i>{{ pendingPermissions.length ? 'ACTION REQUIRED' : 'CLEAR' }}</i>
+        </div>
+        <div v-if="!activeSession" class="authorization-empty">发送消息后，这里会持续显示当前会话的工具授权状态。</div>
+        <div v-else-if="!pendingPermissions.length" class="authorization-empty">当前会话没有待处理的工具授权，请求会自动继续执行。</div>
+        <div v-for="permission in pendingPermissions" :key="permission.id" class="permission-card">
+          <div>
+            <b>等待工具授权 · {{ permission.action || 'operation' }}</b>
+            <code>{{ permission.resources?.join(', ') || permission.id }}</code>
+          </div>
+          <span>
+            <button class="primary" @click="replyPermission(permission.id, 'once')">允许一次</button>
+            <button @click="replyPermission(permission.id, 'always')">始终允许</button>
+            <button class="reject" @click="replyPermission(permission.id, 'reject')">拒绝</button>
+          </span>
+        </div>
+      </section>
 
       <div class="protocol-section-title"><span>SUPPORTED SCENARIOS</span><b>{{ capabilities?.scenarios?.length || 0 }}</b></div>
       <div class="scenario-grid">
@@ -159,28 +192,28 @@ onMounted(refresh)
           <b>活动上下文：{{ context.length }} 条</b>
           <span>{{ contextSummary || '暂无消息' }}</span>
         </div>
-        <div v-for="permission in activeSession.permissions || []" :key="permission.id" class="permission-card">
-          <div><b>等待工具授权 · {{ permission.action }}</b><code>{{ permission.resources?.join(', ') }}</code></div>
-          <span>
-            <button @click="replyPermission(permission.id, 'once')">允许一次</button>
-            <button @click="replyPermission(permission.id, 'always')">始终允许</button>
-            <button class="reject" @click="replyPermission(permission.id, 'reject')">拒绝</button>
-          </span>
-        </div>
       </article>
       <div v-else class="session-empty">发送第一条消息后，这里会显示 threadId → OpenCode2 sessionID 映射。</div>
 
       <div class="protocol-section-title"><span>UI INTERFACE CATALOG</span><b>{{ capabilities?.interfaces?.length || 0 }}</b></div>
-      <details v-for="item in (capabilities?.interfaces || []) as InterfaceItem[]" :key="item.consumer" class="interface-item">
-        <summary><b>{{ item.consumer }}</b><code>{{ item.ui }}</code></summary>
+      <article v-for="item in (capabilities?.interfaces || []) as InterfaceItem[]" :key="item.consumer" class="interface-item">
+        <header><b>{{ item.consumer }}</b><code>{{ item.ui }}</code></header>
         <p>{{ item.purpose }}</p>
         <div v-for="endpoint in item.upstream" :key="endpoint"><span>OpenCode2</span><code>{{ endpoint }}</code></div>
-      </details>
+      </article>
     </div>
   </section>
 </template>
 
 <style scoped>
-.protocol-panel{position:absolute;inset:0;z-index:15;display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(20,25,35,.995),rgba(12,16,23,.998));color:#e8ebf2}.protocol-head{height:76px;flex:none;padding:18px 18px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.09)}.protocol-head span,.protocol-section-title span{font-size:8px;letter-spacing:.16em;color:#8e99ad}.protocol-head h3{margin:4px 0 0;font-size:15px}.protocol-actions{display:flex;gap:7px}.protocol-actions button{width:30px;height:30px;border:1px solid rgba(255,255,255,.1);border-radius:8px;background:rgba(255,255,255,.03);color:#b9c2d2;cursor:pointer}.protocol-scroll{flex:1;min-height:0;overflow:auto;padding:14px 16px 24px}.protocol-error{margin:12px 16px 0;padding:9px 11px;border:1px solid rgba(255,107,130,.25);border-radius:8px;color:#ff9bad;background:rgba(255,107,130,.06);font-size:10px}.upstream-card,.session-card{padding:13px;border:1px solid rgba(255,255,255,.09);border-radius:11px;background:rgba(255,255,255,.025)}.upstream-line{display:grid;grid-template-columns:9px 1fr auto;gap:9px;align-items:center}.upstream-line>i{width:8px;height:8px;border-radius:50%;background:#ff6b82}.upstream-card.online .upstream-line>i{background:#46e6a7;box-shadow:0 0 12px rgba(70,230,167,.45)}.upstream-line div{display:flex;flex-direction:column;gap:3px;min-width:0}.upstream-line b{font-size:11px}.upstream-line small{overflow:hidden;text-overflow:ellipsis;color:#8e99ad;font-size:9px}.upstream-line>span{font-size:8px;color:#9faeff}.flow-line{display:flex;align-items:center;gap:5px;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.065);overflow:hidden}.flow-line code{font-size:7.5px;color:#b8c2d3;white-space:nowrap}.flow-line em{font-style:normal;color:#5f6a7c}.protocol-section-title{margin:17px 1px 8px;display:flex;align-items:center;justify-content:space-between}.protocol-section-title b{font-size:8px;color:#8fa3ff}.scenario-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.scenario-card{padding:10px;border:1px solid rgba(255,255,255,.075);border-radius:9px;background:rgba(255,255,255,.018)}.scenario-card>div{display:grid;grid-template-columns:6px 1fr auto;gap:6px;align-items:center}.scenario-card i{width:5px;height:5px;border-radius:50%;background:#46e6a7}.scenario-card i.debug{background:#f6c65c}.scenario-card b{font-size:9.5px}.scenario-card span{font-size:6.5px;color:#7c8799}.scenario-card p{min-height:45px;margin:7px 0;color:#9fa9ba;font-size:8.5px;line-height:1.55}.scenario-card code{display:block;color:#78869b;font-size:7px;line-height:1.45}.session-card.active{border-color:rgba(143,163,255,.2);background:linear-gradient(145deg,rgba(95,141,255,.06),rgba(150,120,255,.04))}.session-title{display:flex;justify-content:space-between;margin-bottom:8px}.session-title span{font-size:7px;letter-spacing:.12em;color:#8390a4}.session-title b{font-size:9px;color:#aebaff}.session-card>code{display:block;overflow:hidden;text-overflow:ellipsis;color:#b7c0cf;font-size:8px;white-space:nowrap}.session-arrow{margin:4px 0;color:#606c7f;font-size:9px}.session-meta{margin-top:10px;display:flex;align-items:center;gap:8px;color:#8793a7;font-size:7.5px}.session-meta button{margin-left:auto;padding:5px 8px;border:1px solid rgba(143,163,255,.18);border-radius:6px;background:rgba(143,163,255,.07);color:#bbc4ff;font-size:8px;cursor:pointer}.context-preview{margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.07);display:flex;justify-content:space-between;gap:8px;font-size:8px}.context-preview span{color:#8e99aa}.session-empty{padding:17px 12px;border:1px dashed rgba(255,255,255,.09);border-radius:9px;color:#818c9e;font-size:9px;line-height:1.5}.interface-item{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.065)}.interface-item summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:8px}.interface-item summary b{font-size:9px}.interface-item summary code{max-width:58%;overflow:hidden;text-overflow:ellipsis;color:#8fa3ff;font-size:7.5px;white-space:nowrap}.interface-item p{margin:8px 0;color:#9ba5b6;font-size:8.5px;line-height:1.5}.interface-item>div{display:grid;grid-template-columns:62px 1fr;gap:6px;margin-top:4px}.interface-item>div span{font-size:7px;color:#687487}.interface-item>div code{font-size:7.5px;color:#aab4c5;overflow-wrap:anywhere}@media(max-width:420px){.scenario-grid{grid-template-columns:1fr}}
-.permission-card{margin-top:9px;padding:9px;border:1px solid rgba(246,198,92,.18);border-radius:8px;background:rgba(246,198,92,.045)}.permission-card>div{display:flex;flex-direction:column;gap:4px}.permission-card b{font-size:8.5px;color:#e7cc8b}.permission-card code{color:#9b927c;font-size:7.5px;overflow-wrap:anywhere}.permission-card>span{display:flex;gap:5px;margin-top:8px}.permission-card button{padding:4px 7px;border:1px solid rgba(246,198,92,.17);border-radius:5px;background:rgba(246,198,92,.07);color:#ddc98f;font-size:7.5px;cursor:pointer}.permission-card button.reject{border-color:rgba(255,107,130,.18);background:rgba(255,107,130,.05);color:#e69aaa}
+.protocol-panel{position:relative;z-index:4;min-height:0;display:flex;flex-direction:column;border-top:1px solid rgba(143,163,255,.18);background:linear-gradient(180deg,#151a24,#0e131c);color:#eef1f7;box-shadow:0 -14px 38px rgba(0,0,0,.22)}
+.protocol-head{height:58px;flex:none;padding:11px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.09)}
+.protocol-head span,.protocol-section-title span,.authorization-head span{font-size:9px;letter-spacing:.15em;color:#9ca6ba}.protocol-head h3{margin:3px 0 0;font-size:15px}.protocol-actions button{width:34px;height:34px;border:1px solid rgba(255,255,255,.11);border-radius:9px;background:rgba(255,255,255,.04);color:#d1d7e3;font-size:16px;cursor:pointer}.protocol-scroll{flex:1;min-height:0;overflow:auto;padding:14px 18px 26px}.protocol-error{margin:10px 18px 0;padding:10px 12px;border:1px solid rgba(255,107,130,.3);border-radius:9px;color:#ffadb9;background:rgba(255,107,130,.08);font-size:11px}
+.upstream-card,.session-card,.authorization-section{padding:13px;border:1px solid rgba(255,255,255,.10);border-radius:11px;background:rgba(255,255,255,.03)}.upstream-line{display:grid;grid-template-columns:10px 1fr auto;gap:10px;align-items:center}.upstream-line>i{width:9px;height:9px;border-radius:50%;background:#ff6b82}.upstream-card.online .upstream-line>i{background:#46e6a7;box-shadow:0 0 12px rgba(70,230,167,.45)}.upstream-line div{display:flex;flex-direction:column;gap:3px;min-width:0}.upstream-line b{font-size:12px}.upstream-line small{overflow:hidden;text-overflow:ellipsis;color:#a1aabd;font-size:10px}.upstream-line>span{font-size:9px;color:#abb7ff}.flow-line{display:flex;align-items:center;gap:6px;margin-top:11px;padding-top:10px;border-top:1px solid rgba(255,255,255,.07);overflow:auto}.flow-line code{font-size:9px;color:#c0c8d6;white-space:nowrap}.flow-line em{font-style:normal;color:#6f7a8d}
+.authorization-section{margin-top:12px}.authorization-section.pending{border-color:rgba(246,198,92,.34);background:linear-gradient(145deg,rgba(246,198,92,.09),rgba(246,198,92,.025))}.authorization-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.authorization-head>div{display:flex;flex-direction:column;gap:4px}.authorization-head b{font-size:12px;color:#dce2ed}.authorization-head i{font-style:normal;font-size:9px;letter-spacing:.08em;color:#72d7ad}.authorization-section.pending .authorization-head i{color:#f6c65c}.authorization-empty{margin-top:10px;padding-top:9px;border-top:1px solid rgba(255,255,255,.07);color:#9fa9ba;font-size:10px;line-height:1.5}
+.permission-card{margin-top:10px;padding:11px;border:1px solid rgba(246,198,92,.24);border-radius:9px;background:rgba(8,10,14,.28)}.permission-card>div{display:flex;flex-direction:column;gap:5px}.permission-card b{font-size:11px;color:#f1d99f}.permission-card code{color:#b7aa8a;font-size:9px;overflow-wrap:anywhere}.permission-card>span{display:flex;gap:7px;margin-top:10px}.permission-card button{padding:7px 10px;border:1px solid rgba(246,198,92,.23);border-radius:7px;background:rgba(246,198,92,.08);color:#ead59f;font-size:10px;cursor:pointer}.permission-card button.primary{background:#d7b258;color:#14110a;border-color:#e6c77b;font-weight:700}.permission-card button.reject{margin-left:auto;border-color:rgba(255,107,130,.25);background:rgba(255,107,130,.07);color:#f0a7b2}
+.protocol-section-title{margin:17px 1px 8px;display:flex;align-items:center;justify-content:space-between}.protocol-section-title b{font-size:9px;color:#9dacff}.scenario-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.scenario-card{padding:11px;border:1px solid rgba(255,255,255,.08);border-radius:9px;background:rgba(255,255,255,.02)}.scenario-card>div{display:grid;grid-template-columns:7px 1fr auto;gap:7px;align-items:center}.scenario-card i{width:6px;height:6px;border-radius:50%;background:#46e6a7}.scenario-card i.debug{background:#f6c65c}.scenario-card b{font-size:10.5px}.scenario-card span{font-size:8px;color:#8993a6}.scenario-card p{margin:8px 0;color:#aab3c2;font-size:10px;line-height:1.5}.scenario-card code{display:block;color:#8e9aaf;font-size:8.5px;line-height:1.45}
+.session-card.active{border-color:rgba(143,163,255,.24);background:linear-gradient(145deg,rgba(95,141,255,.07),rgba(150,120,255,.045))}.session-title{display:flex;justify-content:space-between;margin-bottom:8px}.session-title span{font-size:9px;letter-spacing:.12em;color:#909bae}.session-title b{font-size:10px;color:#bdc6ff}.session-card>code{display:block;overflow:hidden;text-overflow:ellipsis;color:#c4cbd7;font-size:9.5px;white-space:nowrap}.session-arrow{margin:5px 0;color:#758095;font-size:11px}.session-meta{margin-top:10px;display:flex;align-items:center;gap:9px;color:#9da7b9;font-size:9px}.session-meta button{margin-left:auto;padding:6px 9px;border:1px solid rgba(143,163,255,.22);border-radius:7px;background:rgba(143,163,255,.08);color:#c9d0ff;font-size:9px;cursor:pointer}.context-preview{margin-top:9px;padding-top:9px;border-top:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;gap:8px;font-size:9px}.context-preview span{color:#9ba5b7}.session-empty{padding:16px 12px;border:1px dashed rgba(255,255,255,.11);border-radius:9px;color:#99a3b5;font-size:10px;line-height:1.55}
+.interface-item{padding:11px 10px;border-bottom:1px solid rgba(255,255,255,.075)}.interface-item header{display:flex;justify-content:space-between;gap:10px}.interface-item header b{font-size:11px}.interface-item header code{max-width:60%;overflow:hidden;text-overflow:ellipsis;color:#a9b5ff;font-size:9px;white-space:nowrap}.interface-item p{margin:8px 0;color:#aab3c2;font-size:10px;line-height:1.55}.interface-item>div{display:grid;grid-template-columns:70px 1fr;gap:7px;margin-top:5px}.interface-item>div span{font-size:8.5px;color:#7f8a9e}.interface-item>div code{font-size:9px;color:#b8c1d0;overflow-wrap:anywhere}
+@media(max-width:500px){.scenario-grid{grid-template-columns:1fr}}
 </style>

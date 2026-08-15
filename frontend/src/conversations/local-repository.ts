@@ -1,7 +1,7 @@
 import type { Message, State } from '@ag-ui/client'
 import type { ConversationRecord, ConversationRepository } from './types'
 
-const STORAGE_KEY = 'dataagent.conversations.v1'
+const STORAGE_KEY = 'dataagent.conversations.v2.agui'
 const DEFAULT_NAME = '新对话'
 const ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 

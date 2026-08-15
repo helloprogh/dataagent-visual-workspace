@@ -8,13 +8,13 @@ npm run dev
 
 前端 `/api/agui` 代理到 Adapter 的 `/agent`。Adapter 自动发现 `opencode2 serve --service` 的动态端口与本机认证。
 
-## 真实 OpenCode2 + 场景显示
+## 真实 OpenCode2（场景别名）
 
 ```bash
 npm run dev:scenario
 ```
 
-该模式代理到 `/agui/hybrid`。真实文本、思考、工具和执行状态仍来自 OpenCode2，同时用标准 AG-UI tool/custom 事件生成协议链路、同步/异步状态和多 Agent 编排模块。
+该模式代理到 `/agui/hybrid`，但它与 `/agent` 使用同一条真实链路，不再额外注入固定场景。工作区内容只会在 OpenCode2 调用前端下发的 `workspace.*` 工具后生成。
 
 ## 纯 Mock
 
@@ -26,11 +26,11 @@ npm run dev:scenario
 
 ## 页面内联调面板
 
-右侧 Data Agent 标题栏的 `</>` 按钮会打开协议联调面板，显示：
+协议联调与接口能力面板常驻在右侧对话区下方，无需展开，授权操作始终可见。面板显示：
 
 - OpenCode2 连接、版本与动态地址；
 - 9 个支持/调试场景；
 - 当前 threadId → sessionID 映射；
 - 活动上下文摘要；
 - 待处理工具授权；
-- 8 组界面接口与 OpenCode2 上游接口。
+- 前端工具动态 MCP 链路及全部界面接口与 OpenCode2 上游接口。

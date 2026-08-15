@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import {
-  custom,
+  activitySnapshot,
   event,
   runError,
   runFinished,
@@ -24,6 +24,8 @@ const toolContentText = (content) => {
   if (!Array.isArray(content)) return asText(content)
   return content.map((item) => item?.text ?? item?.content ?? item?.data ?? asText(item)).filter(Boolean).join('\n')
 }
+const taskActivity = (runId, content) => activitySnapshot(`task-${runId}`, 'dataagent.task', content)
+const subagentActivity = (id, content) => activitySnapshot(`subagent-${id}`, 'dataagent.subagent', content)
 
 export class OpenCodeAguiConverter {
   constructor({ threadId, runId, sessionId }) {
@@ -34,11 +36,13 @@ export class OpenCodeAguiConverter {
     this.partIds = new Map()
     this.openText = new Set()
     this.openReasoning = new Set()
+    this.closedReasoning = new Set()
     this.openTools = new Set()
     this.textHasDelta = new Set()
     this.reasoningHasDelta = new Set()
     this.tools = new Map()
     this.stepNames = new Map()
+    this.legacySteps = new Set()
     this.started = false
     this.finished = false
   }
@@ -117,6 +121,7 @@ export class OpenCodeAguiConverter {
     if (type === 'session.reasoning.started') return this.openReasoningMessage(this.streamMessageId(raw, 'reasoning'))
     if (type === 'session.reasoning.delta') {
       const messageId = this.streamMessageId(raw, 'reasoning')
+      if (this.closedReasoning.has(messageId)) return []
       const delta = asText(raw.delta)
       if (!delta) return []
       this.reasoningHasDelta.add(messageId)
@@ -124,6 +129,7 @@ export class OpenCodeAguiConverter {
     }
     if (type === 'session.reasoning.ended') {
       const messageId = this.streamMessageId(raw, 'reasoning')
+      if (this.closedReasoning.has(messageId)) return []
       const events = this.openReasoningMessage(messageId)
       if (!this.reasoningHasDelta.has(messageId) && raw.text) events.push(event('REASONING_MESSAGE_CONTENT', { messageId, delta: raw.text }))
       events.push(...this.closeReasoning(messageId))
@@ -133,35 +139,38 @@ export class OpenCodeAguiConverter {
     if (type.startsWith('session.tool.')) return this.convertNativeTool(type, raw)
 
     if (type === 'session.step.started') {
+      const key = raw.assistantMessageID ?? 'current'
+      if (this.stepNames.has(key)) return []
       const stepName = `${raw.agent ?? 'OpenCode'} · ${raw.model?.id ?? 'step'}`
-      this.stepNames.set(raw.assistantMessageID ?? 'current', stepName)
+      this.stepNames.set(key, stepName)
       return [event('STEP_STARTED', { stepName })]
     }
     if (type === 'session.step.ended') {
       const key = raw.assistantMessageID ?? 'current'
-      const stepName = this.stepNames.get(key) ?? 'OpenCode step'
+      const stepName = this.stepNames.get(key)
+      if (!stepName) return []
       this.stepNames.delete(key)
       return [event('STEP_FINISHED', { stepName, result: { finish: raw.finish, cost: raw.cost, tokens: raw.tokens } })]
     }
     if (type === 'session.step.failed') return this.fail(errorText(raw.error) || 'OpenCode step failed')
 
     if (type === 'session.execution.started') {
-      return [custom('task.status', { mode: 'async', status: 'running', sessionId: this.sessionId, runId: this.runId })]
+      return [taskActivity(this.runId, { mode: 'async', status: 'running', sessionId: this.sessionId, runId: this.runId })]
     }
     if (type === 'session.execution.succeeded') {
-      return [custom('task.status', { mode: 'async', status: 'completed', sessionId: this.sessionId, runId: this.runId }), ...this.finish()]
+      return [taskActivity(this.runId, { mode: 'async', status: 'completed', sessionId: this.sessionId, runId: this.runId }), ...this.finish()]
     }
     if (type === 'session.execution.failed') return this.fail(errorText(raw.error) || 'OpenCode execution failed')
     if (type === 'session.execution.interrupted') return this.fail(`OpenCode execution interrupted: ${raw.reason ?? 'unknown'}`)
     if (type === 'session.retry.scheduled') {
-      return [custom('task.status', { mode: 'async', status: 'retry', attempt: raw.attempt, nextAt: raw.at, error: errorText(raw.error) })]
+      return [taskActivity(this.runId, { mode: 'async', status: 'retry', attempt: raw.attempt, nextAt: raw.at, error: errorText(raw.error) })]
     }
-    if (type === 'session.inbox.enqueued') return [custom('task.status', { mode: 'async', status: 'queued', inboxId: raw.inboxID })]
-    if (type === 'session.inbox.delivered') return [custom('task.status', { mode: 'async', status: 'delivered', inboxId: raw.inboxID })]
+    if (type === 'session.inbox.enqueued') return [taskActivity(this.runId, { mode: 'async', status: 'queued', inboxId: raw.inboxID })]
+    if (type === 'session.inbox.delivered') return [taskActivity(this.runId, { mode: 'async', status: 'delivered', inboxId: raw.inboxID })]
     if (type === 'permission.asked') {
       const messageId = `permission-${raw.id ?? randomUUID()}`
       return [
-        custom('task.status', { mode: 'async', status: 'waiting_permission', permission: raw }),
+        taskActivity(this.runId, { mode: 'async', status: 'waiting_permission', permission: raw }),
         textStart(messageId),
         textContent(messageId, `工具 ${raw.action ?? 'operation'} 正在等待授权。请打开“协议联调”面板处理。`),
         textEnd(messageId),
@@ -170,8 +179,17 @@ export class OpenCodeAguiConverter {
 
     if (type === 'session.error') return this.fail(errorText(raw.error ?? raw.message) || 'OpenCode run failed')
     if (type === 'session.idle' || (type === 'session.status' && (raw.status?.type ?? raw.status) === 'idle')) return this.finish()
-    if (type === 'step-start' || type === 'step.started') return [event('STEP_STARTED', { stepName: raw.name ?? raw.title ?? 'OpenCode step' })]
-    if (type === 'step-finish' || type === 'step.finished') return [event('STEP_FINISHED', { stepName: raw.name ?? raw.title ?? 'OpenCode step' })]
+    if (type === 'step-start' || type === 'step.started') {
+      const stepName = raw.name ?? raw.title ?? 'OpenCode step'
+      if (this.legacySteps.has(stepName)) return []
+      this.legacySteps.add(stepName)
+      return [event('STEP_STARTED', { stepName })]
+    }
+    if (type === 'step-finish' || type === 'step.finished') {
+      const stepName = raw.name ?? raw.title ?? 'OpenCode step'
+      if (!this.legacySteps.delete(stepName)) return []
+      return [event('STEP_FINISHED', { stepName })]
+    }
     return []
   }
 
@@ -212,7 +230,7 @@ export class OpenCodeAguiConverter {
       return events
     }
     if (kind === 'tool' || kind === 'tool-invocation') return this.convertLegacyTool(part, messageId)
-    if (kind === 'subtask') return [custom('subagent.started', {
+    if (kind === 'subtask') return [subagentActivity(part.id ?? part.partID ?? randomUUID(), {
       agentId: part.id ?? part.partID,
       name: part.name ?? part.agent ?? 'Sub Agent',
       task: part.prompt ?? part.description ?? '',
@@ -222,12 +240,14 @@ export class OpenCodeAguiConverter {
   }
 
   openReasoningMessage(messageId) {
+    if (this.closedReasoning.has(messageId)) return []
     if (this.openReasoning.has(messageId)) return []
     this.openReasoning.add(messageId)
     return [event('REASONING_START', { messageId }), event('REASONING_MESSAGE_START', { messageId, role: 'reasoning' })]
   }
 
   reasoningDelta(messageId, delta) {
+    if (this.closedReasoning.has(messageId)) return []
     const events = this.openReasoningMessage(messageId)
     if (delta) events.push(event('REASONING_MESSAGE_CONTENT', { messageId, delta }))
     return events
@@ -235,6 +255,7 @@ export class OpenCodeAguiConverter {
 
   closeReasoning(messageId) {
     if (!this.openReasoning.delete(messageId)) return []
+    this.closedReasoning.add(messageId)
     return [event('REASONING_MESSAGE_END', { messageId }), event('REASONING_END', { messageId })]
   }
 
@@ -255,7 +276,7 @@ export class OpenCodeAguiConverter {
     if (this.openTools.has(state.id)) return []
     this.openTools.add(state.id)
     const events = [toolStart(state.id, state.name, state.parentMessageId)]
-    if (isSubAgentTool(state.name)) events.push(custom('subagent.started', {
+    if (isSubAgentTool(state.name)) events.push(subagentActivity(state.id, {
       agentId: state.id,
       name: state.name,
       task: state.args,
@@ -288,13 +309,17 @@ export class OpenCodeAguiConverter {
       return events
     }
     if (type === 'session.tool.progress') {
-      return [custom(isSubAgentTool(state.name) ? 'subagent.progress' : 'tool.progress', {
+      return [activitySnapshot(
+        `${isSubAgentTool(state.name) ? 'subagent' : 'tool'}-${state.id}`,
+        isSubAgentTool(state.name) ? 'dataagent.subagent' : 'dataagent.tool',
+        {
         agentId: state.id,
         toolCallId: state.id,
         name: state.name,
         status: 'running',
         ...raw.metadata,
-      })]
+        },
+      )]
     }
     if (type === 'session.tool.success' || type === 'session.tool.failed') {
       const events = this.startTool(state)
@@ -302,7 +327,7 @@ export class OpenCodeAguiConverter {
       const failed = type === 'session.tool.failed'
       const output = failed ? errorText(raw.error) : toolContentText(raw.content)
       events.push(toolResult(`result-${state.id}`, state.id, output || (failed ? 'Tool failed' : 'Tool completed')))
-      if (isSubAgentTool(state.name)) events.push(custom(failed ? 'subagent.failed' : 'subagent.completed', {
+      if (isSubAgentTool(state.name)) events.push(subagentActivity(state.id, {
         agentId: state.id,
         name: state.name,
         status: failed ? 'failed' : 'completed',
@@ -327,7 +352,7 @@ export class OpenCodeAguiConverter {
       }
     }
     if (status === 'running' && isSubAgentTool(state.name)) {
-      events.push(custom('subagent.progress', {
+      events.push(subagentActivity(state.id, {
         agentId: state.id,
         name: part.metadata?.agent ?? part.agent ?? state.name,
         progress: part.metadata?.progress ?? 50,
@@ -339,7 +364,7 @@ export class OpenCodeAguiConverter {
       if (this.openTools.delete(state.id)) events.push(toolEnd(state.id))
       const output = stateValue.output ?? stateValue.result ?? part.output ?? stateValue.error ?? ''
       events.push(toolResult(`result-${state.id}`, state.id, asText(output)))
-      if (isSubAgentTool(state.name)) events.push(custom(status === 'error' || status === 'failed' ? 'subagent.failed' : 'subagent.completed', {
+      if (isSubAgentTool(state.name)) events.push(subagentActivity(state.id, {
         agentId: state.id,
         name: part.metadata?.agent ?? part.agent ?? state.name,
         status: status === 'error' || status === 'failed' ? 'failed' : 'completed',
@@ -354,8 +379,12 @@ export class OpenCodeAguiConverter {
     for (const messageId of this.openText) events.push(textEnd(messageId))
     for (const messageId of [...this.openReasoning]) events.push(...this.closeReasoning(messageId))
     for (const toolCallId of this.openTools) events.push(toolEnd(toolCallId))
+    for (const stepName of this.stepNames.values()) events.push(event('STEP_FINISHED', { stepName }))
+    for (const stepName of this.legacySteps) events.push(event('STEP_FINISHED', { stepName }))
     this.openText.clear()
     this.openTools.clear()
+    this.stepNames.clear()
+    this.legacySteps.clear()
     return events
   }
 
