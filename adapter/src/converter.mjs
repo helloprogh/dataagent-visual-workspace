@@ -42,6 +42,7 @@ export class OpenCodeAguiConverter {
     this.reasoningHasDelta = new Set()
     this.tools = new Map()
     this.stepNames = new Map()
+    this.legacySteps = new Set()
     this.started = false
     this.finished = false
   }
@@ -138,13 +139,16 @@ export class OpenCodeAguiConverter {
     if (type.startsWith('session.tool.')) return this.convertNativeTool(type, raw)
 
     if (type === 'session.step.started') {
+      const key = raw.assistantMessageID ?? 'current'
+      if (this.stepNames.has(key)) return []
       const stepName = `${raw.agent ?? 'OpenCode'} · ${raw.model?.id ?? 'step'}`
-      this.stepNames.set(raw.assistantMessageID ?? 'current', stepName)
+      this.stepNames.set(key, stepName)
       return [event('STEP_STARTED', { stepName })]
     }
     if (type === 'session.step.ended') {
       const key = raw.assistantMessageID ?? 'current'
-      const stepName = this.stepNames.get(key) ?? 'OpenCode step'
+      const stepName = this.stepNames.get(key)
+      if (!stepName) return []
       this.stepNames.delete(key)
       return [event('STEP_FINISHED', { stepName, result: { finish: raw.finish, cost: raw.cost, tokens: raw.tokens } })]
     }
@@ -175,8 +179,17 @@ export class OpenCodeAguiConverter {
 
     if (type === 'session.error') return this.fail(errorText(raw.error ?? raw.message) || 'OpenCode run failed')
     if (type === 'session.idle' || (type === 'session.status' && (raw.status?.type ?? raw.status) === 'idle')) return this.finish()
-    if (type === 'step-start' || type === 'step.started') return [event('STEP_STARTED', { stepName: raw.name ?? raw.title ?? 'OpenCode step' })]
-    if (type === 'step-finish' || type === 'step.finished') return [event('STEP_FINISHED', { stepName: raw.name ?? raw.title ?? 'OpenCode step' })]
+    if (type === 'step-start' || type === 'step.started') {
+      const stepName = raw.name ?? raw.title ?? 'OpenCode step'
+      if (this.legacySteps.has(stepName)) return []
+      this.legacySteps.add(stepName)
+      return [event('STEP_STARTED', { stepName })]
+    }
+    if (type === 'step-finish' || type === 'step.finished') {
+      const stepName = raw.name ?? raw.title ?? 'OpenCode step'
+      if (!this.legacySteps.delete(stepName)) return []
+      return [event('STEP_FINISHED', { stepName })]
+    }
     return []
   }
 
@@ -367,9 +380,11 @@ export class OpenCodeAguiConverter {
     for (const messageId of [...this.openReasoning]) events.push(...this.closeReasoning(messageId))
     for (const toolCallId of this.openTools) events.push(toolEnd(toolCallId))
     for (const stepName of this.stepNames.values()) events.push(event('STEP_FINISHED', { stepName }))
+    for (const stepName of this.legacySteps) events.push(event('STEP_FINISHED', { stepName }))
     this.openText.clear()
     this.openTools.clear()
     this.stepNames.clear()
+    this.legacySteps.clear()
     return events
   }
 

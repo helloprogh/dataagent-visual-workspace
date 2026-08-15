@@ -29,6 +29,7 @@ Adapter 负责完整的 AG-UI run 生命周期。OpenCode2 原生事件不会原
 - 当前端组件 schema 变化时，Adapter 会重新连接动态 MCP，避免 OpenCode2 继续使用旧 catalog。工作区还会把常见 Chart.js `labels/datasets` 输入兼容转换为原生 `points/items`。
 - Workspace 通过 `RunAgentInput.state` 和 `STATE_SNAPSHOT` 同步，不依赖 Hybrid 静态场景注入。
 - Adapter 会在发出 `STATE_SNAPSHOT` 前把字符串化的 `workspace.widgets` JSON 还原为结构化值，保证标准事件中的工作区组件不是二次编码字符串。
+- `STEP_FINISHED` 只会在当前 AG-UI Run 已发出配对的 `STEP_STARTED` 时产生；续跑阶段迟到或重复的 OpenCode 步骤结束事件会被忽略。
 - 已关闭的 reasoning 生命周期忽略迟到的重复 delta/ended 事件，避免界面连续出现空的思考卡片。
 - 下一条预取事件的 abort rejection 会被主动消费，Adapter 不会在 run 完成后因未处理的取消而退出。
 - 旧版 `message.part.*` 事件仍保留兼容转换，便于 fixture replay。

@@ -110,3 +110,18 @@ test('closes an active OpenCode step before finishing a paused frontend tool run
   assert.deepEqual(types(finished), ['TOOL_CALL_END', 'STEP_FINISHED', 'RUN_FINISHED'])
   assert.equal(finished[1].stepName, started[0].stepName)
 })
+
+test('ignores unmatched and duplicate step lifecycle events', () => {
+  const converter = create()
+  const unmatched = converter.convert({ type: 'session.step.ended', data: { sessionID: 'ses-1', assistantMessageID: 'a1' } })
+  const started = converter.convert({ type: 'session.step.started', data: { sessionID: 'ses-1', assistantMessageID: 'a1', agent: 'build' } })
+  const duplicate = converter.convert({ type: 'session.step.started', data: { sessionID: 'ses-1', assistantMessageID: 'a1', agent: 'build' } })
+  const ended = converter.convert({ type: 'session.step.ended', data: { sessionID: 'ses-1', assistantMessageID: 'a1' } })
+  const duplicateEnd = converter.convert({ type: 'session.step.ended', data: { sessionID: 'ses-1', assistantMessageID: 'a1' } })
+
+  assert.deepEqual(unmatched, [])
+  assert.deepEqual(types(started), ['STEP_STARTED'])
+  assert.deepEqual(duplicate, [])
+  assert.deepEqual(types(ended), ['STEP_FINISHED'])
+  assert.deepEqual(duplicateEnd, [])
+})

@@ -30,6 +30,12 @@ CopilotKit registers `workspace.render`, `workspace.upsert`, `workspace.remove`,
 
 `ui.areaChart` uses the same `points: [{ label, value }]` series contract and renders a filled trend area. For compatibility with older browser state, serialized `workspace.widgets` JSON is parsed before persistence and rendering instead of being treated as an empty workspace.
 
+On thread hydration, the dedicated per-thread workspace store is authoritative. A throttled conversation snapshot may lag behind the most recent frontend tool result and is therefore not allowed to overwrite the newer persisted workspace during page reload.
+
+Shared workspace snapshots are applied monotonically by `updatedAt`; a delayed snapshot from an earlier AG-UI run cannot roll back a newer browser tool result.
+
+The active conversation id is persisted separately, so a page reload returns to the same AG-UI `threadId` instead of switching to whichever background conversation was updated most recently.
+
 After a browser handler runs, CopilotKit sends a standard `ToolMessage`. The Adapter resolves the pending MCP call and resumes the same OpenCode2 session. Workspace data is carried in `RunAgentInput.state` and synchronized by `STATE_SNAPSHOT`; task and sub-agent status use `ACTIVITY_SNAPSHOT`.
 
 ## Conversation persistence

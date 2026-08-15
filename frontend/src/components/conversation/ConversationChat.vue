@@ -50,13 +50,11 @@ watch([agent, () => props.threadId], ([nextAgent, nextThreadId], _, onCleanup) =
     nextAgent.setMessages(conversation.messages)
     nextAgent.setState(conversation.state)
   }
-  const restoredWorkspace = (nextAgent.state as { workspace?: unknown })?.workspace
-  if (restoredWorkspace && typeof restoredWorkspace === 'object') {
-    workspaceController.applyShared(restoredWorkspace as any)
-  } else {
-    const workspace = workspaceController.snapshot()
-    if (workspace) nextAgent.setState({ ...(nextAgent.state ?? {}), workspace })
-  }
+  // Workspace tools persist synchronously in the dedicated per-thread store.
+  // A throttled conversation snapshot can lag behind the latest tool result,
+  // so it must not overwrite the newer workspace when a page is reloaded.
+  const workspace = workspaceController.snapshot()
+  if (workspace) nextAgent.setState({ ...(nextAgent.state ?? {}), workspace })
   const subscription = nextAgent.subscribe({
     onMessagesChanged: ({ agent: changedAgent }) => persistSnapshot(threadId, changedAgent),
     onStateChanged: ({ agent: changedAgent }) => {

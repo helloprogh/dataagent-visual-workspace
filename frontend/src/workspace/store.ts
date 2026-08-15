@@ -122,7 +122,7 @@ function normalizeDocument(value: unknown, threadId: string): WorkspaceDocument 
       : fallback.subtitle,
     updatedAt: typeof document.updatedAt === 'number' && Number.isFinite(document.updatedAt)
       ? document.updatedAt
-      : Date.now(),
+      : 0,
     widgets: normalizeWidgets(document.widgets),
   }
 }
@@ -155,7 +155,10 @@ export const workspaceController = {
   applyShared(document: WorkspaceDocument) {
     const shared = asRecord(document)
     if (!state.activeThreadId || shared?.threadId !== state.activeThreadId) return
-    state.document = normalizeDocument(shared, state.activeThreadId)
+    const normalized = normalizeDocument(shared, state.activeThreadId)
+    const currentUpdatedAt = state.document?.updatedAt ?? 0
+    if (normalized.updatedAt < currentUpdatedAt) return
+    state.document = normalized
     persist()
   },
   replace(payload: { title?: string; subtitle?: string; widgets: WorkspaceWidget[] }) {

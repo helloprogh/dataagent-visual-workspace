@@ -12,8 +12,9 @@ import AssistantPanel from './components/AssistantPanel.vue'
 
 const runtime = createAgentRuntime()
 const showDevConsole = import.meta.env.DEV
+const ACTIVE_CONVERSATION_KEY = 'dataagent.conversations.active.v1'
 const conversations = ref<ConversationRecord[]>([])
-const activeId = ref('')
+const activeId = ref(localStorage.getItem(ACTIVE_CONVERSATION_KEY) ?? '')
 
 function refreshConversations() {
   conversations.value = conversationRepository.list()
@@ -33,7 +34,14 @@ function ensureConversation() {
 }
 
 ensureConversation()
-watch(activeId, id => id && workspaceController.activate(id), { immediate: true })
+watch(activeId, id => {
+  if (!id) {
+    localStorage.removeItem(ACTIVE_CONVERSATION_KEY)
+    return
+  }
+  localStorage.setItem(ACTIVE_CONVERSATION_KEY, id)
+  workspaceController.activate(id)
+}, { immediate: true })
 
 const activeConversation = computed(() => conversationRepository.get(activeId.value))
 
