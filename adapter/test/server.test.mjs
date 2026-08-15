@@ -19,3 +19,15 @@ test('mock endpoint streams a complete AG-UI run', async (t) => {
   assert.match(body, /"type":"REASONING_MESSAGE_CONTENT"/)
   assert.match(body, /"type":"RUN_FINISHED"/)
 })
+
+test('removed diagnostics endpoints return not found', async (t) => {
+  const server = createServer().listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  t.after(() => server.close())
+  const { port } = server.address()
+
+  for (const pathname of ['/health', '/debug/capabilities']) {
+    const response = await fetch(`http://127.0.0.1:${port}${pathname}`)
+    assert.equal(response.status, 404)
+  }
+})

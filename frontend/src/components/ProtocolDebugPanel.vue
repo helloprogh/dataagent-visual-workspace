@@ -1,21 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-interface Scenario {
-  id: string
-  label: string
-  status: 'supported' | 'debug'
-  description: string
-  events: string[]
-}
-
-interface InterfaceItem {
-  consumer: string
-  ui: string
-  upstream: string[]
-  purpose: string
-}
-
 interface SessionItem {
   threadId: string
   sessionId: string
@@ -32,7 +17,6 @@ interface SessionItem {
 const props = defineProps<{ activeThreadId: string }>()
 const loading = ref(false)
 const error = ref('')
-const capabilities = ref<any>()
 const sessions = ref<SessionItem[]>([])
 const context = ref<any[]>()
 const contextLoading = ref(false)
@@ -62,11 +46,7 @@ async function refresh() {
   loading.value = true
   error.value = ''
   try {
-    const [capabilityData, sessionData] = await Promise.all([
-      requestJson('/api/adapter/capabilities'),
-      requestJson('/api/adapter/sessions'),
-    ])
-    capabilities.value = capabilityData
+    const sessionData = await requestJson('/api/adapter/sessions')
     sessions.value = sessionData.sessions ?? []
   } catch (reason) {
     error.value = reason instanceof Error ? reason.message : String(reason)
@@ -121,7 +101,7 @@ onBeforeUnmount(() => {
     <header class="protocol-head">
       <div>
         <span>OPENCODE2 × AG-UI</span>
-        <h3>协议联调与接口能力</h3>
+        <h3>会话与授权联调</h3>
       </div>
       <div class="protocol-actions">
         <button title="刷新" :disabled="loading" @click="refresh">↻</button>
@@ -131,21 +111,7 @@ onBeforeUnmount(() => {
     <div v-if="error" class="protocol-error">{{ error }}</div>
 
     <div class="protocol-scroll">
-      <article class="upstream-card" :class="{ online: capabilities?.upstream?.connected }">
-        <div class="upstream-line">
-          <i></i>
-          <div>
-            <b>{{ capabilities?.upstream?.connected ? 'OpenCode2 已连接' : 'OpenCode2 未连接' }}</b>
-            <small>{{ capabilities?.upstream?.url || '正在发现本地 service…' }}</small>
-          </div>
-          <span>{{ capabilities?.upstream?.version || 'UNKNOWN' }}</span>
-        </div>
-        <div class="flow-line">
-          <code>Vue</code><em>→</em><code>POST /agent</code><em>→</em><code>Adapter</code><em>→</em><code>/api/event</code>
-        </div>
-      </article>
-
-      <section class="authorization-section" :class="{ pending: pendingPermissions.length }">
+      <section class="authorization-section first-section" :class="{ pending: pendingPermissions.length }">
         <div class="authorization-head">
           <div>
             <span>TOOL AUTHORIZATION</span>
@@ -168,15 +134,6 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <div class="protocol-section-title"><span>SUPPORTED SCENARIOS</span><b>{{ capabilities?.scenarios?.length || 0 }}</b></div>
-      <div class="scenario-grid">
-        <article v-for="item in (capabilities?.scenarios || []) as Scenario[]" :key="item.id" class="scenario-card">
-          <div><i :class="item.status"></i><b>{{ item.label }}</b><span>{{ item.status === 'debug' ? 'DEBUG' : 'READY' }}</span></div>
-          <p>{{ item.description }}</p>
-          <code>{{ item.events.join(' · ') }}</code>
-        </article>
-      </div>
-
       <div class="protocol-section-title"><span>ACTIVE SESSION MAPPING</span><b>{{ sessions.length }}</b></div>
       <article v-if="activeSession" class="session-card active">
         <div class="session-title"><span>CURRENT THREAD</span><b>{{ activeSession.agent || 'main agent' }}</b></div>
@@ -194,13 +151,6 @@ onBeforeUnmount(() => {
         </div>
       </article>
       <div v-else class="session-empty">发送第一条消息后，这里会显示 threadId → OpenCode2 sessionID 映射。</div>
-
-      <div class="protocol-section-title"><span>UI INTERFACE CATALOG</span><b>{{ capabilities?.interfaces?.length || 0 }}</b></div>
-      <article v-for="item in (capabilities?.interfaces || []) as InterfaceItem[]" :key="item.consumer" class="interface-item">
-        <header><b>{{ item.consumer }}</b><code>{{ item.ui }}</code></header>
-        <p>{{ item.purpose }}</p>
-        <div v-for="endpoint in item.upstream" :key="endpoint"><span>OpenCode2</span><code>{{ endpoint }}</code></div>
-      </article>
     </div>
   </section>
 </template>
@@ -209,11 +159,9 @@ onBeforeUnmount(() => {
 .protocol-panel{position:relative;z-index:4;min-height:0;display:flex;flex-direction:column;border-top:1px solid rgba(143,163,255,.18);background:linear-gradient(180deg,#151a24,#0e131c);color:#eef1f7;box-shadow:0 -14px 38px rgba(0,0,0,.22)}
 .protocol-head{height:58px;flex:none;padding:11px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.09)}
 .protocol-head span,.protocol-section-title span,.authorization-head span{font-size:9px;letter-spacing:.15em;color:#9ca6ba}.protocol-head h3{margin:3px 0 0;font-size:15px}.protocol-actions button{width:34px;height:34px;border:1px solid rgba(255,255,255,.11);border-radius:9px;background:rgba(255,255,255,.04);color:#d1d7e3;font-size:16px;cursor:pointer}.protocol-scroll{flex:1;min-height:0;overflow:auto;padding:14px 18px 26px}.protocol-error{margin:10px 18px 0;padding:10px 12px;border:1px solid rgba(255,107,130,.3);border-radius:9px;color:#ffadb9;background:rgba(255,107,130,.08);font-size:11px}
-.upstream-card,.session-card,.authorization-section{padding:13px;border:1px solid rgba(255,255,255,.10);border-radius:11px;background:rgba(255,255,255,.03)}.upstream-line{display:grid;grid-template-columns:10px 1fr auto;gap:10px;align-items:center}.upstream-line>i{width:9px;height:9px;border-radius:50%;background:#ff6b82}.upstream-card.online .upstream-line>i{background:#46e6a7;box-shadow:0 0 12px rgba(70,230,167,.45)}.upstream-line div{display:flex;flex-direction:column;gap:3px;min-width:0}.upstream-line b{font-size:12px}.upstream-line small{overflow:hidden;text-overflow:ellipsis;color:#a1aabd;font-size:10px}.upstream-line>span{font-size:9px;color:#abb7ff}.flow-line{display:flex;align-items:center;gap:6px;margin-top:11px;padding-top:10px;border-top:1px solid rgba(255,255,255,.07);overflow:auto}.flow-line code{font-size:9px;color:#c0c8d6;white-space:nowrap}.flow-line em{font-style:normal;color:#6f7a8d}
-.authorization-section{margin-top:12px}.authorization-section.pending{border-color:rgba(246,198,92,.34);background:linear-gradient(145deg,rgba(246,198,92,.09),rgba(246,198,92,.025))}.authorization-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.authorization-head>div{display:flex;flex-direction:column;gap:4px}.authorization-head b{font-size:12px;color:#dce2ed}.authorization-head i{font-style:normal;font-size:9px;letter-spacing:.08em;color:#72d7ad}.authorization-section.pending .authorization-head i{color:#f6c65c}.authorization-empty{margin-top:10px;padding-top:9px;border-top:1px solid rgba(255,255,255,.07);color:#9fa9ba;font-size:10px;line-height:1.5}
+.session-card,.authorization-section{padding:13px;border:1px solid rgba(255,255,255,.10);border-radius:11px;background:rgba(255,255,255,.03)}
+.authorization-section.first-section{margin-top:0}.authorization-section.pending{border-color:rgba(246,198,92,.34);background:linear-gradient(145deg,rgba(246,198,92,.09),rgba(246,198,92,.025))}.authorization-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.authorization-head>div{display:flex;flex-direction:column;gap:4px}.authorization-head b{font-size:12px;color:#dce2ed}.authorization-head i{font-style:normal;font-size:9px;letter-spacing:.08em;color:#72d7ad}.authorization-section.pending .authorization-head i{color:#f6c65c}.authorization-empty{margin-top:10px;padding-top:9px;border-top:1px solid rgba(255,255,255,.07);color:#9fa9ba;font-size:10px;line-height:1.5}
 .permission-card{margin-top:10px;padding:11px;border:1px solid rgba(246,198,92,.24);border-radius:9px;background:rgba(8,10,14,.28)}.permission-card>div{display:flex;flex-direction:column;gap:5px}.permission-card b{font-size:11px;color:#f1d99f}.permission-card code{color:#b7aa8a;font-size:9px;overflow-wrap:anywhere}.permission-card>span{display:flex;gap:7px;margin-top:10px}.permission-card button{padding:7px 10px;border:1px solid rgba(246,198,92,.23);border-radius:7px;background:rgba(246,198,92,.08);color:#ead59f;font-size:10px;cursor:pointer}.permission-card button.primary{background:#d7b258;color:#14110a;border-color:#e6c77b;font-weight:700}.permission-card button.reject{margin-left:auto;border-color:rgba(255,107,130,.25);background:rgba(255,107,130,.07);color:#f0a7b2}
-.protocol-section-title{margin:17px 1px 8px;display:flex;align-items:center;justify-content:space-between}.protocol-section-title b{font-size:9px;color:#9dacff}.scenario-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.scenario-card{padding:11px;border:1px solid rgba(255,255,255,.08);border-radius:9px;background:rgba(255,255,255,.02)}.scenario-card>div{display:grid;grid-template-columns:7px 1fr auto;gap:7px;align-items:center}.scenario-card i{width:6px;height:6px;border-radius:50%;background:#46e6a7}.scenario-card i.debug{background:#f6c65c}.scenario-card b{font-size:10.5px}.scenario-card span{font-size:8px;color:#8993a6}.scenario-card p{margin:8px 0;color:#aab3c2;font-size:10px;line-height:1.5}.scenario-card code{display:block;color:#8e9aaf;font-size:8.5px;line-height:1.45}
+.protocol-section-title{margin:17px 1px 8px;display:flex;align-items:center;justify-content:space-between}.protocol-section-title b{font-size:9px;color:#9dacff}
 .session-card.active{border-color:rgba(143,163,255,.24);background:linear-gradient(145deg,rgba(95,141,255,.07),rgba(150,120,255,.045))}.session-title{display:flex;justify-content:space-between;margin-bottom:8px}.session-title span{font-size:9px;letter-spacing:.12em;color:#909bae}.session-title b{font-size:10px;color:#bdc6ff}.session-card>code{display:block;overflow:hidden;text-overflow:ellipsis;color:#c4cbd7;font-size:9.5px;white-space:nowrap}.session-arrow{margin:5px 0;color:#758095;font-size:11px}.session-meta{margin-top:10px;display:flex;align-items:center;gap:9px;color:#9da7b9;font-size:9px}.session-meta button{margin-left:auto;padding:6px 9px;border:1px solid rgba(143,163,255,.22);border-radius:7px;background:rgba(143,163,255,.08);color:#c9d0ff;font-size:9px;cursor:pointer}.context-preview{margin-top:9px;padding-top:9px;border-top:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;gap:8px;font-size:9px}.context-preview span{color:#9ba5b7}.session-empty{padding:16px 12px;border:1px dashed rgba(255,255,255,.11);border-radius:9px;color:#99a3b5;font-size:10px;line-height:1.55}
-.interface-item{padding:11px 10px;border-bottom:1px solid rgba(255,255,255,.075)}.interface-item header{display:flex;justify-content:space-between;gap:10px}.interface-item header b{font-size:11px}.interface-item header code{max-width:60%;overflow:hidden;text-overflow:ellipsis;color:#a9b5ff;font-size:9px;white-space:nowrap}.interface-item p{margin:8px 0;color:#aab3c2;font-size:10px;line-height:1.55}.interface-item>div{display:grid;grid-template-columns:70px 1fr;gap:7px;margin-top:5px}.interface-item>div span{font-size:8.5px;color:#7f8a9e}.interface-item>div code{font-size:9px;color:#b8c1d0;overflow-wrap:anywhere}
-@media(max-width:500px){.scenario-grid{grid-template-columns:1fr}}
 </style>
