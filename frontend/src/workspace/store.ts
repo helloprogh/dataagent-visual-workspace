@@ -19,6 +19,11 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined
 }
 
+function isWorkspaceWidget(value: unknown): value is WorkspaceWidget {
+  const widget = asRecord(value)
+  return Boolean(widget && typeof widget.id === 'string' && typeof widget.component === 'string')
+}
+
 function normalizeChartWidget(widget: WorkspaceWidget): WorkspaceWidget {
   if (!['ui.lineChart', 'ui.barChart', 'ui.donutChart'].includes(widget.component)) return clone(widget)
   const props = clone(widget.props ?? {})
@@ -50,8 +55,14 @@ function normalizeChartWidget(widget: WorkspaceWidget): WorkspaceWidget {
   return { ...clone(widget), props }
 }
 
-function normalizeWidgets(widgets: WorkspaceWidget[]): WorkspaceWidget[] {
-  return widgets.map(normalizeChartWidget)
+function normalizeWidgets(widgets: unknown): WorkspaceWidget[] {
+  const candidates = Array.isArray(widgets)
+    ? widgets
+    : isWorkspaceWidget(widgets)
+      ? [widgets]
+      : Object.values(asRecord(widgets) ?? {})
+
+  return candidates.filter(isWorkspaceWidget).map(normalizeChartWidget)
 }
 
 function readAll(): WorkspaceMap {
@@ -83,6 +94,26 @@ function createInitialDocument(threadId: string): WorkspaceDocument {
   return DEMO_MODE ? createDemoDocument(threadId) : createEmptyDocument(threadId)
 }
 
+function normalizeDocument(value: unknown, threadId: string): WorkspaceDocument {
+  const fallback = createInitialDocument(threadId)
+  const document = asRecord(value)
+  if (!document) return fallback
+
+  return {
+    threadId,
+    title: typeof document.title === 'string' && document.title.trim()
+      ? document.title
+      : fallback.title,
+    subtitle: typeof document.subtitle === 'string'
+      ? document.subtitle
+      : fallback.subtitle,
+    updatedAt: typeof document.updatedAt === 'number' && Number.isFinite(document.updatedAt)
+      ? document.updatedAt
+      : Date.now(),
+    widgets: normalizeWidgets(document.widgets),
+  }
+}
+
 const state = reactive<{ activeThreadId: string; document: WorkspaceDocument | null }>({
   activeThreadId: '',
   document: null,
@@ -102,17 +133,16 @@ export const workspaceController = {
     if (!threadId) return
     const all = readAll()
     state.activeThreadId = threadId
-    const document = clone(all[threadId] ?? createInitialDocument(threadId))
-    document.widgets = normalizeWidgets(document.widgets)
-    state.document = document
+    state.document = normalizeDocument(all[threadId], threadId)
     persist()
   },
   snapshot() {
     return state.document ? clone(state.document) : null
   },
   applyShared(document: WorkspaceDocument) {
-    if (!state.activeThreadId || document.threadId !== state.activeThreadId) return
-    state.document = clone({ ...document, threadId: state.activeThreadId, widgets: normalizeWidgets(document.widgets) })
+    const shared = asRecord(document)
+    if (!state.activeThreadId || shared?.threadId !== state.activeThreadId) return
+    state.document = normalizeDocument(shared, state.activeThreadId)
     persist()
   },
   replace(payload: { title?: string; subtitle?: string; widgets: WorkspaceWidget[] }) {
