@@ -42,11 +42,10 @@ test('emits a complete AG-UI reasoning lifecycle before the final assistant text
   assert.equal(reasoningMessageStart.role, 'reasoning')
   assert.equal(reasoningMessageStart.messageId, `${assistantMessageID}-reasoning`)
   assert.equal(reasoningMessageEnd.messageId, reasoningMessageStart.messageId)
-  assert.equal(reasoningStart.messageId, `${assistantMessageID}-reasoning-phase`)
-  assert.equal(reasoningEnd.messageId, reasoningStart.messageId)
+  assert.equal(reasoningStart.messageId, reasoningMessageStart.messageId)
+  assert.equal(reasoningEnd.messageId, reasoningMessageStart.messageId)
   assert.equal(textStart.messageId, assistantMessageID)
   assert.notEqual(reasoningMessageStart.messageId, textStart.messageId)
-  assert.notEqual(reasoningStart.messageId, reasoningMessageStart.messageId)
 })
 
 test('legacy message.part reasoning never collides with the final text message id', () => {
