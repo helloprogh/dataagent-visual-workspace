@@ -70,11 +70,15 @@ export class OpenCodeAguiConverter {
     return this.messageId(ordinal > 0 ? `${sourceId}-${kind}-${ordinal}` : sourceId)
   }
 
-  partMessageId(raw) {
+  partMessageId(raw, kind = 'text') {
     const rawPartId = raw.partID ?? raw.partId
     const rawMessageId = raw.messageID ?? raw.messageId ?? this.partIds.get(rawPartId)
     if (rawPartId && rawMessageId) this.partIds.set(rawPartId, rawMessageId)
-    return this.messageId(rawMessageId ?? `part-${rawPartId ?? randomUUID()}`)
+    const sourceId = rawMessageId ?? `part-${rawPartId ?? randomUUID()}`
+    // Legacy message.part.* events use the same parent assistant message id for
+    // both reasoning and final text. Never let a reasoning message collide with
+    // the final assistant message in the AG-UI message store.
+    return this.messageId(kind === 'reasoning' ? `${sourceId}-reasoning` : sourceId)
   }
 
   matchesSession(raw) {
@@ -190,7 +194,7 @@ export class OpenCodeAguiConverter {
     const field = raw.field ?? 'text'
     const delta = asText(raw.delta ?? raw.value)
     if (!delta) return []
-    const messageId = this.partMessageId(raw)
+    const messageId = this.partMessageId(raw, field === 'reasoning' ? 'reasoning' : 'text')
     if (field === 'reasoning') return this.reasoningDelta(messageId, delta)
     if (field !== 'text') return []
     this.textHasDelta.add(messageId)
@@ -200,14 +204,14 @@ export class OpenCodeAguiConverter {
   convertLegacyText(raw) {
     const delta = asText(raw.delta ?? raw.text ?? raw.content)
     if (!delta) return []
-    const messageId = this.partMessageId(raw)
+    const messageId = this.partMessageId(raw, 'text')
     this.textHasDelta.add(messageId)
     return [...this.openTextMessage(messageId), textContent(messageId, delta)]
   }
 
   convertPart(part) {
     const kind = part.type ?? part.kind
-    const messageId = this.partMessageId(part)
+    const messageId = this.partMessageId(part, kind === 'reasoning' ? 'reasoning' : 'text')
     if (kind === 'text') {
       const delta = asText(part.delta ?? part.text ?? part.content)
       const events = this.openTextMessage(messageId)
