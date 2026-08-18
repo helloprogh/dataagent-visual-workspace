@@ -43,7 +43,7 @@ test('emits a complete AG-UI reasoning lifecycle before the final assistant text
   assert.equal(reasoningMessageStart.messageId, `${assistantMessageID}-reasoning`)
   assert.equal(reasoningMessageEnd.messageId, reasoningMessageStart.messageId)
   assert.equal(reasoningStart.messageId, reasoningMessageStart.messageId)
-  assert.equal(reasoningEnd.messageId, reasoningMessageStart.messageId)
+  assert.equal(reasoningEnd.messageId, reasoningStart.messageId)
   assert.equal(textStart.messageId, assistantMessageID)
   assert.notEqual(reasoningMessageStart.messageId, textStart.messageId)
 })
