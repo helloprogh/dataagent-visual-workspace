@@ -34,7 +34,6 @@ export class OpenCodeAguiConverter {
     this.sessionId = sessionId
     this.messageIds = new Map()
     this.partIds = new Map()
-    this.reasoningPhaseIds = new Map()
     this.openText = new Set()
     this.openReasoning = new Set()
     this.closedReasoning = new Set()
@@ -77,16 +76,9 @@ export class OpenCodeAguiConverter {
     if (rawPartId && rawMessageId) this.partIds.set(rawPartId, rawMessageId)
     const sourceId = rawMessageId ?? `part-${rawPartId ?? randomUUID()}`
     // Legacy message.part.* events use the same parent assistant message id for
-    // both reasoning and final text. Never let a reasoning message collide with
-    // the final assistant message in the AG-UI message store.
+    // both reasoning and final text. Keep reasoning in its own AG-UI message so
+    // CopilotKit does not deduplicate it into the final assistant response.
     return this.messageId(kind === 'reasoning' ? `${sourceId}-reasoning` : sourceId)
-  }
-
-  reasoningPhaseId(messageId) {
-    if (!this.reasoningPhaseIds.has(messageId)) {
-      this.reasoningPhaseIds.set(messageId, `${messageId}-phase`)
-    }
-    return this.reasoningPhaseIds.get(messageId)
   }
 
   matchesSession(raw) {
@@ -248,10 +240,7 @@ export class OpenCodeAguiConverter {
     if (this.closedReasoning.has(messageId)) return []
     if (this.openReasoning.has(messageId)) return []
     this.openReasoning.add(messageId)
-    return [
-      event('REASONING_START', { messageId: this.reasoningPhaseId(messageId) }),
-      event('REASONING_MESSAGE_START', { messageId, role: 'reasoning' }),
-    ]
+    return [event('REASONING_START', { messageId }), event('REASONING_MESSAGE_START', { messageId, role: 'reasoning' })]
   }
 
   reasoningDelta(messageId, delta) {
@@ -264,10 +253,7 @@ export class OpenCodeAguiConverter {
   closeReasoning(messageId) {
     if (!this.openReasoning.delete(messageId)) return []
     this.closedReasoning.add(messageId)
-    return [
-      event('REASONING_MESSAGE_END', { messageId }),
-      event('REASONING_END', { messageId: this.reasoningPhaseId(messageId) }),
-    ]
+    return [event('REASONING_MESSAGE_END', { messageId }), event('REASONING_END', { messageId })]
   }
 
   toolState(raw) {
