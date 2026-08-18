@@ -1,44 +1,21 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
 import { CopilotChatReasoningMessage } from '@copilotkit/vue/v2'
 import type { CopilotChatReasoningMessageLayoutSlotProps } from '@copilotkit/vue/v2'
 
 type ReasoningMessage = CopilotChatReasoningMessageLayoutSlotProps['message']
 type Message = CopilotChatReasoningMessageLayoutSlotProps['messages'][number]
 
-const props = defineProps<{
+defineProps<{
   message: ReasoningMessage
   messages: Message[]
   isRunning: boolean
 }>()
-
-const isStreaming = computed(() => (
-  props.isRunning && props.messages.at(-1)?.id === props.message.id
-))
-
-// CopilotKit's default reasoning component automatically collapses as soon as
-// the final assistant message starts streaming. Keep our Data Agent reasoning
-// card open after that transition so the user can still read the completed
-// reasoning, while leaving historical cards collapsed when first mounted.
-const isExpanded = ref(isStreaming.value)
-
-watch(isStreaming, (streaming) => {
-  if (streaming) isExpanded.value = true
-}, { immediate: true })
-
-function toggleExpanded(hasContent: boolean) {
-  if (!hasContent) return
-  isExpanded.value = !isExpanded.value
-}
 </script>
 
 <template>
   <article
     class="reasoning-card"
-    :class="{
-      'is-streaming': isStreaming,
-      'is-expanded': isExpanded,
-    }"
+    :class="{ 'is-streaming': isRunning && messages.at(-1)?.id === message.id }"
     data-testid="agent-reasoning-card"
   >
     <CopilotChatReasoningMessage
@@ -46,14 +23,14 @@ function toggleExpanded(hasContent: boolean) {
       :messages="messages"
       :is-running="isRunning"
     >
-      <template #header="{ hasContent, isStreaming: copilotStreaming }">
+      <template #header="{ isOpen, hasContent, isStreaming, onClick }">
         <button
           type="button"
           class="reasoning-card__header"
           :class="{ 'can-expand': hasContent }"
-          :aria-expanded="hasContent ? isExpanded : undefined"
+          :aria-expanded="hasContent ? isOpen : undefined"
           :disabled="!hasContent"
-          @click="toggleExpanded(hasContent)"
+          @click="onClick?.()"
         >
           <span class="reasoning-card__icon" aria-hidden="true">
             <i />
@@ -66,15 +43,15 @@ function toggleExpanded(hasContent: boolean) {
             <b>思考过程</b>
           </span>
 
-          <span class="reasoning-card__status" :class="{ active: copilotStreaming }">
-            <i v-if="copilotStreaming" aria-hidden="true" />
-            {{ copilotStreaming ? '生成中' : '已完成' }}
+          <span class="reasoning-card__status" :class="{ active: isStreaming }">
+            <i v-if="isStreaming" aria-hidden="true" />
+            {{ isStreaming ? '生成中' : '已完成' }}
           </span>
 
           <svg
             v-if="hasContent"
             class="reasoning-card__chevron"
-            :class="{ open: isExpanded }"
+            :class="{ open: isOpen }"
             viewBox="0 0 20 20"
             aria-hidden="true"
           >
@@ -103,10 +80,6 @@ function toggleExpanded(hasContent: boolean) {
   box-shadow:inset 0 1px rgba(255,255,255,.05),0 0 0 3px rgba(91,193,217,.055),0 12px 30px rgba(0,0,0,.18);
 }
 .reasoning-card :deep([data-copilotkit]){margin:0!important}
-/* Override CopilotKit v1.64.1's automatic post-stream collapse. The direct
-   div under the reasoning message root is its animated toggle container. */
-.reasoning-card.is-expanded :deep([data-message-id] > div){grid-template-rows:1fr!important}
-.reasoning-card:not(.is-expanded) :deep([data-message-id] > div){grid-template-rows:0fr!important}
 .reasoning-card__header{
   width:100%;
   min-height:68px;
