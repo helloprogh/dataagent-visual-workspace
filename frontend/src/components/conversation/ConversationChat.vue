@@ -17,7 +17,16 @@ const props = defineProps<{
 
 const emit = defineEmits<{ changed: []; rename: [name: string] }>()
 const hydrated = ref(false)
-const { agent } = useAgent({ agentId: () => props.agentId, threadId: () => props.threadId, throttleMs: 60 })
+// This hook is used only to resolve the per-thread agent instance. CopilotChat
+// owns reactive rendering. Disabling hook update notifications prevents the
+// same shallowRef from being re-triggered for every streamed message and then
+// accidentally re-running the one-time local-history hydration below.
+const { agent } = useAgent({
+  agentId: () => props.agentId,
+  threadId: () => props.threadId,
+  throttleMs: 60,
+  updates: [],
+})
 type PermissionDecision = 'once' | 'always' | 'reject'
 const pendingInterrupts = ref<Interrupt[]>([])
 const decisions = ref<Record<string, PermissionDecision>>({})
@@ -26,6 +35,7 @@ const resuming = ref(false)
 let persistTimer: number | undefined
 let currentAgent: AbstractAgent | null = null
 let currentThreadId = ''
+let agentSubscription: { unsubscribe: () => void } | null = null
 const hasInterrupts = computed(() => pendingInterrupts.value.length > 0)
 const chatLabels = computed(() => ({
   chatInputPlaceholder: '描述你的数据业务目标，我将与你逐步澄清需求，并自主完成Specification、数据方案、数据集成、ETL开发、治理验证与交付。',
@@ -142,10 +152,25 @@ async function decide(interruptId: string, decision: PermissionDecision) {
   }
 }
 
-watch([agent, () => props.threadId], ([nextAgent, nextThreadId], _, onCleanup) => {
+function releaseCurrentAgent() {
+  if (currentAgent && currentThreadId) persistSnapshot(currentThreadId, currentAgent, true)
+  agentSubscription?.unsubscribe()
+  agentSubscription = null
+  currentAgent = null
+  currentThreadId = ''
+}
+
+watch([agent, () => props.threadId], ([nextAgent, nextThreadId]) => {
+  // useAgent() uses triggerRef() for message updates. Hydration must only run
+  // when the resolved agent instance/thread actually changes; otherwise an
+  // older local snapshot can overwrite a just-streamed reasoning message.
+  if (nextAgent && currentAgent === nextAgent && currentThreadId === nextThreadId) return
+
   hydrated.value = false
+  releaseCurrentAgent()
   updateInterrupts([])
   if (!nextAgent) return
+
   const threadId = nextThreadId
   currentAgent = nextAgent
   currentThreadId = threadId
@@ -161,7 +186,7 @@ watch([agent, () => props.threadId], ([nextAgent, nextThreadId], _, onCleanup) =
   const workspace = workspaceController.snapshot()
   if (workspace) nextAgent.setState({ ...(nextAgent.state ?? {}), workspace })
   updateInterrupts(nextAgent.pendingInterrupts ?? [])
-  const subscription = nextAgent.subscribe({
+  agentSubscription = nextAgent.subscribe({
     onMessagesChanged: ({ agent: changedAgent }) => persistSnapshot(threadId, changedAgent),
     onStateChanged: ({ agent: changedAgent }) => {
       const workspace = (changedAgent.state as { workspace?: unknown })?.workspace
@@ -173,11 +198,6 @@ watch([agent, () => props.threadId], ([nextAgent, nextThreadId], _, onCleanup) =
     },
   })
   hydrated.value = true
-  onCleanup(() => {
-    persistSnapshot(threadId, nextAgent, true)
-    subscription.unsubscribe()
-    if (currentAgent === nextAgent) { currentAgent = null; currentThreadId = '' }
-  })
 }, { immediate: true })
 
 function onSubmitMessage(value: string) {
@@ -186,7 +206,7 @@ function onSubmitMessage(value: string) {
 
 onBeforeUnmount(() => {
   if (persistTimer) window.clearTimeout(persistTimer)
-  if (currentAgent && currentThreadId) persistSnapshot(currentThreadId, currentAgent, true)
+  releaseCurrentAgent()
 })
 </script>
 
