@@ -10,6 +10,11 @@ import GenUIBridge from './components/GenUIBridge.vue'
 import WorkspaceCanvas from './components/WorkspaceCanvas.vue'
 import AssistantPanel from './components/AssistantPanel.vue'
 import AppSidebar from './components/AppSidebar.vue'
+import HistoryView from './components/HistoryView.vue'
+import SkillManagementView from './components/SkillManagementView.vue'
+import WorkspaceManagementView from './components/WorkspaceManagementView.vue'
+
+type AppPage = 'chat' | 'history' | 'skills' | 'workspace'
 
 const runtime = createAgentRuntime()
 const showDevConsole = import.meta.env.DEV
@@ -17,6 +22,7 @@ const ACTIVE_CONVERSATION_KEY = 'dataagent.conversations.active.v1'
 const conversations = ref<ConversationRecord[]>([])
 const activeId = ref(localStorage.getItem(ACTIVE_CONVERSATION_KEY) ?? '')
 const workspaceDismissed = ref(false)
+const activePage = ref<AppPage>('chat')
 
 function refreshConversations() {
   conversations.value = conversationRepository.list()
@@ -48,7 +54,11 @@ watch(activeId, id => {
 
 const activeConversation = computed(() => conversationRepository.get(activeId.value))
 const workspaceCount = computed(() => workspaceController.state.document?.widgets.length ?? 0)
-const workspaceVisible = computed(() => workspaceCount.value > 0 && !workspaceDismissed.value)
+const workspaceVisible = computed(() => (
+  activePage.value === 'chat'
+  && workspaceCount.value > 0
+  && !workspaceDismissed.value
+))
 
 watch(workspaceCount, (next, previous) => {
   if (next > previous) workspaceDismissed.value = false
@@ -57,11 +67,13 @@ watch(workspaceCount, (next, previous) => {
 function createConversation() {
   const created = conversationRepository.create()
   activeId.value = created.id
+  activePage.value = 'chat'
   refreshConversations()
 }
 
 function selectConversation(id: string) {
   activeId.value = id
+  activePage.value = 'chat'
 }
 
 async function renameConversation(id: string) {
@@ -103,6 +115,11 @@ function autoRename(name: string) {
   conversationRepository.rename(activeId.value, name)
   refreshConversations()
 }
+
+function openWorkspaceFromManager() {
+  activePage.value = 'chat'
+  workspaceDismissed.value = false
+}
 </script>
 
 <template>
@@ -115,17 +132,20 @@ function autoRename(name: string) {
         <AppSidebar
           :conversations="conversations"
           :active-id="activeId"
+          :active-page="activePage"
           :workspace-count="workspaceCount"
-          :workspace-visible="workspaceVisible"
           @create="createConversation"
           @select="selectConversation"
           @rename="renameConversation"
           @remove="removeConversation"
-          @open-workspace="workspaceDismissed = false"
+          @open-history="activePage = 'history'"
+          @open-skills="activePage = 'skills'"
+          @open-workspace="activePage = 'workspace'"
         />
 
-        <section class="chat-stage">
+        <section class="app-main-stage" :class="{ 'app-main-stage--chat': activePage === 'chat' }">
           <AssistantPanel
+            v-if="activePage === 'chat'"
             :active-id="activeId"
             :agent-id="runtime.agentId"
             :agent-display-name="runtime.displayName"
@@ -133,6 +153,23 @@ function autoRename(name: string) {
             @create="createConversation"
             @changed="refreshConversations"
             @auto-rename="autoRename"
+          />
+
+          <HistoryView
+            v-else-if="activePage === 'history'"
+            :conversations="conversations"
+            :active-id="activeId"
+            @create="createConversation"
+            @select="selectConversation"
+            @rename="renameConversation"
+            @remove="removeConversation"
+          />
+
+          <SkillManagementView v-else-if="activePage === 'skills'" />
+
+          <WorkspaceManagementView
+            v-else
+            @open-chat-workspace="openWorkspaceFromManager"
           />
         </section>
 
