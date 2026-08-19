@@ -1,0 +1,92 @@
+/* Sidebar hierarchy refinements: New chat -> Recent conversations -> Management */
+.app-sidebar__content--recent{
+  flex:1 1 auto;
+  min-height:190px;
+  padding:8px 10px 10px;
+  border-top:1px solid rgba(255,255,255,.035);
+  border-bottom:1px solid rgba(255,255,255,.055);
+}
+
+.app-sidebar__section-head--recent{
+  height:28px;
+  flex:0 0 28px;
+  align-items:center;
+  padding:0 5px;
+}
+
+.app-sidebar__section-head--recent>span{
+  color:#9aa4b6;
+  font-size:9px;
+  font-weight:620;
+  letter-spacing:.04em;
+}
+
+.app-sidebar__section-head--recent>b{
+  min-width:18px;
+  height:18px;
+  padding:0 5px;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(255,255,255,.07);
+  border-radius:999px;
+  color:#8791a4;
+  font-size:7px;
+  background:rgba(255,255,255,.02);
+}
+
+.app-sidebar__content--recent .app-sidebar__history{
+  flex:1 1 auto;
+  min-height:0;
+}
+
+.app-sidebar__nav--management{
+  flex:0 0 auto;
+  padding:10px;
+  gap:4px;
+  border-bottom:0;
+}
+
+.app-sidebar__nav--management::before{
+  content:"管理";
+  display:block;
+  padding:0 5px 5px;
+  color:#626d80;
+  font-size:7px;
+  font-weight:700;
+  letter-spacing:.12em;
+}
+
+.app-sidebar__nav--management>button{
+  min-height:46px;
+}
+
+.app-sidebar__management-detail{
+  flex:0 0 auto;
+  padding:0 10px 10px;
+}
+
+.app-sidebar__management-detail .app-sidebar__management-card{
+  padding:10px;
+}
+
+@media(max-height:760px){
+  .app-sidebar__brand{height:66px;flex-basis:66px}
+  .app-sidebar__new{height:46px;flex-basis:46px;margin-top:10px}
+  .app-sidebar__content--recent{min-height:150px;padding-top:6px}
+  .app-sidebar__history>article{min-height:44px}
+  .app-sidebar__nav--management{padding-top:7px;padding-bottom:7px}
+  .app-sidebar__nav--management>button{min-height:42px}
+  .app-sidebar__management-detail{display:none}
+}
+
+@media(max-width:980px){
+  .app-sidebar__content--recent .app-sidebar__search,
+  .app-sidebar__content--recent .app-sidebar__thread-copy,
+  .app-sidebar__content--recent .app-sidebar__more,
+  .app-sidebar__section-head--recent>span,
+  .app-sidebar__section-head--recent>b,
+  .app-sidebar__nav--management::before,
+  .app-sidebar__management-detail{
+    display:none;
+  }
+}
