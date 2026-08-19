@@ -54,7 +54,7 @@ const exists = async (target) => {
   }
 }
 
-const normalizedZipPath = (value) => {
+const safeZipPath = (value) => {
   if (!value || value.includes('\0')) throw new HttpError(400, 'Skill package contains an invalid path')
   const forward = value.replace(/\\/g, '/')
   if (forward.startsWith('/') || /^[A-Za-z]:\//.test(forward)) {
@@ -67,7 +67,7 @@ const normalizedZipPath = (value) => {
   return normalized
 }
 
-const findEndOfCentralDirectory = (buffer) => {
+const findEocd = (buffer) => {
   const minimum = Math.max(0, buffer.length - 22 - 0xffff)
   for (let offset = buffer.length - 22; offset >= minimum; offset -= 1) {
     if (buffer.readUInt32LE(offset) === 0x06054b50) return offset
@@ -77,7 +77,7 @@ const findEndOfCentralDirectory = (buffer) => {
 
 const parseZip = (buffer) => {
   if (buffer.length < 22) throw new HttpError(400, 'Uploaded ZIP package is incomplete')
-  const eocd = findEndOfCentralDirectory(buffer)
+  const eocd = findEocd(buffer)
   const entryCount = buffer.readUInt16LE(eocd + 10)
   const centralSize = buffer.readUInt32LE(eocd + 12)
   const centralOffset = buffer.readUInt32LE(eocd + 16)
@@ -88,8 +88,10 @@ const parseZip = (buffer) => {
   if (centralOffset + centralSize > buffer.length) throw new HttpError(400, 'ZIP central directory is invalid')
 
   const entries = []
+  const names = new Set()
   let cursor = centralOffset
   let unpackedTotal = 0
+
   for (let index = 0; index < entryCount; index += 1) {
     if (cursor + 46 > buffer.length || buffer.readUInt32LE(cursor) !== 0x02014b50) {
       throw new HttpError(400, 'ZIP central directory entry is invalid')
@@ -110,7 +112,10 @@ const parseZip = (buffer) => {
     if (![0, 8].includes(method)) throw new HttpError(400, `ZIP compression method ${method} is not supported`)
 
     const rawName = buffer.subarray(nameStart, nameEnd).toString('utf8')
-    const name = normalizedZipPath(rawName)
+    const name = safeZipPath(rawName)
+    if (names.has(name)) throw new HttpError(400, `Skill package contains a duplicate path: ${name}`)
+    names.add(name)
+
     const isDirectory = rawName.endsWith('/')
     const unixMode = (externalAttributes >>> 16) & 0xffff
     if ((unixMode & 0o170000) === 0o120000) {
@@ -146,7 +151,7 @@ const parseZip = (buffer) => {
   return entries
 }
 
-const skillIdFromPackage = (packageName) => {
+const packageSkillId = (packageName) => {
   const base = path.basename(packageName || 'uploaded-skill.zip').replace(/\.zip$/i, '')
   const slug = base.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64)
   if (!slug) throw new HttpError(400, 'Unable to derive a Skill id from the package name')
@@ -159,27 +164,29 @@ const describeSkillPackage = (entries, packageName) => {
   if (manifests.length > 1) throw new HttpError(400, 'Upload one Skill per package; multiple SKILL.md files were found')
   const manifest = manifests[0]
   const root = path.posix.dirname(manifest.name) === '.' ? '' : path.posix.dirname(manifest.name)
-  const sourceId = root ? path.posix.basename(root) : skillIdFromPackage(packageName)
+  const sourceId = root ? path.posix.basename(root) : packageSkillId(packageName)
   const id = sourceId.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64)
   if (!id || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) {
     throw new HttpError(400, 'Skill id must resolve to lowercase kebab-case')
   }
-  const selected = entries.filter((entry) => {
-    if (!root) return !entry.name.startsWith('__MACOSX/')
-    return entry.name === root || entry.name.startsWith(`${root}/`)
-  })
-  return { id, root, entries: selected }
+  return {
+    id,
+    root,
+    entries: entries.filter((entry) => root
+      ? entry.name === root || entry.name.startsWith(`${root}/`)
+      : !entry.name.startsWith('__MACOSX/')),
+  }
 }
 
 const extractSkill = async (description, destination) => {
+  const destinationRoot = path.resolve(destination)
   for (const entry of description.entries) {
     const relative = description.root
       ? entry.name.slice(description.root.length).replace(/^\//, '')
       : entry.name
     if (!relative) continue
-    const output = path.resolve(destination, ...relative.split('/'))
-    const root = path.resolve(destination)
-    if (output !== root && !output.startsWith(`${root}${path.sep}`)) {
+    const output = path.resolve(destinationRoot, ...relative.split('/'))
+    if (output !== destinationRoot && !output.startsWith(`${destinationRoot}${path.sep}`)) {
       throw new HttpError(400, `Skill package path escapes destination: ${relative}`)
     }
     if (entry.isDirectory) {
@@ -190,7 +197,7 @@ const extractSkill = async (description, destination) => {
     await writeFile(output, entry.data)
     if (entry.mode) await chmod(output, entry.mode).catch(() => undefined)
   }
-  if (!await exists(path.join(destination, 'SKILL.md'))) {
+  if (!await exists(path.join(destinationRoot, 'SKILL.md'))) {
     throw new HttpError(400, 'Skill package did not produce a root SKILL.md')
   }
 }
@@ -222,27 +229,20 @@ const installSkillPackage = async (client, req, url) => {
   const description = describeSkillPackage(parseZip(zip), packageName)
   await mkdir(parent, { recursive: true })
   const target = path.join(parent, description.id)
-  if (await exists(target)) {
-    if (!replace) throw new HttpError(409, `Skill ${description.id} already exists in ${scope} scope`)
-    await rm(target, { recursive: true, force: true })
-  }
+  const targetExists = await exists(target)
+  if (targetExists && !replace) throw new HttpError(409, `Skill ${description.id} already exists in ${scope} scope`)
 
   const temporary = await mkdtemp(path.join(parent, `.dataagent-${description.id}-`))
   try {
     await extractSkill(description, temporary)
+    if (targetExists) await rm(target, { recursive: true, force: true })
     await rename(temporary, target)
   } catch (error) {
     await rm(temporary, { recursive: true, force: true }).catch(() => undefined)
     throw error
   }
 
-  return {
-    id: description.id,
-    scope,
-    workspaceID,
-    directory: target,
-    sourceDirectory,
-  }
+  return { id: description.id, scope, workspaceID, directory: target, sourceDirectory }
 }
 
 export const createOpenCodeManagementHandler = (client) => async (req, res, url) => {
@@ -252,7 +252,6 @@ export const createOpenCodeManagementHandler = (client) => async (req, res, url)
       sendJson(res, 200, await client.diagnostics())
       return true
     }
-
     if (req.method === 'GET' && url.pathname === '/api/opencode/skills') {
       const directory = url.searchParams.get('directory') || undefined
       const workspaceID = url.searchParams.get('workspaceID') || undefined
@@ -260,19 +259,15 @@ export const createOpenCodeManagementHandler = (client) => async (req, res, url)
       sendJson(res, 200, { data: Array.isArray(data) ? data : [] })
       return true
     }
-
     if (req.method === 'POST' && url.pathname === '/api/opencode/skills/install') {
-      const installed = await installSkillPackage(client, req, url)
-      sendJson(res, 201, { data: installed })
+      sendJson(res, 201, { data: await installSkillPackage(client, req, url) })
       return true
     }
-
     if (req.method === 'GET' && url.pathname === '/api/opencode/projects') {
       const data = await client.listProjects()
       sendJson(res, 200, { data: Array.isArray(data) ? data : [] })
       return true
     }
-
     if (url.pathname === '/api/opencode/workspaces') {
       if (req.method === 'GET') {
         const projectID = url.searchParams.get('projectID') || undefined
@@ -283,15 +278,14 @@ export const createOpenCodeManagementHandler = (client) => async (req, res, url)
       if (req.method === 'POST') {
         const body = await readJsonBody(req)
         if (!body.type || typeof body.type !== 'string') throw new HttpError(400, 'Workspace type is required')
-        const data = await client.createWorkspace(body)
-        sendJson(res, 201, { data })
+        sendJson(res, 201, { data: await client.createWorkspace(body) })
         return true
       }
     }
 
-    const workspaceMatch = url.pathname.match(/^\/api\/opencode\/workspaces\/([^/]+)$/)
-    if (workspaceMatch) {
-      const workspaceID = decodeURIComponent(workspaceMatch[1])
+    const match = url.pathname.match(/^\/api\/opencode\/workspaces\/([^/]+)$/)
+    if (match) {
+      const workspaceID = decodeURIComponent(match[1])
       if (req.method === 'GET') {
         sendJson(res, 200, { data: await client.getWorkspace(workspaceID) })
         return true
