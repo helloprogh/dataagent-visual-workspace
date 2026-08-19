@@ -6,6 +6,7 @@ import './style.css'
 import './layout-shell.css'
 import './sidebar-hierarchy.css'
 import './app-navigation-pages.css'
+import './opencode-management.css'
 import App from './App.vue'
 
 createApp(App).use(ElementPlus).mount('#app')
