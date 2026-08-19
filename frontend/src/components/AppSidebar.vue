@@ -6,7 +6,6 @@ const props = defineProps<{
   conversations: ConversationRecord[]
   activeId: string
   activePage: 'chat' | 'history' | 'skills' | 'workspace'
-  workspaceCount: number
 }>()
 
 const emit = defineEmits<{
@@ -88,7 +87,7 @@ function timeLabel(timestamp: number) {
       </button>
     </section>
 
-    <nav class="app-sidebar__nav app-sidebar__nav--management" aria-label="Data Agent management navigation">
+    <nav class="app-sidebar__nav app-sidebar__nav--management" aria-label="OpenCode2 management navigation">
       <button
         type="button"
         :class="{ active: activePage === 'skills' }"
@@ -96,13 +95,13 @@ function timeLabel(timestamp: number) {
       >
         <span class="app-sidebar__nav-icon" aria-hidden="true">
           <svg viewBox="0 0 20 20">
-            <path d="M7.5 3.5h5v3h3v5h-3v5h-5v-5h-3v-5h3z" />
-            <circle cx="10" cy="9" r="1.6" />
+            <path d="M5 4.5h6l1.5 2H15a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z" />
+            <path d="M7.2 11h5.6M10 8.2v5.6" />
           </svg>
         </span>
         <span class="app-sidebar__nav-copy">
           <b>Skill 管理</b>
-          <small>Agent capabilities</small>
+          <small>OpenCode2 skills</small>
         </span>
       </button>
 
@@ -113,15 +112,14 @@ function timeLabel(timestamp: number) {
       >
         <span class="app-sidebar__nav-icon" aria-hidden="true">
           <svg viewBox="0 0 20 20">
-            <rect x="3" y="3" width="14" height="14" rx="2" />
-            <path d="M3 8h14M8 8v9" />
+            <rect x="3" y="4" width="14" height="12" rx="2" />
+            <path d="M6 8h8M6 12h3M12.5 11l2 2-2 2" />
           </svg>
         </span>
         <span class="app-sidebar__nav-copy">
           <b>工作空间管理</b>
-          <small>Dynamic workspace</small>
+          <small>OpenCode2 workspaces</small>
         </span>
-        <span v-if="workspaceCount" class="app-sidebar__badge">{{ workspaceCount }}</span>
       </button>
     </nav>
 
