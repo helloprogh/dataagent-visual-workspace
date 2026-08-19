@@ -21,7 +21,7 @@ const showDevConsole = import.meta.env.DEV
 const ACTIVE_CONVERSATION_KEY = 'dataagent.conversations.active.v1'
 const conversations = ref<ConversationRecord[]>([])
 const activeId = ref(localStorage.getItem(ACTIVE_CONVERSATION_KEY) ?? '')
-const workspaceDismissed = ref(false)
+const renderAreaDismissed = ref(false)
 const activePage = ref<AppPage>('chat')
 
 function refreshConversations() {
@@ -43,7 +43,7 @@ function ensureConversation() {
 
 ensureConversation()
 watch(activeId, id => {
-  workspaceDismissed.value = false
+  renderAreaDismissed.value = false
   if (!id) {
     localStorage.removeItem(ACTIVE_CONVERSATION_KEY)
     return
@@ -53,15 +53,15 @@ watch(activeId, id => {
 }, { immediate: true })
 
 const activeConversation = computed(() => conversationRepository.get(activeId.value))
-const workspaceCount = computed(() => workspaceController.state.document?.widgets.length ?? 0)
-const workspaceVisible = computed(() => (
+const renderWidgetCount = computed(() => workspaceController.state.document?.widgets.length ?? 0)
+const renderAreaVisible = computed(() => (
   activePage.value === 'chat'
-  && workspaceCount.value > 0
-  && !workspaceDismissed.value
+  && renderWidgetCount.value > 0
+  && !renderAreaDismissed.value
 ))
 
-watch(workspaceCount, (next, previous) => {
-  if (next > previous) workspaceDismissed.value = false
+watch(renderWidgetCount, (next, previous) => {
+  if (next > previous) renderAreaDismissed.value = false
 })
 
 function createConversation() {
@@ -115,11 +115,6 @@ function autoRename(name: string) {
   conversationRepository.rename(activeId.value, name)
   refreshConversations()
 }
-
-function openWorkspaceFromManager() {
-  activePage.value = 'chat'
-  workspaceDismissed.value = false
-}
 </script>
 
 <template>
@@ -128,12 +123,11 @@ function openWorkspaceFromManager() {
     :show-dev-console="showDevConsole"
   >
     <GenUIBridge>
-      <main class="dataagent-shell dataagent-shell--three-zone" :class="{ 'has-dynamic-workspace': workspaceVisible }">
+      <main class="dataagent-shell dataagent-shell--three-zone" :class="{ 'has-dynamic-workspace': renderAreaVisible }">
         <AppSidebar
           :conversations="conversations"
           :active-id="activeId"
           :active-page="activePage"
-          :workspace-count="workspaceCount"
           @create="createConversation"
           @select="selectConversation"
           @rename="renameConversation"
@@ -166,20 +160,16 @@ function openWorkspaceFromManager() {
           />
 
           <SkillManagementView v-else-if="activePage === 'skills'" />
-
-          <WorkspaceManagementView
-            v-else
-            @open-chat-workspace="openWorkspaceFromManager"
-          />
+          <WorkspaceManagementView v-else />
         </section>
 
         <transition name="workspace-reveal">
-          <aside v-if="workspaceVisible" class="dynamic-workspace-shell">
+          <aside v-if="renderAreaVisible" class="dynamic-workspace-shell">
             <button
               class="dynamic-workspace-close"
               type="button"
-              title="收起动态工作空间"
-              @click="workspaceDismissed = true"
+              title="收起动态渲染区"
+              @click="renderAreaDismissed = true"
             >×</button>
             <WorkspaceCanvas />
           </aside>
