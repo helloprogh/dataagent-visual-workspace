@@ -9,12 +9,14 @@ import { workspaceController } from './workspace/store'
 import GenUIBridge from './components/GenUIBridge.vue'
 import WorkspaceCanvas from './components/WorkspaceCanvas.vue'
 import AssistantPanel from './components/AssistantPanel.vue'
+import AppSidebar from './components/AppSidebar.vue'
 
 const runtime = createAgentRuntime()
 const showDevConsole = import.meta.env.DEV
 const ACTIVE_CONVERSATION_KEY = 'dataagent.conversations.active.v1'
 const conversations = ref<ConversationRecord[]>([])
 const activeId = ref(localStorage.getItem(ACTIVE_CONVERSATION_KEY) ?? '')
+const workspaceDismissed = ref(false)
 
 function refreshConversations() {
   conversations.value = conversationRepository.list()
@@ -35,6 +37,7 @@ function ensureConversation() {
 
 ensureConversation()
 watch(activeId, id => {
+  workspaceDismissed.value = false
   if (!id) {
     localStorage.removeItem(ACTIVE_CONVERSATION_KEY)
     return
@@ -44,6 +47,12 @@ watch(activeId, id => {
 }, { immediate: true })
 
 const activeConversation = computed(() => conversationRepository.get(activeId.value))
+const workspaceCount = computed(() => workspaceController.state.document?.widgets.length ?? 0)
+const workspaceVisible = computed(() => workspaceCount.value > 0 && !workspaceDismissed.value)
+
+watch(workspaceCount, (next, previous) => {
+  if (next > previous) workspaceDismissed.value = false
+})
 
 function createConversation() {
   const created = conversationRepository.create()
@@ -102,21 +111,42 @@ function autoRename(name: string) {
     :show-dev-console="showDevConsole"
   >
     <GenUIBridge>
-      <main class="dataagent-shell">
-        <WorkspaceCanvas />
-        <AssistantPanel
+      <main class="dataagent-shell dataagent-shell--three-zone" :class="{ 'has-dynamic-workspace': workspaceVisible }">
+        <AppSidebar
           :conversations="conversations"
           :active-id="activeId"
-          :agent-id="runtime.agentId"
-          :agent-display-name="runtime.displayName"
-          :active-conversation="activeConversation"
+          :workspace-count="workspaceCount"
+          :workspace-visible="workspaceVisible"
           @create="createConversation"
           @select="selectConversation"
           @rename="renameConversation"
           @remove="removeConversation"
-          @changed="refreshConversations"
-          @auto-rename="autoRename"
+          @open-workspace="workspaceDismissed = false"
         />
+
+        <section class="chat-stage">
+          <AssistantPanel
+            :active-id="activeId"
+            :agent-id="runtime.agentId"
+            :agent-display-name="runtime.displayName"
+            :active-conversation="activeConversation"
+            @create="createConversation"
+            @changed="refreshConversations"
+            @auto-rename="autoRename"
+          />
+        </section>
+
+        <transition name="workspace-reveal">
+          <aside v-if="workspaceVisible" class="dynamic-workspace-shell">
+            <button
+              class="dynamic-workspace-close"
+              type="button"
+              title="收起动态工作空间"
+              @click="workspaceDismissed = true"
+            >×</button>
+            <WorkspaceCanvas />
+          </aside>
+        </transition>
       </main>
     </GenUIBridge>
   </CopilotKitProvider>
