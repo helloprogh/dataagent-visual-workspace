@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import type { ConversationRecord } from '../conversations/types'
 
 const props = defineProps<{
   conversations: ConversationRecord[]
   activeId: string
+  activePage: 'chat' | 'history' | 'skills' | 'workspace'
   workspaceCount: number
-  workspaceVisible: boolean
 }>()
 
 const emit = defineEmits<{
@@ -14,25 +14,12 @@ const emit = defineEmits<{
   select: [id: string]
   rename: [id: string]
   remove: [id: string]
+  openHistory: []
+  openSkills: []
   openWorkspace: []
 }>()
 
-type Section = 'skills' | 'workspace' | 'plugins'
-
-const activeSection = ref<Section | null>(null)
-const keyword = ref('')
-const filtered = computed(() => {
-  const q = keyword.value.trim().toLowerCase()
-  return q
-    ? props.conversations.filter(item => item.displayName.toLowerCase().includes(q))
-    : props.conversations
-})
-
-const navItems: Array<{ id: Section; label: string; subtitle: string; icon: string }> = [
-  { id: 'skills', label: 'Skill 管理', subtitle: 'Agent capabilities', icon: 'skills' },
-  { id: 'workspace', label: '工作空间管理', subtitle: 'Dynamic workspace', icon: 'workspace' },
-  { id: 'plugins', label: '插件管理', subtitle: 'Extensions & tools', icon: 'plugins' },
-]
+const recentConversations = computed(() => props.conversations.slice(0, 4))
 
 function timeLabel(timestamp: number) {
   const date = new Date(timestamp)
@@ -40,18 +27,6 @@ function timeLabel(timestamp: number) {
   return new Intl.DateTimeFormat('zh-CN', today
     ? { hour: '2-digit', minute: '2-digit' }
     : { month: '2-digit', day: '2-digit' }).format(date)
-}
-
-function selectConversation(id: string) {
-  emit('select', id)
-  activeSection.value = null
-}
-
-function selectSection(section: Section) {
-  activeSection.value = section
-  if (section === 'workspace' && props.workspaceCount && !props.workspaceVisible) {
-    emit('openWorkspace')
-  }
 }
 </script>
 
@@ -66,32 +41,36 @@ function selectSection(section: Section) {
     </header>
 
     <button class="app-sidebar__new" type="button" @click="emit('create')">
-      <span>＋</span>
+      <span class="app-sidebar__new-icon" aria-hidden="true">
+        <svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" /></svg>
+      </span>
       <div><b>新建会话</b><small>Start a new task</small></div>
     </button>
 
-    <section class="app-sidebar__content app-sidebar__content--recent">
+    <section class="app-sidebar__recent">
       <div class="app-sidebar__section-head app-sidebar__section-head--recent">
         <span>最近会话</span>
         <b>{{ conversations.length }}</b>
       </div>
 
-      <el-input v-model="keyword" clearable placeholder="搜索最近会话" class="app-sidebar__search" />
-
-      <div class="app-sidebar__history">
+      <div class="app-sidebar__history app-sidebar__history--compact">
         <article
-          v-for="item in filtered"
+          v-for="item in recentConversations"
           :key="item.id"
-          :class="{ active: item.id === activeId }"
-          @click="selectConversation(item.id)"
+          :class="{ active: item.id === activeId && activePage === 'chat' }"
+          @click="emit('select', item.id)"
         >
-          <span class="app-sidebar__thread-dot"><i></i></span>
+          <span class="app-sidebar__thread-icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20"><path d="M4 5.5h12v8H9l-3.8 2.4V13.5H4z" /></svg>
+          </span>
           <div class="app-sidebar__thread-copy">
             <b>{{ item.displayName }}</b>
             <small>{{ timeLabel(item.updatedAt) }} · {{ item.messages.length }} 条消息</small>
           </div>
           <el-dropdown trigger="click" @click.stop>
-            <button class="app-sidebar__more" type="button" @click.stop>•••</button>
+            <button class="app-sidebar__more" type="button" aria-label="会话操作" @click.stop>
+              <svg viewBox="0 0 20 20"><circle cx="4" cy="10" r="1"/><circle cx="10" cy="10" r="1"/><circle cx="16" cy="10" r="1"/></svg>
+            </button>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item @click="emit('rename', item.id)">重命名</el-dropdown-item>
@@ -100,53 +79,51 @@ function selectSection(section: Section) {
             </template>
           </el-dropdown>
         </article>
-        <div v-if="filtered.length === 0" class="app-sidebar__empty">没有匹配的会话</div>
+        <div v-if="recentConversations.length === 0" class="app-sidebar__empty">暂无最近会话</div>
       </div>
+
+      <button class="app-sidebar__view-all" type="button" @click="emit('openHistory')">
+        <span>查看更多</span>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6" /></svg>
+      </button>
     </section>
 
     <nav class="app-sidebar__nav app-sidebar__nav--management" aria-label="Data Agent management navigation">
       <button
-        v-for="item in navItems"
-        :key="item.id"
         type="button"
-        :class="{ active: activeSection === item.id }"
-        @click="selectSection(item.id)"
+        :class="{ active: activePage === 'skills' }"
+        @click="emit('openSkills')"
       >
-        <span class="app-sidebar__nav-icon" :data-icon="item.icon" aria-hidden="true">
-          <svg v-if="item.icon === 'skills'" viewBox="0 0 20 20"><path d="M7 3.5h6v4h3.5v5H13v4H7v-4H3.5v-5H7z" /></svg>
-          <svg v-else-if="item.icon === 'workspace'" viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M3 8h14M8 8v9"/></svg>
-          <svg v-else viewBox="0 0 20 20"><path d="M7.2 3.5v3M12.8 3.5v3M5.5 6.5h9v3.2a4.5 4.5 0 0 1-4.5 4.5 4.5 4.5 0 0 1-4.5-4.5zM10 14.2v2.3"/></svg>
+        <span class="app-sidebar__nav-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20">
+            <path d="M7.5 3.5h5v3h3v5h-3v5h-5v-5h-3v-5h3z" />
+            <circle cx="10" cy="9" r="1.6" />
+          </svg>
         </span>
         <span class="app-sidebar__nav-copy">
-          <b>{{ item.label }}</b>
-          <small>{{ item.subtitle }}</small>
+          <b>Skill 管理</b>
+          <small>Agent capabilities</small>
         </span>
-        <span v-if="item.id === 'workspace' && workspaceCount" class="app-sidebar__badge">{{ workspaceCount }}</span>
+      </button>
+
+      <button
+        type="button"
+        :class="{ active: activePage === 'workspace' }"
+        @click="emit('openWorkspace')"
+      >
+        <span class="app-sidebar__nav-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20">
+            <rect x="3" y="3" width="14" height="14" rx="2" />
+            <path d="M3 8h14M8 8v9" />
+          </svg>
+        </span>
+        <span class="app-sidebar__nav-copy">
+          <b>工作空间管理</b>
+          <small>Dynamic workspace</small>
+        </span>
+        <span v-if="workspaceCount" class="app-sidebar__badge">{{ workspaceCount }}</span>
       </button>
     </nav>
-
-    <div v-if="activeSection" class="app-sidebar__management-detail">
-      <template v-if="activeSection === 'skills'">
-        <div class="app-sidebar__management-card">
-          <span class="status-dot ready"></span>
-          <div><b>Skill 管理</b><p>查看、安装和配置 Data Agent 可调用的能力。</p></div>
-        </div>
-      </template>
-
-      <template v-else-if="activeSection === 'workspace'">
-        <div class="app-sidebar__management-card">
-          <span class="status-dot" :class="workspaceCount ? 'ready' : 'idle'"></span>
-          <div><b>动态工作空间</b><p>{{ workspaceCount ? `当前有 ${workspaceCount} 个动态模块。` : '当前没有需要展示的动态模块。' }}</p></div>
-        </div>
-      </template>
-
-      <template v-else>
-        <div class="app-sidebar__management-card">
-          <span class="status-dot idle"></span>
-          <div><b>插件管理</b><p>管理外部工具、数据源和服务扩展。</p></div>
-        </div>
-      </template>
-    </div>
 
     <footer class="app-sidebar__footer">
       <span><i></i> AG-UI CONNECTED</span>
