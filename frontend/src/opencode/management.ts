@@ -1,20 +1,16 @@
+export interface AgentSkill {
+  name: string
+  description?: string
+  id?: string
+  [key: string]: unknown
+}
+
 export interface OpenCodeDiagnostics {
   connected: boolean
   url?: string
   version?: string
   pid?: number
   error?: string
-}
-
-export interface OpenCodeSkill {
-  id: string
-  name?: string
-  description?: string
-  slash?: boolean
-  autoinvoke?: boolean
-  location?: string
-  content?: string
-  [key: string]: unknown
 }
 
 export interface OpenCodeWorkspace {
@@ -48,60 +44,61 @@ export interface CreateOpenCodeWorkspaceInput {
   metadata?: Record<string, unknown>
 }
 
-export type SkillInstallScope = 'global' | 'workspace'
-
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init)
-  const body = await response.json().catch(() => ({})) as { error?: string } & Record<string, unknown>
-  if (!response.ok) throw new Error(typeof body.error === 'string' ? body.error : `Request failed (${response.status})`)
+  const body = await response.json().catch(() => ({})) as { error?: string; message?: string } & Record<string, unknown>
+  if (!response.ok) {
+    const message = typeof body.error === 'string'
+      ? body.error
+      : typeof body.message === 'string'
+        ? body.message
+        : `Request failed (${response.status})`
+    throw new Error(message)
+  }
   return body as T
+}
+
+function normalizeSkillList(value: unknown): AgentSkill[] {
+  const source = Array.isArray(value)
+    ? value
+    : value && typeof value === 'object' && Array.isArray((value as { data?: unknown }).data)
+      ? (value as { data: unknown[] }).data
+      : value && typeof value === 'object' && Array.isArray((value as { skills?: unknown }).skills)
+        ? (value as { skills: unknown[] }).skills
+        : []
+
+  return source
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .map((item) => ({
+      ...item,
+      name: String(item.name ?? item.skillName ?? item.id ?? ''),
+      description: item.description == null ? undefined : String(item.description),
+      id: item.id == null ? undefined : String(item.id),
+    }))
+    .filter(item => item.name)
+}
+
+export async function listAgentSkills(): Promise<AgentSkill[]> {
+  return normalizeSkillList(await requestJson<unknown>('/opencode/api/skill'))
+}
+
+export async function uploadAgentSkill(file: File): Promise<void> {
+  const form = new FormData()
+  form.append('file', file)
+  await requestJson('/opencode/api/skill/upload', {
+    method: 'POST',
+    body: form,
+  })
+}
+
+export async function deleteAgentSkill(skillName: string): Promise<void> {
+  await requestJson(`/opencode/api/skill/upload/delete/${encodeURIComponent(skillName)}`, {
+    method: 'DELETE',
+  })
 }
 
 export async function getOpenCodeDiagnostics(): Promise<OpenCodeDiagnostics> {
   return requestJson<OpenCodeDiagnostics>('/api/opencode/health')
-}
-
-export async function listOpenCodeSkills(input: { directory?: string; workspaceID?: string } = {}): Promise<OpenCodeSkill[]> {
-  const query = new URLSearchParams()
-  if (input.directory) query.set('directory', input.directory)
-  if (input.workspaceID) query.set('workspaceID', input.workspaceID)
-  const suffix = query.size ? `?${query.toString()}` : ''
-  const response = await requestJson<{ data?: OpenCodeSkill[] }>(`/api/opencode/skills${suffix}`)
-  return Array.isArray(response.data) ? response.data : []
-}
-
-export async function installOpenCodeSkillPackage(
-  file: File,
-  input: { scope: SkillInstallScope; workspaceID?: string; replace?: boolean },
-): Promise<{ id: string; scope: SkillInstallScope; workspaceID?: string; directory: string }> {
-  const query = new URLSearchParams({ scope: input.scope })
-  if (input.workspaceID) query.set('workspaceID', input.workspaceID)
-  if (input.replace) query.set('replace', 'true')
-  const response = await requestJson<{ data: { id: string; scope: SkillInstallScope; workspaceID?: string; directory: string } }>(
-    `/api/opencode/skills/install?${query.toString()}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/zip',
-        'x-skill-package-name': file.name,
-      },
-      body: file,
-    },
-  )
-  return response.data
-}
-
-export async function deleteOpenCodeSkill(
-  skill: Pick<OpenCodeSkill, 'id' | 'location'>,
-  input: { workspaceID?: string } = {},
-): Promise<{ id: string; scope: SkillInstallScope; workspaceID?: string; location: string }> {
-  if (!skill.location) throw new Error('Skill location is required for deletion')
-  const query = new URLSearchParams({ location: skill.location })
-  if (input.workspaceID) query.set('workspaceID', input.workspaceID)
-  const response = await requestJson<{
-    data: { id: string; scope: SkillInstallScope; workspaceID?: string; location: string }
-  }>(`/api/opencode/skills/${encodeURIComponent(skill.id)}?${query.toString()}`, { method: 'DELETE' })
-  return response.data
 }
 
 export async function listOpenCodeProjects(): Promise<OpenCodeProject[]> {
