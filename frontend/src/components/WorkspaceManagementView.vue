@@ -56,7 +56,7 @@ async function refresh() {
     if (!diagnostics.value.connected) {
       workspaces.value = []
       projects.value = []
-      error.value = diagnostics.value.error || 'OpenCode2 service 未连接'
+      error.value = '工作空间服务暂不可用，请稍后重试。'
       return
     }
     const [workspaceData, projectData] = await Promise.all([
@@ -66,7 +66,8 @@ async function refresh() {
     workspaces.value = workspaceData
     projects.value = projectData
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    console.error('[workspace-management] load failed', cause)
+    error.value = '工作空间数据加载失败，请稍后重试。'
   } finally {
     loading.value = false
   }
@@ -95,9 +96,10 @@ async function createWorkspace() {
     })
     createDialog.value = false
     await refresh()
-    ElMessage.success('OpenCode2 Workspace 已创建/注册')
+    ElMessage.success('Workspace 已创建')
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : String(cause))
+    console.error('[workspace-management] create failed', cause)
+    ElMessage.error('Workspace 创建失败，请检查配置后重试。')
   } finally {
     creating.value = false
   }
@@ -108,15 +110,18 @@ async function removeWorkspace(workspace: OpenCodeWorkspace) {
   if (!id) return
   try {
     await ElMessageBox.confirm(
-      `将从 OpenCode2 删除 Workspace 注册“${workspace.name || id}”。此操作针对 Workspace 生命周期，不是删除聊天记录。`,
-      '删除 OpenCode2 Workspace',
+      `将删除 Workspace「${workspace.name || id}」的注册信息。此操作不会删除聊天记录，是否继续？`,
+      '删除 Workspace',
       { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
     )
     await deleteOpenCodeWorkspace(id)
     await refresh()
     ElMessage.success('Workspace 已删除')
   } catch (cause) {
-    if (cause instanceof Error) ElMessage.error(cause.message)
+    if (cause instanceof Error) {
+      console.error('[workspace-management] delete failed', cause)
+      ElMessage.error('Workspace 删除失败，请刷新后重试。')
+    }
   }
 }
 
@@ -127,14 +132,14 @@ onMounted(refresh)
   <section class="management-page workspace-management-page opencode-management-page">
     <header class="management-page__header">
       <div>
-        <span class="management-page__eyebrow">OPENCODE2 WORKSPACES</span>
+        <span class="management-page__eyebrow">AGENT WORKSPACES</span>
         <h1>工作空间管理</h1>
-        <p>管理 OpenCode2 server-scoped Workspace。这里的 Workspace 与右侧动态渲染区是两个独立概念。</p>
+        <p>管理 Agent 可使用的工作空间。工作空间用于隔离项目目录、运行上下文和相关资源。</p>
       </div>
       <div class="opencode-header-actions">
         <div class="management-page__status-chip" :class="diagnostics.connected ? 'connected' : 'disconnected'">
           <i></i>
-          {{ diagnostics.connected ? `OPENCODE2 ${diagnostics.version || 'CONNECTED'}` : 'OPENCODE2 DISCONNECTED' }}
+          {{ diagnostics.connected ? 'WORKSPACE READY' : 'WORKSPACE UNAVAILABLE' }}
         </div>
         <button class="management-page__primary" type="button" :disabled="!diagnostics.connected" @click="openCreate">
           <svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" /></svg>
@@ -145,23 +150,23 @@ onMounted(refresh)
 
     <div class="workspace-summary-grid">
       <article>
-        <span>Workspace 总数</span><strong>{{ workspaces.length }}</strong><small>GET /api/workspace</small>
+        <span>Workspace 总数</span><strong>{{ workspaces.length }}</strong><small>当前 Agent 已注册的工作空间</small>
       </article>
       <article>
-        <span>当前有效</span><strong>{{ activeCount }}</strong><small>未标记 archived 的 Workspace</small>
+        <span>当前有效</span><strong>{{ activeCount }}</strong><small>可用于任务执行的 Workspace</small>
       </article>
       <article>
-        <span>已知 Project</span><strong>{{ projects.length }}</strong><small>用于创建/注册 Workspace 时关联</small>
+        <span>关联项目</span><strong>{{ projects.length }}</strong><small>创建 Workspace 时可选择关联项目</small>
       </article>
     </div>
 
     <div v-if="error" class="opencode-error-banner">
-      <b>无法读取 OpenCode2 Workspace</b><span>{{ error }}</span><button type="button" @click="refresh">重试</button>
+      <b>工作空间加载失败</b><span>{{ error }}</span><button type="button" @click="refresh">重试</button>
     </div>
 
     <section class="management-surface">
       <div class="management-surface__head">
-        <div><b>OpenCode2 Workspace 列表</b><span>Server-scoped workspace lifecycle</span></div>
+        <div><b>Workspace 列表</b><span>Agent runtime workspaces</span></div>
         <div class="management-surface__actions">
           <el-input v-model="keyword" clearable placeholder="搜索 Workspace" class="management-page__search compact" />
           <button type="button" :disabled="loading" @click="refresh">刷新</button>
@@ -194,13 +199,13 @@ onMounted(refresh)
           <div class="workspace-empty-state__icon">
             <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10h10M7 14h5"/></svg>
           </div>
-          <b>当前 OpenCode2 没有已注册 Workspace</b>
-          <p>点击“新建 Workspace”注册工作目录。Workspace 由 OpenCode2 server 管理，可用于后续运行时目录与会话上下文。</p>
+          <b>当前还没有 Workspace</b>
+          <p>点击“新建 Workspace”注册一个工作目录，后续任务可以在对应工作空间内运行。</p>
         </div>
       </div>
     </section>
 
-    <el-dialog v-model="createDialog" title="新建 OpenCode2 Workspace" width="540px" class="opencode-dialog" destroy-on-close>
+    <el-dialog v-model="createDialog" title="新建 Workspace" width="540px" class="opencode-dialog" destroy-on-close>
       <div class="opencode-upload-form">
         <label>名称 <small>可选</small></label>
         <el-input v-model="form.name" placeholder="例如 dataagent-dev" />
@@ -215,7 +220,7 @@ onMounted(refresh)
         <el-select v-model="form.type" filterable allow-create default-first-option class="opencode-dialog-select">
           <el-option label="worktree" value="worktree" />
         </el-select>
-        <p class="opencode-form-note">请求会透传到 OpenCode2 POST /api/workspace；实际 Workspace 创建和生命周期由 OpenCode2 负责。</p>
+        <p class="opencode-form-note">Workspace 用于隔离项目目录和运行上下文。创建完成后，可在 Skill 管理等功能中选择对应工作空间。</p>
       </div>
       <template #footer>
         <button class="opencode-dialog-button" type="button" @click="createDialog = false">取消</button>
