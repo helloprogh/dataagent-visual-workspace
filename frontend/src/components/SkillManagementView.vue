@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
+  deleteOpenCodeSkill,
   getOpenCodeDiagnostics,
   installOpenCodeSkillPackage,
   listOpenCodeSkills,
@@ -21,6 +22,7 @@ const loading = ref(false)
 const error = ref('')
 const keyword = ref('')
 const contextWorkspaceID = ref('')
+const deletingKey = ref('')
 
 const fileInput = ref<HTMLInputElement>()
 const uploadDialog = ref(false)
@@ -40,11 +42,37 @@ const filteredSkills = computed(() => {
 const slashCount = computed(() => skills.value.filter(skill => skill.slash).length)
 const autoinvokeCount = computed(() => skills.value.filter(skill => skill.autoinvoke).length)
 
+function normalizedLocation(skill: OpenCodeSkill) {
+  return String(skill.location ?? '').replace(/\\/g, '/')
+}
+
+function skillKey(skill: OpenCodeSkill) {
+  return `${skill.id}-${normalizedLocation(skill)}`
+}
+
 function skillScope(skill: OpenCodeSkill) {
-  const location = String(skill.location ?? '').replace(/\\/g, '/')
+  const location = normalizedLocation(skill)
   if (location.includes('/.opencode/skills/')) return 'Workspace'
-  if (location.includes('/.config/opencode/skills/')) return 'Global'
+  if (location.includes('/opencode/skills/')) return 'Global'
   return 'OpenCode2'
+}
+
+function canDeleteSkill(skill: OpenCodeSkill) {
+  const location = normalizedLocation(skill)
+  if (!location) return false
+  if (location.includes('/opencode/skills/')) return true
+  if (location.includes('/.opencode/skills/')) return Boolean(contextWorkspaceID.value)
+  return false
+}
+
+function deleteSkillTitle(skill: OpenCodeSkill) {
+  const location = normalizedLocation(skill)
+  if (!location) return 'OpenCode2 未返回 Skill 位置，无法安全删除'
+  if (location.includes('/.opencode/skills/') && !contextWorkspaceID.value) {
+    return '请先选择该 Skill 所属的 OpenCode2 Workspace'
+  }
+  if (!canDeleteSkill(skill)) return '该 Skill 来源不在 Data Agent 可管理目录中'
+  return '删除 Skill'
 }
 
 function workspaceLabel(workspace: OpenCodeWorkspace) {
@@ -138,6 +166,37 @@ async function installPackage() {
   }
 }
 
+async function removeSkill(skill: OpenCodeSkill) {
+  if (!canDeleteSkill(skill)) return
+  const name = skill.name || skill.id
+  try {
+    await ElMessageBox.confirm(
+      `将删除 Skill「${name}」的整个技能目录。此操作不会只隐藏列表项，是否继续？`,
+      '删除 OpenCode2 Skill',
+      {
+        type: 'warning',
+        confirmButtonText: '删除 Skill',
+        cancelButtonText: '取消',
+      },
+    )
+  } catch {
+    return
+  }
+
+  deletingKey.value = skillKey(skill)
+  try {
+    await deleteOpenCodeSkill(skill, {
+      workspaceID: contextWorkspaceID.value || undefined,
+    })
+    await loadSkills()
+    ElMessage.success(`Skill ${name} 已删除`)
+  } catch (cause) {
+    ElMessage.error(cause instanceof Error ? cause.message : String(cause))
+  } finally {
+    deletingKey.value = ''
+  }
+}
+
 onMounted(refresh)
 </script>
 
@@ -197,11 +256,11 @@ onMounted(refresh)
       </div>
 
       <div class="opencode-skill-list-head">
-        <span>Skill</span><span>作用域</span><span>Slash</span><span>Auto</span><span>位置</span>
+        <span>Skill</span><span>作用域</span><span>Slash</span><span>Auto</span><span>位置</span><span>操作</span>
       </div>
 
       <div v-loading="loading" class="opencode-skill-list">
-        <article v-for="skill in filteredSkills" :key="`${skill.id}-${skill.location || ''}`" class="opencode-skill-row">
+        <article v-for="skill in filteredSkills" :key="skillKey(skill)" class="opencode-skill-row">
           <span class="opencode-row-icon">
             <svg viewBox="0 0 20 20"><path d="M5 4.5h6l1.5 2H15a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z"/><path d="M7.5 11h5M10 8.5v5"/></svg>
           </span>
@@ -212,7 +271,16 @@ onMounted(refresh)
           <span class="opencode-scope-chip">{{ skillScope(skill) }}</span>
           <span>{{ skill.slash ? 'YES' : '—' }}</span>
           <span>{{ skill.autoinvoke ? 'YES' : '—' }}</span>
-          <code>{{ skill.location || 'OpenCode2 runtime' }}</code>
+          <code :title="skill.location || ''">{{ skill.location || 'OpenCode2 runtime' }}</code>
+          <button
+            class="opencode-danger-button"
+            type="button"
+            :disabled="!canDeleteSkill(skill) || deletingKey === skillKey(skill)"
+            :title="deleteSkillTitle(skill)"
+            @click="removeSkill(skill)"
+          >
+            <svg viewBox="0 0 20 20"><path d="M5.5 6.5h9M8 6.5V4.5h4v2M7 8.5v6M10 8.5v6M13 8.5v6M6 6.5l.7 10h6.6l.7-10"/></svg>
+          </button>
         </article>
 
         <div v-if="!loading && filteredSkills.length === 0 && !error" class="skill-empty-state">
