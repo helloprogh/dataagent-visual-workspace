@@ -3,19 +3,16 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   deleteOpenCodeSkill,
-  getOpenCodeDiagnostics,
   installOpenCodeSkillPackage,
   listOpenCodeSkills,
   listOpenCodeWorkspaces,
   workspaceDirectory,
   workspaceId,
-  type OpenCodeDiagnostics,
   type OpenCodeSkill,
   type OpenCodeWorkspace,
   type SkillInstallScope,
 } from '../opencode/management'
 
-const diagnostics = ref<OpenCodeDiagnostics>({ connected: false })
 const skills = ref<OpenCodeSkill[]>([])
 const workspaces = ref<OpenCodeWorkspace[]>([])
 const loading = ref(false)
@@ -35,7 +32,7 @@ const uploading = ref(false)
 const filteredSkills = computed(() => {
   const q = keyword.value.trim().toLowerCase()
   if (!q) return skills.value
-  return skills.value.filter(skill => [skill.id, skill.name, skill.description, skill.location]
+  return skills.value.filter(skill => [skill.id, skill.name, skill.description]
     .some(value => String(value ?? '').toLowerCase().includes(q)))
 })
 
@@ -54,24 +51,24 @@ function skillScope(skill: OpenCodeSkill) {
   const location = normalizedLocation(skill)
   if (location.includes('/.opencode/skills/')) return 'Workspace'
   if (location.includes('/opencode/skills/')) return 'Global'
-  return 'OpenCode2'
+  return 'Managed'
 }
 
 function canDeleteSkill(skill: OpenCodeSkill) {
   const location = normalizedLocation(skill)
   if (!location) return false
-  if (location.includes('/opencode/skills/')) return true
   if (location.includes('/.opencode/skills/')) return Boolean(contextWorkspaceID.value)
+  if (location.includes('/opencode/skills/')) return true
   return false
 }
 
 function deleteSkillTitle(skill: OpenCodeSkill) {
   const location = normalizedLocation(skill)
-  if (!location) return 'OpenCode2 未返回 Skill 位置，无法安全删除'
+  if (!location) return '当前 Skill 不支持从界面删除'
   if (location.includes('/.opencode/skills/') && !contextWorkspaceID.value) {
-    return '请先选择该 Skill 所属的 OpenCode2 Workspace'
+    return '请先切换到该 Skill 所属工作空间'
   }
-  if (!canDeleteSkill(skill)) return '该 Skill 来源不在 Data Agent 可管理目录中'
+  if (!canDeleteSkill(skill)) return '当前 Skill 不支持从界面删除'
   return '删除 Skill'
 }
 
@@ -90,33 +87,30 @@ async function refresh() {
   loading.value = true
   error.value = ''
   try {
-    diagnostics.value = await getOpenCodeDiagnostics()
-    if (!diagnostics.value.connected) {
-      skills.value = []
-      workspaces.value = []
-      error.value = diagnostics.value.error || 'OpenCode2 service 未连接'
-      return
-    }
-    workspaces.value = await listOpenCodeWorkspaces()
+    const workspaceResult = await Promise.allSettled([listOpenCodeWorkspaces()])
+    workspaces.value = workspaceResult[0].status === 'fulfilled' ? workspaceResult[0].value : []
     if (contextWorkspaceID.value && !workspaces.value.some(item => workspaceId(item) === contextWorkspaceID.value)) {
       contextWorkspaceID.value = ''
     }
     await loadSkills()
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    console.error('[skill-management] load failed', cause)
+    skills.value = []
+    error.value = 'Skill 数据加载失败，请稍后重试。'
   } finally {
     loading.value = false
   }
 }
 
 watch(contextWorkspaceID, async () => {
-  if (!diagnostics.value.connected) return
   loading.value = true
   error.value = ''
   try {
     await loadSkills()
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    console.error('[skill-management] scope switch failed', cause)
+    skills.value = []
+    error.value = '当前范围的 Skill 加载失败，请稍后重试。'
   } finally {
     loading.value = false
   }
@@ -145,7 +139,7 @@ function onPackageSelected(event: Event) {
 async function installPackage() {
   if (!pendingPackage.value) return
   if (uploadScope.value === 'workspace' && !uploadWorkspaceID.value) {
-    ElMessage.warning('请选择要安装到的 OpenCode2 Workspace')
+    ElMessage.warning('请选择要安装到的工作空间')
     return
   }
   uploading.value = true
@@ -160,7 +154,11 @@ async function installPackage() {
     await refresh()
     ElMessage.success(`Skill ${installed.id} 已安装`)
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : String(cause))
+    console.error('[skill-management] install failed', cause)
+    const message = cause instanceof Error ? cause.message : String(cause)
+    ElMessage.error(/already exists/i.test(message)
+      ? '同名 Skill 已存在，可勾选覆盖后重新安装。'
+      : '技能包安装失败，请检查技能包格式或安装范围。')
   } finally {
     uploading.value = false
   }
@@ -171,8 +169,8 @@ async function removeSkill(skill: OpenCodeSkill) {
   const name = skill.name || skill.id
   try {
     await ElMessageBox.confirm(
-      `将删除 Skill「${name}」的整个技能目录。此操作不会只隐藏列表项，是否继续？`,
-      '删除 OpenCode2 Skill',
+      `将删除 Skill「${name}」及其全部技能文件，是否继续？`,
+      '删除 Skill',
       {
         type: 'warning',
         confirmButtonText: '删除 Skill',
@@ -191,7 +189,8 @@ async function removeSkill(skill: OpenCodeSkill) {
     await loadSkills()
     ElMessage.success(`Skill ${name} 已删除`)
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : String(cause))
+    console.error('[skill-management] delete failed', cause)
+    ElMessage.error('Skill 删除失败，请刷新后重试。')
   } finally {
     deletingKey.value = ''
   }
@@ -204,16 +203,12 @@ onMounted(refresh)
   <section class="management-page skill-page opencode-management-page">
     <header class="management-page__header">
       <div>
-        <span class="management-page__eyebrow">OPENCODE2 SKILLS</span>
+        <span class="management-page__eyebrow">AGENT SKILLS</span>
         <h1>Skill 管理</h1>
-        <p>管理 OpenCode2 当前可发现的 Skill，并将 ZIP 技能包安装到 Global 或指定 Workspace。</p>
+        <p>管理 Agent 可调用的技能，支持按全局或工作空间范围安装、查找和删除 Skill。</p>
       </div>
       <div class="opencode-header-actions">
-        <div class="management-page__status-chip" :class="diagnostics.connected ? 'connected' : 'disconnected'">
-          <i></i>
-          {{ diagnostics.connected ? `OPENCODE2 ${diagnostics.version || 'CONNECTED'}` : 'OPENCODE2 DISCONNECTED' }}
-        </div>
-        <button class="management-page__primary" type="button" :disabled="!diagnostics.connected" @click="choosePackage">
+        <button class="management-page__primary" type="button" @click="choosePackage">
           <svg viewBox="0 0 20 20"><path d="M10 13V4M6.5 7.5 10 4l3.5 3.5M4 12v3.5h12V12" /></svg>
           上传技能包
         </button>
@@ -223,26 +218,26 @@ onMounted(refresh)
 
     <div class="skill-summary-grid">
       <article class="skill-summary-card">
-        <span>已注册 Skill</span><strong>{{ skills.length }}</strong><small>来自当前 OpenCode2 运行上下文</small>
+        <span>已安装 Skill</span><strong>{{ skills.length }}</strong><small>当前范围可用的 Agent 技能</small>
       </article>
       <article class="skill-summary-card">
-        <span>Slash 命令</span><strong>{{ slashCount }}</strong><small>可通过 slash 显式调用</small>
+        <span>可显式调用</span><strong>{{ slashCount }}</strong><small>支持通过指令主动调用</small>
       </article>
       <article class="skill-summary-card">
-        <span>自动调用</span><strong>{{ autoinvokeCount }}</strong><small>允许 OpenCode2 自动选择</small>
+        <span>自动调用</span><strong>{{ autoinvokeCount }}</strong><small>允许 Agent 根据任务自动选择</small>
       </article>
     </div>
 
     <div v-if="error" class="opencode-error-banner">
-      <b>无法读取 OpenCode2 Skill</b><span>{{ error }}</span><button type="button" @click="refresh">重试</button>
+      <b>Skill 加载失败</b><span>{{ error }}</span><button type="button" @click="refresh">重试</button>
     </div>
 
     <section class="management-surface">
       <div class="management-surface__head">
-        <div><b>OpenCode2 Skill 列表</b><span>GET /api/skill</span></div>
+        <div><b>Skill 列表</b><span>Agent capabilities</span></div>
         <div class="management-surface__actions opencode-skill-actions">
-          <el-select v-model="contextWorkspaceID" class="opencode-context-select" placeholder="默认运行上下文" :disabled="loading || !diagnostics.connected">
-            <el-option label="默认运行上下文" value="" />
+          <el-select v-model="contextWorkspaceID" class="opencode-context-select" placeholder="默认范围" :disabled="loading">
+            <el-option label="默认范围" value="" />
             <el-option
               v-for="workspace in workspaces"
               :key="workspaceId(workspace)"
@@ -256,7 +251,7 @@ onMounted(refresh)
       </div>
 
       <div class="opencode-skill-list-head">
-        <span>Skill</span><span>作用域</span><span>Slash</span><span>Auto</span><span>位置</span><span>操作</span>
+        <span>Skill</span><span>作用域</span><span>指令调用</span><span>自动调用</span><span>操作</span>
       </div>
 
       <div v-loading="loading" class="opencode-skill-list">
@@ -271,7 +266,6 @@ onMounted(refresh)
           <span class="opencode-scope-chip">{{ skillScope(skill) }}</span>
           <span>{{ skill.slash ? 'YES' : '—' }}</span>
           <span>{{ skill.autoinvoke ? 'YES' : '—' }}</span>
-          <code :title="skill.location || ''">{{ skill.location || 'OpenCode2 runtime' }}</code>
           <button
             class="opencode-danger-button"
             type="button"
@@ -287,13 +281,13 @@ onMounted(refresh)
           <div class="skill-empty-state__icon">
             <svg viewBox="0 0 24 24"><path d="M5 5h7l2 3h5v11H5z"/><path d="M9 13h6M12 10v6"/></svg>
           </div>
-          <b>当前上下文没有可见 Skill</b>
-          <p>可以上传一个包含 SKILL.md 的 ZIP 技能包。Global 安装到 OpenCode2 全局 Skill 目录；Workspace 安装到所选工作空间的 .opencode/skills。</p>
+          <b>当前范围还没有 Skill</b>
+          <p>可以上传包含 SKILL.md 的 ZIP 技能包。Global Skill 对所有工作空间可用；Workspace Skill 仅在所选工作空间内生效。</p>
         </div>
       </div>
     </section>
 
-    <el-dialog v-model="uploadDialog" title="上传 OpenCode2 Skill 包" width="520px" class="opencode-dialog" destroy-on-close>
+    <el-dialog v-model="uploadDialog" title="上传 Skill 技能包" width="520px" class="opencode-dialog" destroy-on-close>
       <div class="opencode-upload-form">
         <div class="opencode-package-card">
           <span class="opencode-row-icon"><svg viewBox="0 0 20 20"><path d="M4 5h8l4 4v7H4z"/><path d="M12 5v4h4"/></svg></span>
@@ -305,8 +299,8 @@ onMounted(refresh)
           <el-radio value="workspace" :disabled="workspaces.length === 0">Workspace</el-radio>
         </el-radio-group>
         <template v-if="uploadScope === 'workspace'">
-          <label>OpenCode2 Workspace</label>
-          <el-select v-model="uploadWorkspaceID" placeholder="选择 Workspace" class="opencode-dialog-select">
+          <label>工作空间</label>
+          <el-select v-model="uploadWorkspaceID" placeholder="选择工作空间" class="opencode-dialog-select">
             <el-option
               v-for="workspace in workspaces"
               :key="workspaceId(workspace)"
@@ -316,7 +310,7 @@ onMounted(refresh)
           </el-select>
         </template>
         <el-checkbox v-model="replaceExisting">同名 Skill 已存在时覆盖</el-checkbox>
-        <p class="opencode-form-note">ZIP 内必须包含且仅包含一个 Skill 根目录（或根级 SKILL.md）；scripts、references 等附属文件会随包一起安装。</p>
+        <p class="opencode-form-note">ZIP 内必须包含一个完整 Skill。SKILL.md、scripts、references 等技能文件会作为一个整体安装。</p>
       </div>
       <template #footer>
         <button class="opencode-dialog-button" type="button" @click="uploadDialog = false">取消</button>
