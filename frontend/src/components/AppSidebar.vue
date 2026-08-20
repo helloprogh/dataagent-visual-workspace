@@ -87,7 +87,7 @@ function timeLabel(timestamp: number) {
       </button>
     </section>
 
-    <nav class="app-sidebar__nav app-sidebar__nav--management" aria-label="OpenCode2 management navigation">
+    <nav class="app-sidebar__nav app-sidebar__nav--management" aria-label="Data Agent management navigation">
       <button
         type="button"
         :class="{ active: activePage === 'skills' }"
@@ -101,7 +101,7 @@ function timeLabel(timestamp: number) {
         </span>
         <span class="app-sidebar__nav-copy">
           <b>Skill 管理</b>
-          <small>OpenCode2 skills</small>
+          <small>Agent skills</small>
         </span>
       </button>
 
@@ -118,7 +118,7 @@ function timeLabel(timestamp: number) {
         </span>
         <span class="app-sidebar__nav-copy">
           <b>工作空间管理</b>
-          <small>OpenCode2 workspaces</small>
+          <small>Agent workspaces</small>
         </span>
       </button>
     </nav>
