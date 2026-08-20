@@ -35,6 +35,15 @@ const errorMessage = async (response, action) => {
   return `${action} (${response.status})${detail ? `: ${detail}` : ''}`
 }
 
+const querySuffix = (input = {}, aliases = {}) => {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(input)) {
+    if (value == null || value === '') continue
+    query.set(aliases[key] ?? key, String(value))
+  }
+  return query.size ? `?${query}` : ''
+}
+
 export class OpenCodeClient {
   constructor(options = {}) {
     if (typeof options === 'string') options = { baseUrl: options }
@@ -97,10 +106,46 @@ export class OpenCodeClient {
   }
 
   async listSessions(input = {}) {
-    const query = new URLSearchParams()
-    for (const [key, value] of Object.entries(input)) if (value != null) query.set(key, String(value))
-    const suffix = query.size ? `?${query}` : ''
-    return this.json(`/api/session${suffix}`, {}, 'Unable to list OpenCode sessions')
+    return this.json(`/api/session${querySuffix(input)}`, {}, 'Unable to list OpenCode sessions')
+  }
+
+  async listSkills(input = {}) {
+    const suffix = querySuffix(input, { workspaceID: 'workspace' })
+    return this.json(`/api/skill${suffix}`, {}, 'Unable to list OpenCode skills')
+  }
+
+  async listProjects() {
+    return this.json('/api/project', {}, 'Unable to list OpenCode projects')
+  }
+
+  async listWorkspaces(input = {}) {
+    return this.json(`/api/workspace${querySuffix(input)}`, {}, 'Unable to list OpenCode workspaces')
+  }
+
+  async getWorkspace(workspaceId) {
+    return this.json(`/api/workspace/${encodeURIComponent(workspaceId)}`, {}, 'Unable to read OpenCode workspace')
+  }
+
+  async createWorkspace(input) {
+    return this.json('/api/workspace', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify(input),
+    }, 'Unable to create OpenCode workspace')
+  }
+
+  async updateWorkspace(workspaceId, input) {
+    return this.json(`/api/workspace/${encodeURIComponent(workspaceId)}`, {
+      method: 'PATCH',
+      headers: jsonHeaders,
+      body: JSON.stringify(input),
+    }, 'Unable to update OpenCode workspace')
+  }
+
+  async deleteWorkspace(workspaceId) {
+    return this.json(`/api/workspace/${encodeURIComponent(workspaceId)}`, {
+      method: 'DELETE',
+    }, 'Unable to delete OpenCode workspace')
   }
 
   async prompt(sessionId, text, metadata = {}) {

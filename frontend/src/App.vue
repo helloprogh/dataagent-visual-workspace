@@ -9,12 +9,20 @@ import { workspaceController } from './workspace/store'
 import GenUIBridge from './components/GenUIBridge.vue'
 import WorkspaceCanvas from './components/WorkspaceCanvas.vue'
 import AssistantPanel from './components/AssistantPanel.vue'
+import AppSidebar from './components/AppSidebar.vue'
+import HistoryView from './components/HistoryView.vue'
+import SkillManagementView from './components/SkillManagementView.vue'
+import WorkspaceManagementView from './components/WorkspaceManagementView.vue'
+
+type AppPage = 'chat' | 'history' | 'skills' | 'workspace'
 
 const runtime = createAgentRuntime()
 const showDevConsole = import.meta.env.DEV
 const ACTIVE_CONVERSATION_KEY = 'dataagent.conversations.active.v1'
 const conversations = ref<ConversationRecord[]>([])
 const activeId = ref(localStorage.getItem(ACTIVE_CONVERSATION_KEY) ?? '')
+const renderAreaDismissed = ref(false)
+const activePage = ref<AppPage>('chat')
 
 function refreshConversations() {
   conversations.value = conversationRepository.list()
@@ -35,6 +43,7 @@ function ensureConversation() {
 
 ensureConversation()
 watch(activeId, id => {
+  renderAreaDismissed.value = false
   if (!id) {
     localStorage.removeItem(ACTIVE_CONVERSATION_KEY)
     return
@@ -44,15 +53,27 @@ watch(activeId, id => {
 }, { immediate: true })
 
 const activeConversation = computed(() => conversationRepository.get(activeId.value))
+const renderWidgetCount = computed(() => workspaceController.state.document?.widgets.length ?? 0)
+const renderAreaVisible = computed(() => (
+  activePage.value === 'chat'
+  && renderWidgetCount.value > 0
+  && !renderAreaDismissed.value
+))
+
+watch(renderWidgetCount, (next, previous) => {
+  if (next > previous) renderAreaDismissed.value = false
+})
 
 function createConversation() {
   const created = conversationRepository.create()
   activeId.value = created.id
+  activePage.value = 'chat'
   refreshConversations()
 }
 
 function selectConversation(id: string) {
   activeId.value = id
+  activePage.value = 'chat'
 }
 
 async function renameConversation(id: string) {
@@ -102,21 +123,57 @@ function autoRename(name: string) {
     :show-dev-console="showDevConsole"
   >
     <GenUIBridge>
-      <main class="dataagent-shell">
-        <WorkspaceCanvas />
-        <AssistantPanel
+      <main class="dataagent-shell dataagent-shell--three-zone" :class="{ 'has-dynamic-workspace': renderAreaVisible }">
+        <AppSidebar
           :conversations="conversations"
           :active-id="activeId"
-          :agent-id="runtime.agentId"
-          :agent-display-name="runtime.displayName"
-          :active-conversation="activeConversation"
+          :active-page="activePage"
           @create="createConversation"
           @select="selectConversation"
           @rename="renameConversation"
           @remove="removeConversation"
-          @changed="refreshConversations"
-          @auto-rename="autoRename"
+          @open-history="activePage = 'history'"
+          @open-skills="activePage = 'skills'"
+          @open-workspace="activePage = 'workspace'"
         />
+
+        <section class="app-main-stage" :class="{ 'app-main-stage--chat': activePage === 'chat' }">
+          <AssistantPanel
+            v-if="activePage === 'chat'"
+            :active-id="activeId"
+            :agent-id="runtime.agentId"
+            :agent-display-name="runtime.displayName"
+            :active-conversation="activeConversation"
+            @create="createConversation"
+            @changed="refreshConversations"
+            @auto-rename="autoRename"
+          />
+
+          <HistoryView
+            v-else-if="activePage === 'history'"
+            :conversations="conversations"
+            :active-id="activeId"
+            @create="createConversation"
+            @select="selectConversation"
+            @rename="renameConversation"
+            @remove="removeConversation"
+          />
+
+          <SkillManagementView v-else-if="activePage === 'skills'" />
+          <WorkspaceManagementView v-else />
+        </section>
+
+        <transition name="workspace-reveal">
+          <aside v-if="renderAreaVisible" class="dynamic-workspace-shell">
+            <button
+              class="dynamic-workspace-close"
+              type="button"
+              title="收起动态渲染区"
+              @click="renderAreaDismissed = true"
+            >×</button>
+            <WorkspaceCanvas />
+          </aside>
+        </transition>
       </main>
     </GenUIBridge>
   </CopilotKitProvider>

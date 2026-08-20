@@ -1,8 +1,8 @@
 # 界面接口契约
 
-## 唯一前端接口
+## 前端入口
 
-浏览器只依赖一个标准 AG-UI SSE 入口：
+浏览器继续通过标准 AG-UI SSE 入口完成对话：
 
 ```text
 CopilotChat
@@ -13,7 +13,7 @@ CopilotChat
     ← standard AG-UI SSE
 ```
 
-前端不请求 Adapter 的会话映射、上下文、权限、健康检查或 capability 接口。`threadId → OpenCode2 sessionID`、权限请求 ID 和 MCP 注册都由 Adapter 内部维护。
+除对话外，管理页面通过同一个 Adapter 暴露的 `/api/opencode/*` 接口访问 OpenCode2。浏览器不保存 OpenCode2 service 密码，认证和 service 自动发现仍由 Adapter 负责。
 
 ## 普通运行
 
@@ -30,56 +30,37 @@ CopilotChat
 
 ## 人工授权：Interrupt / Resume
 
-OpenCode2 发出 `permission.asked` 时，Adapter 关闭当前仍活动的消息、工具和步骤生命周期，并通过同一条 SSE 输出：
+OpenCode2 发出 `permission.asked` 时，Adapter 关闭当前仍活动的消息、工具和步骤生命周期，并通过同一条 SSE 输出 `RUN_FINISHED` interrupt。界面从 AG-UI client 的 `pendingInterrupts` 读取这些数据，并仍通过 `/agent` + `RunAgentInput.resume` 恢复原 session。
 
-```json
-{
-  "type": "RUN_FINISHED",
-  "threadId": "thread-1",
-  "runId": "run-1",
-  "outcome": {
-    "type": "interrupt",
-    "interrupts": [{
-      "id": "permission-1",
-      "reason": "tool_call",
-      "toolCallId": "tool-1",
-      "message": "工具 shell 请求人工授权。",
-      "responseSchema": {
-        "type": "object",
-        "properties": {
-          "decision": {
-            "type": "string",
-            "enum": ["once", "always", "reject"]
-          }
-        },
-        "required": ["decision"]
-      }
-    }]
-  }
-}
-```
+## 前端工具与动态渲染区
 
-界面从 AG-UI client 的 `pendingInterrupts` 读取这些数据，并在输入框上方显示授权卡片。用户完成所有待处理决定后，界面仍调用 `POST /agent`：
+前端通过 `RunAgentInput.tools` 注册内部 `workspace.render/upsert/remove/agents` 工具。这里的 `workspace.*` 仅是生成式 UI 的兼容协议名；界面上统一称为 **Dynamic Render Space / 动态渲染区**，不要与 OpenCode2 Workspace 混淆。
 
-```json
-{
-  "threadId": "thread-1",
-  "runId": "run-2",
-  "resume": [{
-    "interruptId": "permission-1",
-    "status": "resolved",
-    "payload": { "decision": "once" }
-  }]
-}
-```
+动态渲染区状态通过 `RunAgentInput.state` 与 `STATE_SNAPSHOT` 同步。任务和子 Agent 状态通过 `ACTIVITY_SNAPSHOT` 同步。
 
-Adapter 校验 resume 覆盖全部待处理 interrupt，再调用 OpenCode2 permission reply 并继续原 session。恢复后的工具结果使用原 `toolCallId`，不会重复发送 `TOOL_CALL_START / ARGS / END`。存在待处理 interrupt 时，缺少 `resume` 的新输入会返回 `RUN_ERROR`；完全相同的 resume 重试由持久化回执安全去重。
+## OpenCode2 管理接口
 
-## 前端工具与生成式工作区
+| Adapter 接口 | 上游 / 行为 | 用途 |
+| --- | --- | --- |
+| `GET /api/opencode/health` | OpenCode2 diagnostics | Service 状态 |
+| `GET /api/opencode/skills` | `GET /api/skill` | Skill 列表 |
+| `POST /api/opencode/skills/install` | 安全解压到 OpenCode2 Skill discovery path | 上传 ZIP 技能包 |
+| `DELETE /api/opencode/skills/:id?location=...&workspaceID=...` | 校验 `/api/skill` 注册结果后删除受控 Skill 目录 | 删除 Skill |
+| `GET /api/opencode/projects` | `GET /api/project` | Project 列表 |
+| `GET /api/opencode/workspaces` | `GET /api/workspace` | Workspace 列表 |
+| `POST /api/opencode/workspaces` | `POST /api/workspace` | 创建 / 注册 Workspace |
+| `GET /api/opencode/workspaces/:id` | `GET /api/workspace/:id` | Workspace 元数据 |
+| `PATCH /api/opencode/workspaces/:id` | `PATCH /api/workspace/:id` | 更新 Workspace |
+| `DELETE /api/opencode/workspaces/:id` | `DELETE /api/workspace/:id` | 删除 Workspace 注册 |
 
-前端通过 `RunAgentInput.tools` 注册 `workspace.render/upsert/remove/agents`。Adapter 将这些工具注册为内部动态 MCP；OpenCode2 调用后，Adapter 输出标准 `TOOL_CALL_*`，浏览器执行 handler，再通过标准 `ToolMessage` 和同一个 `/agent` 入口续跑。
+### Skill 删除约束
 
-工作区状态通过 `RunAgentInput.state` 与 `STATE_SNAPSHOT` 同步。任务和子 Agent 状态通过 `ACTIVITY_SNAPSHOT` 同步，不需要额外 HTTP 接口。
+Skill 删除是文件系统级卸载，不只是从 UI 隐藏。Adapter 会重新通过 OpenCode2 `/api/skill` 校验 `id + location`，并且只允许删除：
+
+- OpenCode2 Global Skill 根目录下的直接子目录；
+- 已注册 OpenCode2 Workspace 的 `<directory>/.opencode/skills` 下的直接子目录。
+
+目标必须是普通目录且包含根级 `SKILL.md`。符号链接、未注册目标、任意路径以及其他外部 Skill 来源不会被删除。
 
 ## 开发入口
 

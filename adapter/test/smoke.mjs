@@ -1,5 +1,5 @@
 import { once } from 'node:events'
-import { createServer } from '../src/server.mjs'
+import { createServer } from '../src/server-entry.mjs'
 
 const server = createServer().listen(0, '127.0.0.1')
 await once(server, 'listening')

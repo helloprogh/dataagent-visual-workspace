@@ -12,6 +12,10 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       host: '0.0.0.0',
       proxy: {
+        '/api/opencode': {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
         '/api/agui/upload': {
           target: uploadProxyTarget,
           changeOrigin: true,

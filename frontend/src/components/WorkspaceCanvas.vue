@@ -19,9 +19,9 @@ const updatedAt = computed(() => {
 
     <header class="visual-toolbar">
       <div class="visual-title-block">
-        <div class="visual-kicker"><span></span> DATA ORCHESTRATION WORKSPACE</div>
+        <div class="visual-kicker"><span></span> DYNAMIC RENDER SPACE</div>
         <div class="visual-title-row">
-          <h1>{{ document?.title || 'Workspace' }}</h1>
+          <h1>{{ document?.title || 'Render Space' }}</h1>
           <span v-if="demoMode" class="mode-badge demo">DEMO MODE</span>
           <span v-else class="live-badge"><i></i> READY</span>
         </div>
@@ -30,9 +30,9 @@ const updatedAt = computed(() => {
 
       <div class="visual-toolbar-meta">
         <div class="context-chip"><span>MODE</span><b>{{ demoMode ? 'Demo seed' : 'Agent driven' }}</b></div>
-        <div class="context-chip"><span>WORKSPACE</span><b>{{ document?.widgets.length || 0 }} modules</b></div>
+        <div class="context-chip"><span>RENDER</span><b>{{ document?.widgets.length || 0 }} modules</b></div>
         <div class="context-chip"><span>UPDATED</span><b>{{ updatedAt }}</b></div>
-        <button class="icon-action" title="恢复当前模式的初始工作区" @click="workspaceController.reset()">↻</button>
+        <button class="icon-action" title="恢复当前模式的初始渲染区" @click="workspaceController.reset()">↻</button>
       </div>
     </header>
 
@@ -64,7 +64,7 @@ const updatedAt = computed(() => {
 
       <div v-else class="workspace-empty">
         <div class="empty-orbit"><i></i><i></i><i></i><span>AI</span></div>
-        <div class="empty-kicker">SA DATA DELIVERY WORKSPACE</div>
+        <div class="empty-kicker">SA DATA DELIVERY RENDER SPACE</div>
         <h2>从一个数据业务目标开始</h2>
         <p>描述你的数据业务目标，我将与你逐步澄清需求，并自主完成 Specification、数据方案、数据集成、ETL 开发、治理验证与交付。</p>
         <div class="empty-prompts">
