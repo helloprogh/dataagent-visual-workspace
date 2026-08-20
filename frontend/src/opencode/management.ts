@@ -91,6 +91,19 @@ export async function installOpenCodeSkillPackage(
   return response.data
 }
 
+export async function deleteOpenCodeSkill(
+  skill: Pick<OpenCodeSkill, 'id' | 'location'>,
+  input: { workspaceID?: string } = {},
+): Promise<{ id: string; scope: SkillInstallScope; workspaceID?: string; location: string }> {
+  if (!skill.location) throw new Error('Skill location is required for deletion')
+  const query = new URLSearchParams({ location: skill.location })
+  if (input.workspaceID) query.set('workspaceID', input.workspaceID)
+  const response = await requestJson<{
+    data: { id: string; scope: SkillInstallScope; workspaceID?: string; location: string }
+  }>(`/api/opencode/skills/${encodeURIComponent(skill.id)}?${query.toString()}`, { method: 'DELETE' })
+  return response.data
+}
+
 export async function listOpenCodeProjects(): Promise<OpenCodeProject[]> {
   const response = await requestJson<{ data?: OpenCodeProject[] }>('/api/opencode/projects')
   return Array.isArray(response.data) ? response.data : []
