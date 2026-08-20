@@ -1,7 +1,7 @@
-/* OpenCode2 Skill deletion action */
+/* Skill deletion action */
 .opencode-skill-list-head,
 .opencode-skill-row{
-  grid-template-columns:34px minmax(240px,1fr) 82px 54px 54px minmax(200px,.82fr) 34px;
+  grid-template-columns:34px minmax(300px,1fr) 96px 86px 86px 34px;
 }
 
 .opencode-skill-row .opencode-danger-button:disabled{
@@ -19,6 +19,6 @@
 @media(max-width:1240px){
   .opencode-skill-list-head,
   .opencode-skill-row{
-    grid-template-columns:34px minmax(200px,1fr) 74px 46px 46px minmax(140px,.7fr) 30px;
+    grid-template-columns:34px minmax(230px,1fr) 82px 72px 72px 30px;
   }
 }
