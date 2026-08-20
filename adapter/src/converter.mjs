@@ -45,6 +45,7 @@ export class OpenCodeAguiConverter {
     this.stepNames = new Map()
     this.legacySteps = new Set()
     this.started = false
+    this.runActive = false
     this.finished = false
   }
 
@@ -52,6 +53,10 @@ export class OpenCodeAguiConverter {
     if (this.started) return []
     this.started = true
     return [runStarted(this.threadId, this.runId)]
+  }
+
+  activateRun() {
+    this.runActive = true
   }
 
   messageId(rawId) {
@@ -100,15 +105,31 @@ export class OpenCodeAguiConverter {
 
     if (type === 'message.updated') {
       const info = raw.info ?? raw.message ?? raw
-      if (info.role === 'assistant' && (info.id ?? info.messageID)) this.messageId(info.id ?? info.messageID)
+      if (info.role === 'assistant' && (info.id ?? info.messageID)) {
+        this.activateRun()
+        this.messageId(info.id ?? info.messageID)
+      }
       return []
     }
-    if (type === 'message.part.updated') return this.convertPart(raw.part ?? raw)
-    if (type === 'message.part.delta') return this.convertLegacyDelta(raw)
-    if (type === 'TEXT_MESSAGE_CONTENT') return this.convertLegacyText(raw)
+    if (type === 'message.part.updated') {
+      this.activateRun()
+      return this.convertPart(raw.part ?? raw)
+    }
+    if (type === 'message.part.delta') {
+      this.activateRun()
+      return this.convertLegacyDelta(raw)
+    }
+    if (type === 'TEXT_MESSAGE_CONTENT') {
+      this.activateRun()
+      return this.convertLegacyText(raw)
+    }
 
-    if (type === 'session.text.started') return this.openTextMessage(this.streamMessageId(raw, 'text'))
+    if (type === 'session.text.started') {
+      this.activateRun()
+      return this.openTextMessage(this.streamMessageId(raw, 'text'))
+    }
     if (type === 'session.text.delta') {
+      this.activateRun()
       const messageId = this.streamMessageId(raw, 'text')
       const delta = asText(raw.delta)
       if (!delta) return []
@@ -116,6 +137,7 @@ export class OpenCodeAguiConverter {
       return [...this.openTextMessage(messageId), textContent(messageId, delta)]
     }
     if (type === 'session.text.ended') {
+      this.activateRun()
       const messageId = this.streamMessageId(raw, 'text')
       const events = this.openTextMessage(messageId)
       if (!this.textHasDelta.has(messageId) && raw.text) events.push(textContent(messageId, raw.text))
@@ -123,8 +145,12 @@ export class OpenCodeAguiConverter {
       return events
     }
 
-    if (type === 'session.reasoning.started') return this.openReasoningMessage(this.streamMessageId(raw, 'reasoning'))
+    if (type === 'session.reasoning.started') {
+      this.activateRun()
+      return this.openReasoningMessage(this.streamMessageId(raw, 'reasoning'))
+    }
     if (type === 'session.reasoning.delta') {
+      this.activateRun()
       const messageId = this.streamMessageId(raw, 'reasoning')
       if (this.closedReasoning.has(messageId)) return []
       const delta = asText(raw.delta)
@@ -133,6 +159,7 @@ export class OpenCodeAguiConverter {
       return [...this.openReasoningMessage(messageId), event('REASONING_MESSAGE_CONTENT', { messageId, delta })]
     }
     if (type === 'session.reasoning.ended') {
+      this.activateRun()
       const messageId = this.streamMessageId(raw, 'reasoning')
       if (this.closedReasoning.has(messageId)) return []
       const events = this.openReasoningMessage(messageId)
@@ -141,9 +168,13 @@ export class OpenCodeAguiConverter {
       return events
     }
 
-    if (type.startsWith('session.tool.')) return this.convertNativeTool(type, raw)
+    if (type.startsWith('session.tool.')) {
+      this.activateRun()
+      return this.convertNativeTool(type, raw)
+    }
 
     if (type === 'session.step.started') {
+      this.activateRun()
       const key = raw.assistantMessageID ?? 'current'
       if (this.stepNames.has(key)) return []
       const stepName = `${raw.agent ?? 'OpenCode'} · ${raw.model?.id ?? 'step'}`
@@ -160,23 +191,42 @@ export class OpenCodeAguiConverter {
     if (type === 'session.step.failed') return this.fail(errorText(raw.error) || 'OpenCode step failed')
 
     if (type === 'session.execution.started') {
+      this.activateRun()
       return [taskActivity(this.runId, { mode: 'async', status: 'running', sessionId: this.sessionId, runId: this.runId })]
     }
     if (type === 'session.execution.succeeded') {
+      if (!this.runActive) return []
       return [taskActivity(this.runId, { mode: 'async', status: 'completed', sessionId: this.sessionId, runId: this.runId }), ...this.finish()]
     }
     if (type === 'session.execution.failed') return this.fail(errorText(raw.error) || 'OpenCode execution failed')
     if (type === 'session.execution.interrupted') return this.fail(`OpenCode execution interrupted: ${raw.reason ?? 'unknown'}`)
     if (type === 'session.retry.scheduled') {
+      this.activateRun()
       return [taskActivity(this.runId, { mode: 'async', status: 'retry', attempt: raw.attempt, nextAt: raw.at, error: errorText(raw.error) })]
     }
-    if (type === 'session.inbox.enqueued') return [taskActivity(this.runId, { mode: 'async', status: 'queued', inboxId: raw.inboxID })]
-    if (type === 'session.inbox.delivered') return [taskActivity(this.runId, { mode: 'async', status: 'delivered', inboxId: raw.inboxID })]
-    if (type === 'permission.asked') return this.interrupt(raw)
+    if (type === 'session.inbox.enqueued') {
+      this.activateRun()
+      return [taskActivity(this.runId, { mode: 'async', status: 'queued', inboxId: raw.inboxID })]
+    }
+    if (type === 'session.inbox.delivered') {
+      this.activateRun()
+      return [taskActivity(this.runId, { mode: 'async', status: 'delivered', inboxId: raw.inboxID })]
+    }
+    if (type === 'permission.asked') {
+      this.activateRun()
+      return this.interrupt(raw)
+    }
 
     if (type === 'session.error') return this.fail(errorText(raw.error ?? raw.message) || 'OpenCode run failed')
-    if (type === 'session.idle' || (type === 'session.status' && (raw.status?.type ?? raw.status) === 'idle')) return this.finish()
+    if (type === 'session.status' && (raw.status?.type ?? raw.status) === 'busy') {
+      this.activateRun()
+      return []
+    }
+    if (type === 'session.idle' || (type === 'session.status' && (raw.status?.type ?? raw.status) === 'idle')) {
+      return this.runActive ? this.finish() : []
+    }
     if (type === 'step-start' || type === 'step.started') {
+      this.activateRun()
       const stepName = raw.name ?? raw.title ?? 'OpenCode step'
       if (this.legacySteps.has(stepName)) return []
       this.legacySteps.add(stepName)
