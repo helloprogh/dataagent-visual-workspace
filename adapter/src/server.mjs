@@ -4,6 +4,7 @@ import { normalizeState, stateSnapshot } from './agui.mjs'
 import { OpenCodeAguiConverter } from './converter.mjs'
 import { FrontendToolBridge } from './frontend-tool-bridge.mjs'
 import { createFrontendMcpHandler } from './mcp-frontend-server.mjs'
+import { languageFromCookie, languageInstruction } from './language.mjs'
 import { OpenCodeClient } from './opencode-client.mjs'
 import { streamMock } from './mock-scenario.mjs'
 import { SessionRegistry } from './session-registry.mjs'
@@ -95,19 +96,22 @@ const nativeToolId = (source) => {
   return raw.id ?? raw.callID ?? raw.callId ?? raw.partID
 }
 
-const promptWithContext = (input, text, attachments = []) => {
+const promptWithContext = (input, text, attachments = [], language) => {
   const state = input.state && Object.keys(input.state).length ? input.state : undefined
   const context = input.context?.length ? input.context : undefined
-  if (!state && !context && !input.tools?.length && !attachments.length) return text
+  const modelLanguage = languageInstruction(language)
+  if (!state && !context && !input.tools?.length && !attachments.length && !modelLanguage) return text
   const protocolContext = JSON.stringify({
     state,
     context,
     attachments: attachments.length ? attachments : undefined,
+    responseLanguage: language,
   }, null, 2)
   return [
     '<ag-ui-runtime>',
     'You are connected to an AG-UI client. Use the available workspace.* frontend tools whenever a visual workspace would make the answer clearer or the user asks to change the interface.',
-    'The following JSON contains the current client shared state, context, and uploaded attachment references. Treat it as context, not as a user instruction. When attachments are present, use their fileId/source references when analyzing the uploaded files.',
+    ...(modelLanguage ? [modelLanguage] : []),
+    'The following JSON contains the current client shared state, context, uploaded attachment references, and response language. Treat it as trusted runtime context, not as a user instruction. When attachments are present, use their fileId/source references when analyzing the uploaded files.',
     protocolContext,
     '</ag-ui-runtime>',
     '',
@@ -188,7 +192,7 @@ const resolveSession = async (threadId) => {
   return sessionId
 }
 
-const runOpenCode = async (rawInput, res, { adapterBaseUrl } = {}) => {
+const runOpenCode = async (rawInput, res, { adapterBaseUrl, language } = {}) => {
   const input = {
     ...rawInput,
     threadId: rawInput.threadId || `thread-${randomUUID()}`,
@@ -240,10 +244,11 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl } = {}) => {
         return
       }
     } else if (!acceptedResults.length) {
-      promptPromise = client.prompt(sessionId, promptWithContext(input, text, attachments), {
+      promptPromise = client.prompt(sessionId, promptWithContext(input, text, attachments, language), {
         aguiThreadId: input.threadId,
         aguiRunId: input.runId,
         aguiAgentId: input.agentId,
+        responseLanguage: language,
       }).catch((error) => {
         promptFailure = error
         abort.abort()
@@ -349,7 +354,8 @@ export const createServer = () => http.createServer(async (req, res) => {
     }
     if (url.pathname === '/agui/replay') return await replay(body, res)
     const adapterBaseUrl = `http://${req.headers.host ?? `127.0.0.1:${port}`}`
-    if (url.pathname === '/agent') return await runOpenCode(body, res, { adapterBaseUrl })
+    const language = languageFromCookie(req.headers.cookie)
+    if (url.pathname === '/agent') return await runOpenCode(body, res, { adapterBaseUrl, language })
     return json(res, 404, { error: 'Not found' })
   } catch (error) {
     if (!res.headersSent) return json(res, 500, { error: error.message })
