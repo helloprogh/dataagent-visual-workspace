@@ -150,6 +150,25 @@
   color:var(--da-text-primary)!important;
 }
 
+/* Reasoning and tool execution are long-form reading surfaces too. */
+.conversation-chat .reasoning-card__header,
+.conversation-chat .reasoning-card__heading b,
+.conversation-chat .reasoning-card [data-message-id] > div > div > div > div,
+.tool-call,
+.tool-call header>b,
+.tool-command,
+.tool-section pre{
+  color:var(--da-text-primary)!important;
+}
+
+.conversation-chat .reasoning-card__heading small,
+.conversation-chat .reasoning-card__status,
+.tool-call-state,
+.tool-section summary,
+.tool-hint{
+  color:var(--da-text-muted)!important;
+}
+
 /* Permission card */
 .agui-permission,
 .agui-permission header b,
