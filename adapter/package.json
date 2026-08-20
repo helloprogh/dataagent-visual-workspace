@@ -7,7 +7,7 @@
     "dev": "node --watch src/server-entry.mjs",
     "start": "node src/server-entry.mjs",
     "test": "node --test",
-    "build": "node --check src/server-entry.mjs && node --check src/server.mjs && node --check src/opencode-management.mjs && node --check src/converter.mjs && node --check src/opencode-client.mjs",
+    "build": "node --check src/server-entry.mjs && node --check src/server.mjs && node --check src/opencode-management.mjs && node --check src/converter.mjs && node --check src/opencode-client.mjs && node --check src/language.mjs",
     "smoke": "node test/smoke.mjs"
   },
   "engines": {
