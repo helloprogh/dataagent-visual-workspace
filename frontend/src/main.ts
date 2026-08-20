@@ -8,6 +8,7 @@ import './sidebar-hierarchy.css'
 import './app-navigation-pages.css'
 import './opencode-management.css'
 import './skill-delete.css'
+import './high-contrast-text.css'
 import App from './App.vue'
 
 createApp(App).use(ElementPlus).mount('#app')
