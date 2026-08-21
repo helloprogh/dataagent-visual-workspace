@@ -114,6 +114,15 @@ export class OpenCodeClient {
     return this.json(`/api/skill${suffix}`, {}, 'Unable to list OpenCode skills')
   }
 
+  async listModels() {
+    try {
+      return await this.json('/api/catalog/model', {}, 'Unable to list OpenCode models')
+    } catch (error) {
+      if (!error.message.includes('(404)')) throw error
+      return this.json('/api/model', {}, 'Unable to list OpenCode models')
+    }
+  }
+
   async listProjects() {
     return this.json('/api/project', {}, 'Unable to list OpenCode projects')
   }
@@ -148,11 +157,15 @@ export class OpenCodeClient {
     }, 'Unable to delete OpenCode workspace')
   }
 
-  async prompt(sessionId, text, metadata = {}) {
+  async prompt(sessionId, text, metadata = {}, model) {
     return this.json(`/api/session/${encodeURIComponent(sessionId)}/prompt`, {
       method: 'POST',
       headers: jsonHeaders,
-      body: JSON.stringify({ text, metadata }),
+      body: JSON.stringify({
+        text,
+        metadata,
+        ...(model ? { model } : {}),
+      }),
     }, 'OpenCode prompt failed')
   }
 
