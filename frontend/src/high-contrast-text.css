@@ -1,0 +1,204 @@
+/* =========================================================
+   High contrast dark UI text
+   Primary readable text is intentionally pure white.
+   Secondary metadata remains visually subordinate but must
+   stay bright enough for long-running desktop workflows.
+   ========================================================= */
+
+:root{
+  --da-text-primary:#fff;
+  --da-text-secondary:#c5ccda;
+  --da-text-muted:#aeb7c7;
+  --da-text-subtle:#929dae;
+}
+
+/* Core application chrome */
+.app-sidebar__brand b,
+.app-sidebar__new,
+.app-sidebar__new b,
+.app-sidebar__nav>button,
+.app-sidebar__nav>button:hover,
+.app-sidebar__nav>button.active,
+.app-sidebar__thread-copy b,
+.app-sidebar__history>article.active .app-sidebar__thread-copy b,
+.app-sidebar__management-card b,
+.app-sidebar__secondary-action,
+.assistant-name b,
+.assistant-context b,
+.assistant-actions button{
+  color:var(--da-text-primary)!important;
+}
+
+.app-sidebar__brand small,
+.app-sidebar__new small,
+.app-sidebar__nav-copy small,
+.app-sidebar__section-head,
+.app-sidebar__section-head b,
+.app-sidebar__section-head--recent>span,
+.app-sidebar__section-head--recent>b,
+.app-sidebar__thread-copy small,
+.app-sidebar__view-all,
+.app-sidebar__management-card p,
+.app-sidebar__placeholder,
+.app-sidebar__footer,
+.app-sidebar__footer small,
+.assistant-identity small,
+.assistant-context span,
+.assistant-context small,
+.assistant-footer{
+  color:var(--da-text-muted)!important;
+}
+
+.app-sidebar__view-all:hover,
+.app-sidebar__more:hover{
+  color:var(--da-text-primary)!important;
+}
+
+.app-sidebar__search .el-input__inner,
+.management-page__search .el-input__inner,
+.opencode-context-select .el-select__selected-item,
+.opencode-dialog-select .el-select__selected-item,
+.opencode-upload-form .el-input__inner{
+  color:var(--da-text-primary)!important;
+}
+
+.app-sidebar__search .el-input__inner::placeholder,
+.management-page__search .el-input__inner::placeholder,
+.opencode-upload-form .el-input__inner::placeholder{
+  color:var(--da-text-subtle)!important;
+}
+
+/* Full-page navigation and management */
+.management-page,
+.management-page__header h1,
+.management-page__primary,
+.management-surface__head b,
+.history-table__title b,
+.skill-summary-card strong,
+.workspace-summary-grid>article strong,
+.skill-empty-state b,
+.workspace-empty-state b,
+.workspace-module-row b,
+.opencode-row-primary b,
+.opencode-dialog .el-dialog__title,
+.opencode-package-card b{
+  color:var(--da-text-primary)!important;
+}
+
+.management-page__eyebrow,
+.management-page__header p,
+.management-page__count,
+.management-page__empty,
+.history-table__head,
+.history-table__row,
+.history-table__title small,
+.skill-summary-card>span,
+.workspace-summary-grid>article>span,
+.skill-summary-card small,
+.workspace-summary-grid>article small,
+.management-surface__head span,
+.skill-list-head,
+.skill-empty-state p,
+.workspace-empty-state p,
+.skill-empty-state>span,
+.workspace-module-row,
+.workspace-module-row small,
+.opencode-skill-list-head,
+.opencode-workspace-list-head,
+.opencode-skill-row,
+.opencode-workspace-row,
+.opencode-row-primary small,
+.opencode-skill-row code,
+.opencode-workspace-row code,
+.opencode-dialog .el-dialog__body,
+.opencode-upload-form>label,
+.opencode-upload-form>label small,
+.opencode-upload-form .el-radio,
+.opencode-upload-form .el-checkbox,
+.opencode-package-card small,
+.opencode-form-note,
+.opencode-dialog-button,
+.management-surface__actions button{
+  color:var(--da-text-muted)!important;
+}
+
+.management-surface__actions button:hover,
+.opencode-dialog-button:hover{
+  color:var(--da-text-primary)!important;
+}
+
+/* Conversation / CopilotKit. Keep generated answer text maximally readable. */
+.visual-chat,
+.visual-chat [data-testid="copilot-chat-assistant-message"],
+.visual-chat [data-testid="copilot-chat-user-message"],
+.visual-chat [data-testid="copilot-chat-message"],
+.visual-chat [data-testid="copilot-chat-input-textarea"],
+.visual-chat textarea,
+.visual-chat input{
+  color:var(--da-text-primary)!important;
+}
+
+.visual-chat [data-testid="copilot-chat-input-textarea"]::placeholder,
+.visual-chat textarea::placeholder,
+.visual-chat input::placeholder{
+  color:var(--da-text-subtle)!important;
+}
+
+.visual-chat [data-testid="copilot-chat-attachment-document-button"],
+.visual-chat [data-testid="copilot-chat-attachment-document-filename"],
+.visual-chat [data-testid="copilot-chat-drop-overlay"] span{
+  color:var(--da-text-primary)!important;
+}
+
+/* Reasoning and tool execution are long-form reading surfaces too. */
+.conversation-chat .reasoning-card__header,
+.conversation-chat .reasoning-card__heading b,
+.conversation-chat .reasoning-card [data-message-id] > div > div > div > div,
+.tool-call,
+.tool-call header>b,
+.tool-command,
+.tool-section pre{
+  color:var(--da-text-primary)!important;
+}
+
+.conversation-chat .reasoning-card__heading small,
+.conversation-chat .reasoning-card__status,
+.tool-call-state,
+.tool-section summary,
+.tool-hint{
+  color:var(--da-text-muted)!important;
+}
+
+/* Permission card */
+.agui-permission,
+.agui-permission header b,
+.permission-copy b,
+.permission-copy p,
+.permission-actions button{
+  color:var(--da-text-primary)!important;
+}
+
+.agui-permission header span,
+.permission-copy code,
+.agui-permission>small{
+  color:var(--da-text-secondary)!important;
+}
+
+/* Generated UI surfaces */
+.visual-workspace h1,
+.visual-workspace h2,
+.visual-workspace h3,
+.visual-workspace strong,
+.visual-workspace b,
+.visual-workspace .workspace-title,
+.visual-workspace .widget-title{
+  color:var(--da-text-primary)!important;
+}
+
+.visual-workspace p,
+.visual-workspace small,
+.visual-workspace .workspace-subtitle,
+.visual-workspace .widget-subtitle,
+.visual-workspace .widget-meta{
+  color:var(--da-text-muted)!important;
+}
