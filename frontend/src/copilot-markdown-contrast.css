@@ -1,0 +1,91 @@
+/* CopilotKit assistant Markdown must remain readable regardless of upstream theme defaults. */
+.copilot-chat-assistant-markdown{
+  color:#fff!important;
+  background:transparent!important;
+}
+
+.copilot-chat-assistant-markdown :where(
+  p,li,span,strong,b,em,i,del,
+  h1,h2,h3,h4,h5,h6,
+  dt,dd,figcaption
+){
+  color:#fff!important;
+}
+
+.copilot-chat-assistant-markdown :where(ul,ol){
+  color:#fff!important;
+}
+
+.copilot-chat-assistant-markdown :where(a){
+  color:#9fc2ff!important;
+  text-decoration-color:rgba(159,194,255,.58)!important;
+}
+
+.copilot-chat-assistant-markdown :where(a:hover){
+  color:#c9dcff!important;
+  text-decoration-color:currentColor!important;
+}
+
+.copilot-chat-assistant-markdown :where(code):not(pre code){
+  color:#f5f8ff!important;
+  background:#1b2a3b!important;
+  border:1px solid rgba(184,205,224,.22)!important;
+  border-radius:5px!important;
+  padding:.12em .38em!important;
+}
+
+.copilot-chat-assistant-markdown :where(pre){
+  color:#f5f8ff!important;
+  background:#080f18!important;
+  border:1px solid rgba(184,205,224,.22)!important;
+  border-radius:9px!important;
+  box-shadow:inset 0 1px 10px rgba(0,0,0,.30)!important;
+}
+
+.copilot-chat-assistant-markdown :where(pre code){
+  color:#f5f8ff!important;
+  background:transparent!important;
+}
+
+.copilot-chat-assistant-markdown :where(blockquote){
+  color:#d9e1ec!important;
+  background:#111d2a!important;
+  border-left:3px solid rgba(145,169,255,.62)!important;
+}
+
+.copilot-chat-assistant-markdown :where(blockquote p,blockquote span,blockquote strong,blockquote em){
+  color:#d9e1ec!important;
+}
+
+.copilot-chat-assistant-markdown :where(table){
+  color:#eef3f8!important;
+  border-color:rgba(184,205,224,.22)!important;
+  background:#0c1621!important;
+}
+
+.copilot-chat-assistant-markdown :where(th){
+  color:#fff!important;
+  background:#172434!important;
+  border-color:rgba(184,205,224,.22)!important;
+}
+
+.copilot-chat-assistant-markdown :where(td){
+  color:#eef3f8!important;
+  background:#0f1a26!important;
+  border-color:rgba(184,205,224,.18)!important;
+}
+
+.copilot-chat-assistant-markdown :where(tr:nth-child(even) td){
+  background:#142130!important;
+}
+
+.copilot-chat-assistant-markdown :where(hr){
+  border-color:rgba(184,205,224,.24)!important;
+}
+
+/* Guard against CopilotKit theme variables being darker than the application theme. */
+.copilot-chat-assistant-markdown,
+.copilot-chat-assistant-markdown *{
+  --copilot-kit-secondary-color:#d9e1ec;
+  --copilot-kit-muted-color:#b7c2d2;
+}
