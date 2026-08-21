@@ -3,16 +3,25 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const css = await readFile(path.join(root, 'src', 'high-contrast-text.css'), 'utf8')
+const cssFiles = [
+  path.join(root, 'src', 'high-contrast-text.css'),
+  path.join(root, 'src', 'uiux-soft-technical-dark.css'),
+]
+const css = (await Promise.all(cssFiles.map(file => readFile(file, 'utf8')))).join('\n')
+
+const lastMatch = (pattern) => {
+  const matches = [...css.matchAll(pattern)]
+  return matches.at(-1)
+}
 
 const variable = (name) => {
-  const match = css.match(new RegExp(`${name}\\s*:\\s*(#[0-9a-fA-F]{6})`))
+  const match = lastMatch(new RegExp(`${name}\\s*:\\s*(#[0-9a-fA-F]{6})`, 'g'))
   if (!match) throw new Error(`Missing contrast token ${name}`)
   return match[1]
 }
 
 const rgbaAlpha = (name) => {
-  const match = css.match(new RegExp(`${name}\\s*:\\s*rgba\\([^,]+,[^,]+,[^,]+,\\s*([0-9.]+)\\)`))
+  const match = lastMatch(new RegExp(`${name}\\s*:\\s*rgba\\([^,]+,[^,]+,[^,]+,\\s*([0-9.]+)\\)`, 'g'))
   if (!match) throw new Error(`Missing rgba token ${name}`)
   return Number(match[1])
 }
@@ -49,6 +58,7 @@ const surfaces = [
 ].map(variable)
 
 const requirements = [
+  ['--da-text-emphasis', 7],
   ['--da-text-primary', 7],
   ['--da-text-secondary', 7],
   ['--da-text-muted', 4.5],
@@ -81,4 +91,4 @@ if (failures.length) {
   process.exit(1)
 }
 
-console.log('Visual contrast guard passed: text/accent tokens meet AA and component borders remain visible.')
+console.log('Visual contrast guard passed: final soft-dark tokens remain readable without relying on pure white.')

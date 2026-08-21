@@ -10,6 +10,7 @@ import './opencode-management.css'
 import './skill-delete.css'
 import './high-contrast-text.css'
 import './copilot-markdown-contrast.css'
+import './uiux-soft-technical-dark.css'
 import App from './App.vue'
 
 createApp(App).use(ElementPlus).mount('#app')
