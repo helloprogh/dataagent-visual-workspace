@@ -37,6 +37,17 @@ export const createOpenCodeManagementHandler = (client) => async (req, res, url)
       return true
     }
 
+    if (req.method === 'GET' && url.pathname === '/api/opencode/models') {
+      const result = await client.listModels()
+      const data = Array.isArray(result)
+        ? result
+        : Array.isArray(result?.models)
+          ? result.models
+          : []
+      sendJson(res, 200, { data })
+      return true
+    }
+
     if (req.method === 'GET' && url.pathname === '/api/opencode/projects') {
       const data = await client.listProjects()
       sendJson(res, 200, { data: Array.isArray(data) ? data : [] })
