@@ -1,0 +1,606 @@
+/* =========================================================
+   Data Agent — UI/UX Pro Max / Soft Technical Dark
+
+   Intent:
+   - preserve AA contrast without large areas of pure white
+   - reserve the brightest tone for critical emphasis only
+   - reduce glow/noise and strengthen information hierarchy
+   - keep dense analytics surfaces comfortable for long sessions
+   ========================================================= */
+
+:root{
+  --da-text-emphasis:#F4F6F9;
+  --da-text-primary:#E3E8EF;
+  --da-text-secondary:#C4CCD7;
+  --da-text-muted:#A4AFBF;
+  --da-text-subtle:#8793A6;
+
+  --da-surface-0:#0A1119;
+  --da-surface-1:#0E1721;
+  --da-surface-2:#121C28;
+  --da-surface-3:#172332;
+  --da-surface-4:#1C2A39;
+  --da-surface-input:#111B27;
+  --da-surface-code:#0A1119;
+
+  --da-border:rgba(171,191,211,.16);
+  --da-border-strong:rgba(171,191,211,.24);
+  --da-border-focus:rgba(143,166,232,.46);
+
+  --da-accent-cyan:#73CBD6;
+  --da-accent-blue:#8FA6E8;
+  --da-accent-green:#72C99E;
+  --da-accent-yellow:#DDBB6A;
+  --da-accent-red:#E88492;
+
+  --da-shadow-soft:0 10px 30px rgba(0,0,0,.18);
+  --da-shadow-raised:0 16px 42px rgba(0,0,0,.22);
+}
+
+/* ---------- global reading hierarchy ---------- */
+.dataagent-shell{
+  --el-text-color-primary:var(--da-text-primary);
+  --el-text-color-regular:var(--da-text-secondary);
+  --el-text-color-secondary:var(--da-text-muted);
+  --el-text-color-placeholder:var(--da-text-subtle);
+  --el-bg-color:var(--da-surface-1);
+  --el-bg-color-overlay:var(--da-surface-2);
+  --el-fill-color-blank:var(--da-surface-1);
+  --el-fill-color-light:var(--da-surface-2);
+  --el-fill-color-lighter:var(--da-surface-3);
+  color:var(--da-text-primary)!important;
+}
+
+.dataagent-shell :where(p,li,dd,dt,label,input,textarea),
+.visual-chat [data-testid="copilot-chat-assistant-message"],
+.visual-chat [data-testid="copilot-chat-user-message"],
+.visual-chat [data-testid="copilot-chat-message"]{
+  color:var(--da-text-primary)!important;
+}
+
+/* Brightest tone is deliberately rare. */
+.dataagent-shell :where(h1,h2),
+.management-page__header h1,
+.visual-workspace .metric-value,
+.visual-workspace .kpi-cell strong,
+.visual-workspace .donut-center,
+.visual-workspace .quality-ring-inner b,
+.component-gallery__stats b{
+  color:var(--da-text-emphasis)!important;
+}
+
+.dataagent-shell :where(h3,h4,h5,h6,strong,b),
+.app-sidebar__brand b,
+.app-sidebar__thread-copy b,
+.assistant-name b,
+.management-surface__head b,
+.visual-workspace .gen-title,
+.visual-workspace .widget-title{
+  color:var(--da-text-primary)!important;
+}
+
+/* ---------- app chrome ---------- */
+.app-sidebar__brand small,
+.app-sidebar__new small,
+.app-sidebar__nav-copy small,
+.app-sidebar__section-head,
+.app-sidebar__thread-copy small,
+.app-sidebar__management-card p,
+.app-sidebar__footer,
+.assistant-identity small,
+.assistant-context span,
+.assistant-context small,
+.assistant-footer{
+  color:var(--da-text-muted)!important;
+}
+
+.app-sidebar__new,
+.app-sidebar__history>article.active,
+.app-sidebar__nav>button.active{
+  border-color:var(--da-border)!important;
+  box-shadow:none!important;
+}
+
+.app-sidebar__history>article:hover,
+.app-sidebar__nav>button:hover,
+.app-sidebar__new:hover{
+  border-color:var(--da-border-strong)!important;
+  background:rgba(255,255,255,.026)!important;
+}
+
+/* ---------- inputs / buttons ---------- */
+.dataagent-shell .el-input__wrapper,
+.dataagent-shell .el-select__wrapper,
+.dataagent-shell .el-textarea__inner,
+.visual-chat [data-testid="copilot-chat-input-shell"],
+.component-gallery__composer{
+  background:var(--da-surface-input)!important;
+  border-color:var(--da-border-strong)!important;
+  box-shadow:0 0 0 1px var(--da-border) inset!important;
+}
+
+.dataagent-shell .el-input__inner,
+.dataagent-shell .el-textarea__inner,
+.visual-chat textarea,
+.visual-chat input,
+.component-gallery__composer textarea{
+  color:var(--da-text-primary)!important;
+}
+
+.dataagent-shell .el-input__inner::placeholder,
+.dataagent-shell .el-textarea__inner::placeholder,
+.visual-chat textarea::placeholder,
+.visual-chat input::placeholder{
+  color:var(--da-text-subtle)!important;
+}
+
+.dataagent-shell .el-button:not(.el-button--primary):not(.is-text),
+.management-surface__actions button,
+.opencode-dialog-button,
+.component-gallery__composer button,
+.permission-actions button{
+  color:var(--da-text-primary)!important;
+  background:var(--da-surface-3)!important;
+  border-color:var(--da-border)!important;
+  box-shadow:none!important;
+}
+
+.dataagent-shell .el-button:not(.el-button--primary):not(.is-text):hover,
+.management-surface__actions button:hover,
+.opencode-dialog-button:hover,
+.component-gallery__composer button:hover,
+.permission-actions button:hover{
+  color:var(--da-text-emphasis)!important;
+  background:var(--da-surface-4)!important;
+  border-color:var(--da-border-strong)!important;
+}
+
+.dataagent-shell .el-tag{
+  --el-tag-bg-color:rgba(143,166,232,.09);
+  --el-tag-border-color:rgba(143,166,232,.24);
+  --el-tag-text-color:#C9D3EB;
+  color:#C9D3EB!important;
+}
+
+.el-popper,
+.el-select__popper,
+.el-dropdown__popper,
+.el-popover.el-popper{
+  color:var(--da-text-secondary)!important;
+  background:var(--da-surface-2)!important;
+  border-color:var(--da-border)!important;
+  box-shadow:var(--da-shadow-raised)!important;
+}
+
+.el-select-dropdown__item,
+.el-dropdown-menu__item{
+  color:var(--da-text-secondary)!important;
+}
+.el-select-dropdown__item.hover,
+.el-select-dropdown__item:hover,
+.el-dropdown-menu__item:hover{
+  color:var(--da-text-emphasis)!important;
+  background:var(--da-surface-4)!important;
+}
+
+/* ---------- management surfaces ---------- */
+.skill-summary-card,
+.workspace-summary-grid>article,
+.management-surface,
+.history-table{
+  background:linear-gradient(145deg,#121C28,#0E1721)!important;
+  border-color:var(--da-border)!important;
+  box-shadow:var(--da-shadow-soft)!important;
+}
+
+.management-page__eyebrow,
+.management-page__header p,
+.management-page__count,
+.management-page__empty,
+.history-table__head,
+.history-table__title small,
+.skill-summary-card>span,
+.skill-summary-card small,
+.workspace-summary-grid>article>span,
+.workspace-summary-grid>article small,
+.management-surface__head span,
+.opencode-row-primary small,
+.opencode-skill-row code,
+.opencode-workspace-row code{
+  color:var(--da-text-muted)!important;
+}
+
+.history-table__row,
+.opencode-skill-row,
+.opencode-workspace-row,
+.workspace-module-row{
+  color:var(--da-text-secondary)!important;
+}
+
+.history-table__row:hover,
+.opencode-skill-row:hover,
+.opencode-workspace-row:hover,
+.workspace-module-row:hover{
+  background:#172332!important;
+}
+
+/* ---------- conversation ---------- */
+.visual-chat [data-testid="copilot-chat-assistant-message"]{
+  color:var(--da-text-primary)!important;
+}
+
+.visual-chat [data-testid="copilot-chat-user-message"],
+.component-gallery__user-message{
+  color:var(--da-text-primary)!important;
+  background:#1A2738!important;
+  border-color:rgba(143,166,232,.20)!important;
+}
+
+.visual-chat [data-testid="copilot-chat-input-shell"]{
+  box-shadow:0 8px 24px rgba(0,0,0,.17)!important;
+}
+
+.visual-chat [data-testid="copilot-chat-attachment-item"],
+.component-gallery__attachment{
+  color:var(--da-text-primary)!important;
+  background:#141F2B!important;
+  border-color:var(--da-border)!important;
+}
+
+/* Copilot assistant Markdown: comfortable long-form reading. */
+.copilot-chat-assistant-markdown,
+.copilot-chat-assistant-markdown :where(p,li,span,strong,b,em,i,del,h1,h2,h3,h4,h5,h6,dt,dd,figcaption){
+  color:var(--da-text-primary)!important;
+}
+
+.copilot-chat-assistant-markdown :where(h1,h2){
+  color:var(--da-text-emphasis)!important;
+}
+
+.copilot-chat-assistant-markdown :where(a){
+  color:#9EB5EA!important;
+  text-decoration-color:rgba(158,181,234,.48)!important;
+}
+
+.copilot-chat-assistant-markdown :where(code):not(pre code){
+  color:#DCE3EC!important;
+  background:#182433!important;
+  border-color:var(--da-border)!important;
+}
+
+.copilot-chat-assistant-markdown :where(pre){
+  color:#DCE3EC!important;
+  background:var(--da-surface-code)!important;
+  border-color:var(--da-border)!important;
+  box-shadow:inset 0 1px 8px rgba(0,0,0,.22)!important;
+}
+
+.copilot-chat-assistant-markdown :where(pre code){color:#DCE3EC!important}
+.copilot-chat-assistant-markdown :where(blockquote),
+.copilot-chat-assistant-markdown :where(blockquote p,blockquote span,blockquote strong,blockquote em){
+  color:var(--da-text-secondary)!important;
+}
+.copilot-chat-assistant-markdown :where(blockquote){
+  background:#121D2A!important;
+  border-left-color:rgba(143,166,232,.46)!important;
+}
+
+.copilot-chat-assistant-markdown :where(th){
+  color:var(--da-text-primary)!important;
+  background:#172433!important;
+}
+.copilot-chat-assistant-markdown :where(td){
+  color:var(--da-text-secondary)!important;
+  background:#101A25!important;
+}
+
+/* ---------- reasoning ---------- */
+.conversation-chat .reasoning-card,
+.component-gallery .reasoning-card{
+  background:linear-gradient(145deg,#111E27,#0D171F)!important;
+  border-color:rgba(115,203,214,.18)!important;
+  box-shadow:0 8px 24px rgba(0,0,0,.14)!important;
+}
+
+.conversation-chat .reasoning-card.is-streaming{
+  border-color:rgba(115,203,214,.32)!important;
+  box-shadow:0 0 0 2px rgba(115,203,214,.035),0 10px 28px rgba(0,0,0,.16)!important;
+}
+
+.conversation-chat .reasoning-card__heading b,
+.component-gallery .reasoning-card__heading b{
+  color:var(--da-text-primary)!important;
+}
+
+.conversation-chat .reasoning-card__heading small,
+.conversation-chat .reasoning-card__status,
+.component-gallery .reasoning-card__heading small,
+.component-gallery .reasoning-card__status{
+  color:var(--da-text-muted)!important;
+}
+
+.conversation-chat .reasoning-card [data-message-id] > div > div > div > div,
+.component-gallery__reasoning-body{
+  color:var(--da-text-secondary)!important;
+}
+
+/* ---------- tool execution: remove tiny, faint desktop text ---------- */
+.tool-call{
+  color:var(--da-text-primary)!important;
+  background:linear-gradient(145deg,#121D29,#0E1721)!important;
+  border-color:var(--da-border)!important;
+  box-shadow:none!important;
+}
+.tool-call header>b{font-size:12.5px!important;color:var(--da-text-primary)!important}
+.tool-call-state{font-size:11px!important;color:var(--da-text-muted)!important}
+.tool-call-icon{font-size:11px!important;color:#B7C4EA!important;background:rgba(143,166,232,.08)!important;border-color:rgba(143,166,232,.20)!important}
+.tool-command{font-size:11.5px!important;color:#D7DEE8!important;background:var(--da-surface-code)!important;border-color:var(--da-border)!important}
+.tool-section{border-top-color:var(--da-border)!important}
+.tool-section summary{font-size:11px!important;color:var(--da-text-muted)!important}
+.tool-section pre{font-size:11.5px!important;color:var(--da-text-secondary)!important;background:var(--da-surface-code)!important}
+.tool-result pre{color:#BDD4C7!important}
+.tool-hint{font-size:11.5px!important;color:var(--da-text-muted)!important}
+
+.workspace-command-status{
+  color:var(--da-text-primary)!important;
+  background:#131F2B!important;
+  border-color:var(--da-border)!important;
+}
+.workspace-command-status b{color:var(--da-text-primary)!important}
+.workspace-command-status small{color:var(--da-text-muted)!important}
+
+/* ---------- permission ---------- */
+.agui-permission{
+  color:var(--da-text-primary)!important;
+  background:linear-gradient(150deg,#211E19,#141A22)!important;
+  border-color:rgba(221,187,106,.24)!important;
+  box-shadow:none!important;
+}
+.permission-copy p{color:var(--da-text-secondary)!important}
+.permission-copy code,.agui-permission>small{color:var(--da-text-muted)!important}
+
+/* =========================================================
+   Dynamic render space / GenUI
+   ========================================================= */
+.visual-workspace{color:var(--da-text-primary)!important}
+.visual-workspace .visual-toolbar{
+  background:linear-gradient(180deg,rgba(16,26,37,.96),rgba(11,19,28,.94))!important;
+  border-color:var(--da-border)!important;
+}
+.visual-workspace .visual-title-row h1,
+.visual-workspace h1,
+.visual-workspace h2{
+  color:var(--da-text-emphasis)!important;
+}
+.visual-workspace h3,
+.visual-workspace h4,
+.visual-workspace strong,
+.visual-workspace b,
+.visual-workspace .workspace-title,
+.visual-workspace .widget-title,
+.visual-workspace .gen-title{
+  color:var(--da-text-primary)!important;
+}
+.visual-workspace p,
+.visual-workspace .visual-title-block p{
+  color:var(--da-text-secondary)!important;
+}
+.visual-workspace small,
+.visual-workspace .visual-kicker,
+.visual-workspace .eyebrow,
+.visual-workspace .workspace-subtitle,
+.visual-workspace .widget-subtitle,
+.visual-workspace .widget-meta,
+.visual-workspace .muted{
+  color:var(--da-text-muted)!important;
+}
+
+.visual-workspace .widget-frame,
+.visual-workspace .gen-card{
+  color:var(--da-text-primary)!important;
+  background:linear-gradient(145deg,#111C28,#0D1721)!important;
+  border-color:var(--da-border)!important;
+  box-shadow:0 8px 24px rgba(0,0,0,.15)!important;
+}
+.visual-workspace .widget-frame:hover{
+  border-color:var(--da-border-strong)!important;
+  box-shadow:0 12px 32px rgba(0,0,0,.18)!important;
+}
+
+.visual-workspace .context-chip,
+.visual-workspace .kpi-cell,
+.visual-workspace .insight-item,
+.visual-workspace .agent-inspector,
+.visual-workspace .semantic-columns>div{
+  background:#15212E!important;
+  border-color:var(--da-border)!important;
+}
+
+.visual-workspace .context-chip b,
+.visual-workspace .kpi-cell strong,
+.visual-workspace .bar-label,
+.visual-workspace .bar-row b,
+.visual-workspace .metric-value{
+  color:var(--da-text-primary)!important;
+}
+.visual-workspace .metric-value{color:var(--da-text-emphasis)!important}
+.visual-workspace .context-chip span,
+.visual-workspace .metric-foot,
+.visual-workspace .field-stats{
+  color:var(--da-text-muted)!important;
+}
+
+/* Tables */
+.visual-workspace .el-table{
+  --el-table-bg-color:#101923;
+  --el-table-tr-bg-color:#101923;
+  --el-table-header-bg-color:#172331;
+  --el-table-row-hover-bg-color:#1A2736;
+  --el-table-text-color:var(--da-text-secondary);
+  --el-table-header-text-color:var(--da-text-primary);
+  --el-table-border-color:var(--da-border);
+  --el-fill-color-lighter:#141F2B;
+  color:var(--da-text-secondary)!important;
+  background:#101923!important;
+}
+.visual-workspace .el-table th.el-table__cell{color:var(--da-text-primary)!important;background:#172331!important}
+.visual-workspace .el-table td.el-table__cell{color:var(--da-text-secondary)!important}
+.visual-workspace .el-table__body tr.el-table__row--striped td.el-table__cell{background:#141F2B!important}
+
+/* Charts: readable without turning every label white. */
+.visual-workspace .chart-grid,
+.visual-workspace .timeline-gridline{stroke:rgba(171,191,211,.14)!important}
+.visual-workspace .chart-label{fill:#AEB8C6!important;font-weight:500!important}
+.visual-workspace .chart-dot{fill:#111B27!important;stroke:var(--da-accent-blue)!important}
+.visual-workspace .chart-line{stroke:var(--da-accent-blue)!important}
+.visual-workspace .legend-row,
+.visual-workspace .forecast-legend,
+.visual-workspace .timeline-axis,
+.visual-workspace .timeline-agent-name{color:var(--da-text-secondary)!important}
+.visual-workspace .legend-row b,
+.visual-workspace .forecast-summary strong{color:var(--da-text-primary)!important}
+.visual-workspace .donut-center,
+.visual-workspace .quality-ring-inner{
+  color:var(--da-text-emphasis)!important;
+  background:#111B27!important;
+  border-color:var(--da-border)!important;
+  box-shadow:0 0 0 5px rgba(10,17,25,.24)!important;
+  text-shadow:none!important;
+}
+.visual-workspace .heat-x,.visual-workspace .heat-y{color:var(--da-text-secondary)!important}
+.visual-workspace .heat-cell{color:#F0F3F7!important;border-color:rgba(220,230,239,.18)!important;text-shadow:0 1px 2px rgba(0,0,0,.78)!important}
+
+/* Status/analysis components */
+.visual-workspace .insight-index,
+.visual-workspace .plan-node,
+.visual-workspace .cause-rank,
+.visual-workspace .trace-index{
+  color:#DCE3EC!important;
+  background:#223247!important;
+  border-color:rgba(143,166,232,.22)!important;
+}
+.visual-workspace .insight-body p,
+.visual-workspace .plan-step p,
+.visual-workspace .cause-main p,
+.visual-workspace .trace-copy p,
+.visual-workspace .forecast-summary>div>span,
+.visual-workspace .forecast-horizon,
+.visual-workspace .confidence-chip{
+  color:var(--da-text-muted)!important;
+}
+
+.visual-workspace .quality-label b,
+.visual-workspace .quality-label span,
+.visual-workspace .cause-title b,
+.visual-workspace .funnel-meta span,
+.visual-workspace .funnel-meta strong,
+.visual-workspace .trace-copy b,
+.visual-workspace .field-main b{
+  color:var(--da-text-primary)!important;
+}
+
+.visual-workspace .quality-status{
+  color:var(--da-text-primary)!important;
+  background:#192634!important;
+  border-color:var(--da-border)!important;
+}
+
+/* Multi-agent: status is color, content remains neutral. */
+.visual-workspace .agent-root-node,
+.visual-workspace .agent-child-node{
+  color:var(--da-text-primary)!important;
+  background:linear-gradient(145deg,#172432,#111C28)!important;
+  border-color:var(--da-border)!important;
+  box-shadow:0 6px 18px rgba(0,0,0,.15)!important;
+}
+.visual-workspace .agent-root-node:hover,
+.visual-workspace .agent-child-node:hover,
+.visual-workspace .agent-child-node.selected{
+  background:linear-gradient(145deg,#1A2938,#14212E)!important;
+  border-color:rgba(115,203,214,.28)!important;
+}
+.visual-workspace .agent-node-copy b,
+.visual-workspace .agent-child-node b,
+.visual-workspace .agent-inspector-title b,
+.visual-workspace .agent-inspector-grid strong,
+.visual-workspace .activity-copy b{color:var(--da-text-primary)!important}
+.visual-workspace .agent-node-copy small,
+.visual-workspace .agent-node-copy em,
+.visual-workspace .agent-child-node small,
+.visual-workspace .agent-child-node p,
+.visual-workspace .agent-child-foot,
+.visual-workspace .agent-inspector-title small,
+.visual-workspace .agent-inspector-title>span,
+.visual-workspace .agent-inspector-grid small,
+.visual-workspace .agent-activity-item time,
+.visual-workspace .activity-copy small{color:var(--da-text-muted)!important}
+.visual-workspace .activity-copy p{color:var(--da-text-secondary)!important}
+
+.visual-workspace .timeline-track{background:#0E1721!important;border-color:var(--da-border)!important}
+.visual-workspace .timeline-segment{color:#E8EDF3!important;background:#253548!important;border-color:rgba(143,166,232,.22)!important}
+.visual-workspace .timeline-segment.running{background:rgba(72,157,170,.20)!important;border-color:rgba(115,203,214,.28)!important}
+.visual-workspace .timeline-segment.done{background:rgba(70,145,108,.19)!important;border-color:rgba(114,201,158,.26)!important}
+.visual-workspace .timeline-segment.error{background:rgba(154,65,78,.20)!important;border-color:rgba(232,132,146,.28)!important}
+.visual-workspace .timeline-segment.waiting{background:rgba(142,112,52,.19)!important;border-color:rgba(221,187,106,.26)!important}
+.visual-workspace .timeline-segment span,
+.visual-workspace .timeline-segment time{color:#E8EDF3!important;text-shadow:none!important}
+
+/* Semantic / SQL / Markdown */
+.visual-workspace .semantic-icon{color:#D8E1EA!important;background:#17303A!important;border-color:rgba(115,203,214,.22)!important}
+.visual-workspace .semantic-pills span,
+.visual-workspace .semantic-sources code{color:#D5DDE7!important;background:#172433!important;border-color:var(--da-border)!important}
+.visual-workspace .markdown-content{color:var(--da-text-secondary)!important}
+.visual-workspace .markdown-content h2,
+.visual-workspace .markdown-content h3,
+.visual-workspace .markdown-content h4{color:var(--da-text-primary)!important}
+.visual-workspace .sql{color:#DCE3EC!important;background:var(--da-surface-code)!important;border-color:var(--da-border)!important;box-shadow:inset 0 1px 8px rgba(0,0,0,.22)!important}
+
+/* ---------- component gallery ---------- */
+.component-gallery{
+  background:var(--da-surface-0)!important;
+  color:var(--da-text-primary)!important;
+}
+.component-gallery__header{
+  background:rgba(10,17,25,.94)!important;
+  border-bottom-color:var(--da-border)!important;
+}
+.component-gallery__header h1,
+.component-gallery__section-head h2{color:var(--da-text-emphasis)!important}
+.component-gallery__header p{color:var(--da-text-secondary)!important}
+.component-gallery__header span,
+.component-gallery__section-head small,
+.component-gallery__section-head>span,
+.component-gallery__label span{color:var(--da-text-muted)!important}
+.component-gallery__stats,
+.component-gallery__item,
+.component-gallery__system-card{
+  background:var(--da-surface-1)!important;
+  border-color:var(--da-border)!important;
+  box-shadow:none!important;
+}
+.component-gallery__label b{color:var(--da-text-primary)!important}
+.component-gallery__label code{color:#9EB5EA!important}
+.component-gallery__assistant-message{background:#101A25!important;border-color:var(--da-border)!important}
+.component-gallery__attachment button,
+.component-gallery__composer textarea{color:var(--da-text-primary)!important}
+.component-gallery__attachment small{color:var(--da-text-muted)!important}
+
+/* ---------- focus / reduced motion ---------- */
+.dataagent-shell button:focus-visible,
+.dataagent-shell [role="button"]:focus-visible,
+.dataagent-shell input:focus-visible,
+.dataagent-shell textarea:focus-visible{
+  outline:2px solid rgba(143,166,232,.62)!important;
+  outline-offset:2px!important;
+}
+
+@media (prefers-reduced-motion:reduce){
+  .dataagent-shell *,
+  .dataagent-shell *::before,
+  .dataagent-shell *::after{
+    animation-duration:.01ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.01ms!important;
+    scroll-behavior:auto!important;
+  }
+}
