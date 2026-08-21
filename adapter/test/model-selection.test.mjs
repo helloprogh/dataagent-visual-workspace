@@ -1,20 +1,22 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { modelSelectionFromCookie } from '../src/model-selection.mjs'
+import { modelSelectionFromForwardedProps } from '../src/model-selection.mjs'
 import { OpenCodeClient } from '../src/opencode-client.mjs'
 
-test('reads provider and model from encoded runtime cookie', () => {
-  const encoded = encodeURIComponent(JSON.stringify(['openai', 'gpt-5.6-sol']))
-  assert.deepEqual(modelSelectionFromCookie(`locale=zh_CN; agui_model=${encoded}`), {
+test('reads provider and model from AG-UI forwardedProps', () => {
+  assert.deepEqual(modelSelectionFromForwardedProps({
+    model: { providerID: 'openai', modelID: 'gpt-5.6-sol' },
+  }), {
     providerID: 'openai',
     modelID: 'gpt-5.6-sol',
   })
 })
 
-test('ignores malformed or unsafe model cookies', () => {
-  assert.equal(modelSelectionFromCookie('agui_model=not-json'), undefined)
-  const unsafe = encodeURIComponent(JSON.stringify(['openai\ninvalid', 'model']))
-  assert.equal(modelSelectionFromCookie(`agui_model=${unsafe}`), undefined)
+test('ignores malformed or unsafe forwarded model values', () => {
+  assert.equal(modelSelectionFromForwardedProps({ model: 'gpt-5.6-sol' }), undefined)
+  assert.equal(modelSelectionFromForwardedProps({
+    model: { providerID: 'openai\ninvalid', modelID: 'model' },
+  }), undefined)
 })
 
 test('prompt sends model as nested structured field', async () => {
