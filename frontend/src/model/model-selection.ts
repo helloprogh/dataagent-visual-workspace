@@ -13,7 +13,6 @@ export type ModelCatalogItem = ModelSelection & {
 }
 
 const STORAGE_KEY = 'dataagent.model.selection.v1'
-const COOKIE_NAME = 'agui_model'
 
 function readStoredSelection(): ModelSelection | null {
   try {
@@ -29,24 +28,12 @@ function readStoredSelection(): ModelSelection | null {
   }
 }
 
-function writeCookie(value: ModelSelection | null) {
-  if (typeof document === 'undefined') return
-  if (!value) {
-    document.cookie = `${COOKIE_NAME}=; Path=/; Max-Age=0; SameSite=Lax`
-    return
-  }
-  const encoded = encodeURIComponent(JSON.stringify([value.providerID, value.modelID]))
-  document.cookie = `${COOKIE_NAME}=${encoded}; Path=/; Max-Age=31536000; SameSite=Lax`
-}
-
 export const selectedModel = ref<ModelSelection | null>(readStoredSelection())
-writeCookie(selectedModel.value)
 
 export function setSelectedModel(value: ModelSelection | null) {
   selectedModel.value = value
   if (value) localStorage.setItem(STORAGE_KEY, JSON.stringify(value))
   else localStorage.removeItem(STORAGE_KEY)
-  writeCookie(value)
 }
 
 function normalizeModel(value: unknown): ModelCatalogItem | null {
