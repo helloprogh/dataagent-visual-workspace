@@ -13,9 +13,12 @@ import AppSidebar from './components/AppSidebar.vue'
 import HistoryView from './components/HistoryView.vue'
 import SkillManagementView from './components/SkillManagementView.vue'
 import WorkspaceManagementView from './components/WorkspaceManagementView.vue'
+import ComponentGallery from './components/ComponentGallery.vue'
 
 type AppPage = 'chat' | 'history' | 'skills' | 'workspace'
 
+const galleryMode = import.meta.env.VITE_COMPONENT_GALLERY === 'true'
+  || new URLSearchParams(window.location.search).get('gallery') === 'components'
 const runtime = createAgentRuntime()
 const showDevConsole = import.meta.env.DEV
 const ACTIVE_CONVERSATION_KEY = 'dataagent.conversations.active.v1'
@@ -41,8 +44,9 @@ function ensureConversation() {
   }
 }
 
-ensureConversation()
+if (!galleryMode) ensureConversation()
 watch(activeId, id => {
+  if (galleryMode) return
   renderAreaDismissed.value = false
   if (!id) {
     localStorage.removeItem(ACTIVE_CONVERSATION_KEY)
@@ -118,7 +122,9 @@ function autoRename(name: string) {
 </script>
 
 <template>
+  <ComponentGallery v-if="galleryMode" />
   <CopilotKitProvider
+    v-else
     :self-managed-agents="runtime.selfManagedAgents"
     :show-dev-console="showDevConsole"
   >
