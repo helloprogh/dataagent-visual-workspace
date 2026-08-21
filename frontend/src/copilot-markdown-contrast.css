@@ -5,7 +5,7 @@
 }
 
 .copilot-chat-assistant-markdown :where(
-  p,li,span,strong,b,em,i,del,
+  div,p,li,span,strong,b,em,i,del,
   h1,h2,h3,h4,h5,h6,
   dt,dd,figcaption
 ){
