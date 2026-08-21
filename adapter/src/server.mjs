@@ -5,7 +5,7 @@ import { OpenCodeAguiConverter } from './converter.mjs'
 import { FrontendToolBridge } from './frontend-tool-bridge.mjs'
 import { createFrontendMcpHandler } from './mcp-frontend-server.mjs'
 import { languageFromCookie, languageInstruction } from './language.mjs'
-import { modelSelectionFromCookie } from './model-selection.mjs'
+import { modelSelectionFromForwardedProps } from './model-selection.mjs'
 import { OpenCodeClient } from './opencode-client.mjs'
 import { streamMock } from './mock-scenario.mjs'
 import { SessionRegistry } from './session-registry.mjs'
@@ -357,7 +357,7 @@ export const createServer = () => http.createServer(async (req, res) => {
     if (url.pathname === '/agui/replay') return await replay(body, res)
     const adapterBaseUrl = `http://${req.headers.host ?? `127.0.0.1:${port}`}`
     const language = languageFromCookie(req.headers.cookie)
-    const model = modelSelectionFromCookie(req.headers.cookie)
+    const model = modelSelectionFromForwardedProps(body.forwardedProps)
     if (url.pathname === '/agent') return await runOpenCode(body, res, { adapterBaseUrl, language, model })
     return json(res, 404, { error: 'Not found' })
   } catch (error) {
