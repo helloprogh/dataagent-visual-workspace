@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { ConversationRecord } from '../conversations/types'
 import ConversationChat from './conversation/ConversationChat.vue'
-import ModelSelector from './ModelSelector.vue'
 
 const props = defineProps<{
   activeId: string
@@ -30,7 +29,6 @@ const emit = defineEmits<{
         </div>
       </div>
       <div class="assistant-actions">
-        <ModelSelector />
         <button title="新建会话" type="button" @click="emit('create')">＋</button>
       </div>
     </header>
