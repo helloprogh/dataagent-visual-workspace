@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { CopilotKitProvider } from '@copilotkit/vue/v2'
 import { createAgentRuntime } from './copilot/agent'
 import { conversationRepository } from './conversations/local-repository'
+import { createOpenCodeConversation } from './conversations/opencode-session'
 import type { ConversationRecord } from './conversations/types'
 import { workspaceController } from './workspace/store'
 import GenUIBridge from './components/GenUIBridge.vue'
@@ -21,22 +22,22 @@ const galleryMode = import.meta.env.VITE_COMPONENT_GALLERY === 'true'
   || new URLSearchParams(window.location.search).get('gallery') === 'components'
 const runtime = createAgentRuntime()
 const showDevConsole = import.meta.env.DEV
-const ACTIVE_CONVERSATION_KEY = 'dataagent.conversations.active.v1'
+const ACTIVE_CONVERSATION_KEY = 'dataagent.conversations.active.v2.session-thread'
 const conversations = ref<ConversationRecord[]>([])
 const activeId = ref(localStorage.getItem(ACTIVE_CONVERSATION_KEY) ?? '')
 const renderAreaDismissed = ref(false)
 const activePage = ref<AppPage>('chat')
+const creatingConversation = ref(false)
 
 function refreshConversations() {
   conversations.value = conversationRepository.list()
 }
 
-function ensureConversation() {
+async function ensureConversation() {
   refreshConversations()
   if (conversations.value.length === 0) {
-    const created = conversationRepository.create('新需求')
-    refreshConversations()
-    activeId.value = created.id
+    activeId.value = ''
+    await createConversation()
     return
   }
   if (!activeId.value || !conversationRepository.get(activeId.value)) {
@@ -44,7 +45,7 @@ function ensureConversation() {
   }
 }
 
-if (!galleryMode) ensureConversation()
+if (!galleryMode) void ensureConversation()
 watch(activeId, id => {
   if (galleryMode) return
   renderAreaDismissed.value = false
@@ -68,11 +69,20 @@ watch(renderWidgetCount, (next, previous) => {
   if (next > previous) renderAreaDismissed.value = false
 })
 
-function createConversation() {
-  const created = conversationRepository.create()
-  activeId.value = created.id
-  activePage.value = 'chat'
-  refreshConversations()
+async function createConversation() {
+  if (creatingConversation.value) return
+  creatingConversation.value = true
+  try {
+    const sessionId = await createOpenCodeConversation()
+    const created = conversationRepository.create(sessionId)
+    activeId.value = created.id
+    activePage.value = 'chat'
+    refreshConversations()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : String(error))
+  } finally {
+    creatingConversation.value = false
+  }
 }
 
 function selectConversation(id: string) {
@@ -107,7 +117,7 @@ async function removeConversation(id: string) {
     })
     conversationRepository.remove(id)
     if (activeId.value === id) activeId.value = ''
-    ensureConversation()
+    await ensureConversation()
     ElMessage.success('已删除')
   } catch {
     // cancelled
