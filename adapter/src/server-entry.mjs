@@ -1,5 +1,5 @@
 import http from 'node:http'
-import { createServer as createAgentServer } from './server.mjs'
+import { createServer as createAgentServer, resolveOpenCodeSession } from './server.mjs'
 import { OpenCodeClient } from './opencode-client.mjs'
 import { createOpenCodeManagementHandler } from './opencode-management.mjs'
 
@@ -12,7 +12,14 @@ const isDirectSkillApi = (req, url) => {
   return false
 }
 
-const proxyDirectSkillApi = async (client, req, res, url) => {
+const isDirectModelApi = (req, url) => {
+  if (req.method === 'GET' && url.pathname === '/dataagent/opencode/api/model') return true
+  if (req.method === 'GET' && url.pathname === '/dataagent/opencode/api/model/default') return true
+  if (req.method === 'POST' && /^\/dataagent\/opencode\/api\/session\/[^/]+\/model$/.test(url.pathname)) return true
+  return false
+}
+
+const proxyDirectApi = async (client, req, res, url, prefix) => {
   const headers = new Headers()
   for (const [key, value] of Object.entries(req.headers)) {
     if (key === 'host' || value == null) continue
@@ -29,7 +36,7 @@ const proxyDirectSkillApi = async (client, req, res, url) => {
     init.duplex = 'half'
   }
 
-  const upstreamPath = `${url.pathname.slice('/opencode'.length)}${url.search}`
+  const upstreamPath = `${url.pathname.slice(prefix.length)}${url.search}`
   const upstream = await client.request(upstreamPath, init)
   const responseHeaders = {}
   const contentType = upstream.headers.get('content-type')
@@ -46,14 +53,21 @@ const proxyDirectSkillApi = async (client, req, res, url) => {
 export const createServer = () => {
   const agentServer = createAgentServer()
   const client = new OpenCodeClient({ baseUrl: process.env.OPENCODE_BASE_URL })
-  const handleManagement = createOpenCodeManagementHandler(client)
+  const handleManagement = createOpenCodeManagementHandler(client, {
+    resolveThreadSession: resolveOpenCodeSession,
+  })
 
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host ?? '127.0.0.1'}`)
 
     try {
       if (isDirectSkillApi(req, url)) {
-        await proxyDirectSkillApi(client, req, res, url)
+        await proxyDirectApi(client, req, res, url, '/opencode')
+        return
+      }
+
+      if (isDirectModelApi(req, url)) {
+        await proxyDirectApi(client, req, res, url, '/dataagent/opencode')
         return
       }
 
