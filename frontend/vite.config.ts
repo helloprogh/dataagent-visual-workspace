@@ -20,6 +20,10 @@ export default defineConfig(({ mode }) => {
           target: proxyTarget,
           changeOrigin: true,
         },
+        '/dataseek/web/opencode': {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
         '/api/opencode': {
           target: proxyTarget,
           changeOrigin: true,
