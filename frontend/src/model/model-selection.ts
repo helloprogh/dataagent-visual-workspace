@@ -90,7 +90,7 @@ async function requestJson(url: string, init: RequestInit = {}, action: string) 
 export async function listAvailableModels(): Promise<ModelCatalogItem[]> {
   const body = await requestJson(MODEL_LIST_URL, { method: 'GET' }, '模型列表加载失败')
   const root = body?.data ?? body
-  const source = Array.isArray(root)
+  const source: unknown[] = Array.isArray(root)
     ? root
     : Array.isArray(root?.models)
       ? root.models
