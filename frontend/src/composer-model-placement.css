@@ -6,12 +6,13 @@
   border-radius: 18px !important;
   background: linear-gradient(180deg, rgba(18, 28, 40, .98), rgba(14, 23, 33, .99)) !important;
   box-shadow: 0 14px 36px rgba(0, 0, 0, .2), 0 1px 0 rgba(255, 255, 255, .025) inset !important;
-  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease !important;
+  transition: background .18s ease !important;
 }
 
+/* Keep the composer border and shadow visually stable while editing. */
 .conversation-composer:focus-within {
-  border-color: rgba(143, 166, 232, .38) !important;
-  box-shadow: 0 16px 42px rgba(0, 0, 0, .23), 0 0 0 3px rgba(143, 166, 232, .055), 0 1px 0 rgba(255, 255, 255, .035) inset !important;
+  border-color: rgba(171, 191, 211, .18) !important;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, .2), 0 1px 0 rgba(255, 255, 255, .025) inset !important;
 }
 
 .conversation-composer .conversation-composer__controls {
