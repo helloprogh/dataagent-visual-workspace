@@ -181,7 +181,7 @@ export class OpenCodeClient {
   async disconnectMcp(server) {
     return this.json(`/api/mcp/${encodeURIComponent(server)}/disconnect`, {
       method: 'POST',
-    }, 'Unable to disconnect OpenCode MCP server')
+    }, 'Unable to disconnect AG-UI frontend MCP server')
   }
 
   async listMcp() {
