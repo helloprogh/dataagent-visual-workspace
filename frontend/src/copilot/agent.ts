@@ -4,10 +4,30 @@ import { selectedModel } from '../model/model-selection'
 export const AGENT_ID = import.meta.env.VITE_AGENT_ID || 'data-agent'
 export const AGENT_DISPLAY_NAME = import.meta.env.VITE_AGENT_DISPLAY_NAME || 'Data Agent'
 
+const stopUrl = import.meta.env.VITE_OPENCODE_STOP_URL || '/dataagent/opencode/api/model/default'
+const stopMethod = (import.meta.env.VITE_OPENCODE_STOP_METHOD || 'POST').toUpperCase()
+
 export interface AgentRuntime {
   agentId: string
   displayName: string
   selfManagedAgents: Record<string, HttpAgent>
+}
+
+async function stopOpenCodeRun(headers: Record<string, string>) {
+  const response = await fetch(stopUrl, {
+    method: stopMethod,
+    headers: {
+      ...headers,
+      Accept: 'application/json',
+    },
+    credentials: 'same-origin',
+    cache: 'no-store',
+    keepalive: true,
+  })
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(`OpenCode stop failed (${response.status})${detail ? `: ${detail}` : ''}`)
+  }
 }
 
 export function createAgentRuntime(): AgentRuntime {
@@ -34,6 +54,19 @@ export function createAgentRuntime(): AgentRuntime {
       ...(selectedModel.value ? { model: { ...selectedModel.value } } : {}),
     },
   }))
+
+  // Keep CopilotKit/AG-UI's standard abort semantics, but also terminate the
+  // actual OpenCode2 execution through the existing frontend stop endpoint.
+  // The stop request is started first and intentionally not awaited: abortRun()
+  // immediately closes the current AG-UI HTTP/SSE stream so the UI stops
+  // receiving tokens without waiting for the backend termination response.
+  const abortRun = agent.abortRun.bind(agent)
+  agent.abortRun = () => {
+    void stopOpenCodeRun(headers).catch((error) => {
+      console.warn('[Data Agent] OpenCode stop request failed:', error)
+    })
+    abortRun()
+  }
 
   return {
     agentId: AGENT_ID,
