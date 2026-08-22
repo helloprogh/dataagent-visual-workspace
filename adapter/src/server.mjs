@@ -5,7 +5,6 @@ import { OpenCodeAguiConverter } from './converter.mjs'
 import { FrontendToolBridge } from './frontend-tool-bridge.mjs'
 import { createFrontendMcpHandler } from './mcp-frontend-server.mjs'
 import { languageFromCookie, languageInstruction } from './language.mjs'
-import { modelSelectionFromForwardedProps } from './model-selection.mjs'
 import { OpenCodeClient } from './opencode-client.mjs'
 import { streamMock } from './mock-scenario.mjs'
 import { SessionRegistry } from './session-registry.mjs'
@@ -175,7 +174,8 @@ const ensureFrontendTools = async (threadId, tools, adapterBaseUrl) => {
   mcpRegistrations.set(serverName, signature)
 }
 
-const resolveSession = async (threadId) => {
+export const resolveOpenCodeSession = async (threadId) => {
+  if (typeof threadId !== 'string' || !threadId.trim()) throw new Error('threadId is required')
   const mapped = await registry.get(threadId)
   if (mapped?.sessionId) {
     try {
@@ -193,7 +193,7 @@ const resolveSession = async (threadId) => {
   return sessionId
 }
 
-const runOpenCode = async (rawInput, res, { adapterBaseUrl, language, model } = {}) => {
+const runOpenCode = async (rawInput, res, { adapterBaseUrl, language } = {}) => {
   const input = {
     ...rawInput,
     threadId: rawInput.threadId || `thread-${randomUUID()}`,
@@ -219,7 +219,7 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl, language, model } = 
     const resume = Array.isArray(input.resume) ? input.resume : []
     if (!text && !attachments.length && !results.length && !resume.length) throw new Error('RunAgentInput does not contain a user message, attachment, tool result, or resume entry')
     await ensureFrontendTools(input.threadId, input.tools ?? [], adapterBaseUrl)
-    const sessionId = await resolveSession(input.threadId)
+    const sessionId = await resolveOpenCodeSession(input.threadId)
     const pending = await registry.pendingInterrupts(input.threadId)
     const converter = new OpenCodeAguiConverter({
       threadId: input.threadId,
@@ -250,8 +250,7 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl, language, model } = 
         aguiRunId: input.runId,
         aguiAgentId: input.agentId,
         responseLanguage: language,
-        ...(model ? { model } : {}),
-      }, model).catch((error) => {
+      }).catch((error) => {
         promptFailure = error
         abort.abort()
       })
@@ -357,8 +356,7 @@ export const createServer = () => http.createServer(async (req, res) => {
     if (url.pathname === '/agui/replay') return await replay(body, res)
     const adapterBaseUrl = `http://${req.headers.host ?? `127.0.0.1:${port}`}`
     const language = languageFromCookie(req.headers.cookie)
-    const model = modelSelectionFromForwardedProps(body.forwardedProps)
-    if (url.pathname === '/agent') return await runOpenCode(body, res, { adapterBaseUrl, language, model })
+    if (url.pathname === '/agent') return await runOpenCode(body, res, { adapterBaseUrl, language })
     return json(res, 404, { error: 'Not found' })
   } catch (error) {
     if (!res.headersSent) return json(res, 500, { error: error.message })
