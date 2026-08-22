@@ -1,12 +1,29 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { listAvailableModels, selectedModel, setSelectedModel, type ModelCatalogItem } from '../model/model-selection'
+import { computed, onMounted, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
+import {
+  getDefaultModel,
+  listAvailableModels,
+  storedModelForThread,
+  switchThreadModel,
+  type ModelCatalogItem,
+  type ModelSelection,
+} from '../model/model-selection'
+
+const props = defineProps<{
+  threadId: string
+  disabled?: boolean
+}>()
 
 const models = ref<ModelCatalogItem[]>([])
+const defaultModel = ref<ModelCatalogItem | null>(null)
+const currentModel = ref<ModelSelection | null>(null)
 const loading = ref(false)
+const switching = ref(false)
 const loadError = ref('')
 
 const providerNames: Record<string, string> = {
+  local: 'Local',
   openai: 'OpenAI',
   anthropic: 'Anthropic',
   google: 'Google',
@@ -19,25 +36,21 @@ const providerNames: Record<string, string> = {
   opencode: 'OpenCode',
 }
 
-const keyOf = (providerID: string, modelID: string) => JSON.stringify([providerID, modelID])
-const selectedKey = computed({
-  get: () => selectedModel.value ? keyOf(selectedModel.value.providerID, selectedModel.value.modelID) : '',
-  set: (value: string) => {
-    if (!value) return setSelectedModel(null)
-    try {
-      const parsed = JSON.parse(value)
-      if (Array.isArray(parsed) && typeof parsed[0] === 'string' && typeof parsed[1] === 'string') {
-        setSelectedModel({ providerID: parsed[0], modelID: parsed[1] })
-      }
-    } catch {
-      setSelectedModel(null)
-    }
-  },
+const keyOf = (providerID: string, id: string) => JSON.stringify([providerID, id])
+const selectedKey = computed(() => currentModel.value ? keyOf(currentModel.value.providerID, currentModel.value.id) : '')
+
+const selectableModels = computed(() => {
+  const result = [...models.value]
+  const fallback = defaultModel.value
+  if (fallback && !result.some(item => item.providerID === fallback.providerID && item.id === fallback.id)) {
+    result.unshift(fallback)
+  }
+  return result
 })
 
 const groups = computed(() => {
   const grouped = new Map<string, ModelCatalogItem[]>()
-  for (const model of models.value) {
+  for (const model of selectableModels.value) {
     const list = grouped.get(model.providerID) ?? []
     list.push(model)
     grouped.set(model.providerID, list)
@@ -49,14 +62,53 @@ const groups = computed(() => {
   }))
 })
 
+function selectionFromKey(value: string): ModelSelection | null {
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed) && typeof parsed[0] === 'string' && typeof parsed[1] === 'string') {
+      return { providerID: parsed[0], id: parsed[1] }
+    }
+  } catch {
+    // Invalid option values are ignored.
+  }
+  return null
+}
+
+async function selectModel(value: string) {
+  const next = selectionFromKey(value)
+  if (!next || switching.value || props.disabled) return
+  const previous = currentModel.value
+  if (previous?.providerID === next.providerID && previous.id === next.id) return
+
+  switching.value = true
+  try {
+    await switchThreadModel(props.threadId, next)
+    currentModel.value = next
+  } catch (error) {
+    currentModel.value = previous
+    ElMessage.error(error instanceof Error ? error.message : String(error))
+  } finally {
+    switching.value = false
+  }
+}
+
 async function loadModels() {
   loading.value = true
   loadError.value = ''
   try {
-    models.value = await listAvailableModels()
-    const selected = selectedModel.value
-    if (selected && models.value.length && !models.value.some(item => item.providerID === selected.providerID && item.modelID === selected.modelID)) {
-      setSelectedModel(null)
+    const [catalog, fallback] = await Promise.all([
+      listAvailableModels(),
+      getDefaultModel(),
+    ])
+    models.value = catalog
+    defaultModel.value = fallback
+
+    const stored = storedModelForThread(props.threadId)
+    const candidate = stored ?? fallback
+    if (candidate) {
+      currentModel.value = candidate
+    } else {
+      currentModel.value = null
     }
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : String(error)
@@ -65,33 +117,37 @@ async function loadModels() {
   }
 }
 
+watch(() => props.threadId, loadModels)
 onMounted(loadModels)
 </script>
 
 <template>
-  <div class="model-selector" :title="loadError || '选择当前会话下一轮使用的模型'">
+  <div class="model-selector" :title="loadError || '切换当前会话模型'">
     <span class="model-selector__icon" aria-hidden="true">◇</span>
     <el-select
-      v-model="selectedKey"
+      :model-value="selectedKey"
       class="model-selector__select"
       popper-class="model-selector-popper"
-      :loading="loading"
+      :loading="loading || switching"
       filterable
-      :disabled="Boolean(loadError && !models.length)"
-      placeholder="自动模型"
-      aria-label="选择模型"
+      :disabled="disabled || switching || Boolean(loadError && !models.length)"
+      placeholder="加载默认模型…"
+      aria-label="切换当前会话模型"
+      @change="selectModel"
     >
-      <el-option label="自动 · 服务默认" value="" />
       <el-option-group v-for="group in groups" :key="group.providerID" :label="group.label">
         <el-option
           v-for="model in group.items"
-          :key="keyOf(model.providerID, model.modelID)"
+          :key="keyOf(model.providerID, model.id)"
           :label="model.name"
-          :value="keyOf(model.providerID, model.modelID)"
+          :value="keyOf(model.providerID, model.id)"
         >
           <div class="model-selector__option">
-            <span>{{ model.name }}</span>
-            <small>{{ model.modelID }}</small>
+            <span>
+              {{ model.name }}
+              <i v-if="defaultModel && model.providerID === defaultModel.providerID && model.id === defaultModel.id">默认</i>
+            </span>
+            <small>{{ model.id }}</small>
           </div>
         </el-option>
       </el-option-group>
@@ -117,5 +173,6 @@ onMounted(loadModels)
 .model-selector-popper .el-select-dropdown__item{height:auto!important;min-height:36px!important;padding:6px 12px!important}
 .model-selector__option{min-width:0;display:flex;flex-direction:column;gap:2px;line-height:1.25}
 .model-selector__option>span{overflow:hidden;text-overflow:ellipsis;color:var(--da-text-primary,#e3e8ef);font-size:12px;font-weight:600;white-space:nowrap}
+.model-selector__option>span i{display:inline-flex;margin-left:5px;padding:1px 4px;border:1px solid rgba(143,166,232,.22);border-radius:4px;color:var(--da-accent-blue,#8fa6e8);font-size:8px;font-style:normal;font-weight:700;vertical-align:1px}
 .model-selector__option>small{overflow:hidden;text-overflow:ellipsis;color:var(--da-text-muted,#a4afbf);font-size:10px;white-space:nowrap}
 </style>
