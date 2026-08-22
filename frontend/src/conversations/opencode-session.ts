@@ -24,8 +24,7 @@ export async function createOpenCodeConversation(): Promise<string> {
     throw new Error(`新建对话失败${body?.message ? `：${body.message}` : ''}`)
   }
 
-  // Current backend envelope:
-  // { code: 20000, data: { data: { id: 'ses_...' } } }
+  // Backend response: { code: 20000, data: { data: { id: 'ses_...' } } }
   const sessionId = body?.data?.data?.id
     ?? body?.data?.id
     ?? body?.data?.sessionId
