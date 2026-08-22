@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
           target: proxyTarget,
           changeOrigin: true,
         },
-        '/dataagent/opencode': {
+        '/dataagent/web/opencode': {
           target: proxyTarget,
           changeOrigin: true,
         },
