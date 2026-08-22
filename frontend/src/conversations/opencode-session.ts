@@ -1,4 +1,4 @@
-const CREATE_CONVERSATION_URL = '/dataagent/opencode/api/session'
+const CREATE_CONVERSATION_URL = '/dataagent/web/opencode/api/session'
 
 export async function createOpenCodeConversation(): Promise<string> {
   const response = await fetch(CREATE_CONVERSATION_URL, {
