@@ -1,0 +1,136 @@
+/* Composer polish: keep CopilotKit behavior, visually place the model control beside send. */
+.conversation-composer {
+  position: relative !important;
+  overflow: visible !important;
+  border: 1px solid rgba(171, 191, 211, .18) !important;
+  border-radius: 18px !important;
+  background: linear-gradient(180deg, rgba(18, 28, 40, .98), rgba(14, 23, 33, .99)) !important;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, .2), 0 1px 0 rgba(255, 255, 255, .025) inset !important;
+  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease !important;
+}
+
+.conversation-composer:focus-within {
+  border-color: rgba(143, 166, 232, .38) !important;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, .23), 0 0 0 3px rgba(143, 166, 232, .055), 0 1px 0 rgba(255, 255, 255, .035) inset !important;
+}
+
+.conversation-composer .conversation-composer__controls {
+  position: absolute !important;
+  z-index: 12 !important;
+  right: 70px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  pointer-events: auto;
+}
+
+.conversation-composer .conversation-composer__controls > span { display: none !important; }
+
+.conversation-composer:has([data-testid="copilot-chat-input-shell"][data-layout="compact"]) .conversation-composer__controls {
+  top: 50% !important;
+  bottom: auto !important;
+  transform: translateY(-50%) !important;
+}
+
+.conversation-composer:has([data-testid="copilot-chat-input-shell"][data-layout="expanded"]) .conversation-composer__controls {
+  top: auto !important;
+  bottom: 10px !important;
+  transform: none !important;
+}
+
+.conversation-composer .model-selector {
+  height: 32px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-color: rgba(171, 191, 211, .15) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .018)) !important;
+  backdrop-filter: blur(10px);
+}
+
+.conversation-composer [data-testid="copilot-chat-input-container"] > div {
+  max-width: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.conversation-composer [data-testid="copilot-chat-input-shell"] {
+  border-radius: 18px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.conversation-composer [data-testid="copilot-chat-input-shell"] > div {
+  padding: 8px 10px 8px 11px !important;
+  column-gap: 9px !important;
+  row-gap: 7px !important;
+}
+
+.conversation-composer [data-testid="copilot-chat-input-textarea"] {
+  min-height: 48px !important;
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  color: var(--da-text-primary, #e3e8ef) !important;
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+  letter-spacing: -.005em !important;
+  caret-color: var(--da-accent-cyan, #73cbd6) !important;
+}
+
+.conversation-composer [data-testid="copilot-chat-input-textarea"]::placeholder {
+  color: rgba(164, 175, 191, .67) !important;
+}
+
+.conversation-composer [data-testid="copilot-chat-input-shell"][data-layout="compact"] [data-testid="copilot-chat-input-textarea"] {
+  padding-right: 228px !important;
+}
+
+.conversation-composer [data-testid="copilot-chat-input-shell"][data-layout="expanded"] [data-testid="copilot-chat-input-textarea"] {
+  padding-left: 13px !important;
+  padding-right: 13px !important;
+}
+
+.conversation-composer [data-testid="copilot-chat-input-add"] {
+  width: 34px !important;
+  height: 34px !important;
+  margin-left: 0 !important;
+  border: 1px solid transparent !important;
+  color: var(--da-text-muted, #a4afbf) !important;
+}
+
+.conversation-composer [data-testid="copilot-chat-input-add"]:hover:not(:disabled) {
+  border-color: rgba(171, 191, 211, .13) !important;
+  background: rgba(255, 255, 255, .038) !important;
+  color: var(--da-text-primary, #e3e8ef) !important;
+}
+
+.conversation-composer [data-testid="copilot-chat-input-send"] {
+  width: 36px !important;
+  height: 36px !important;
+  border: 1px solid rgba(143, 166, 232, .28) !important;
+  background: linear-gradient(145deg, #9caee9, #7f98df) !important;
+  color: #0b1119 !important;
+  box-shadow: 0 5px 14px rgba(74, 97, 160, .22), 0 1px 0 rgba(255, 255, 255, .22) inset !important;
+  transition: transform .15s ease, filter .15s ease, box-shadow .15s ease !important;
+}
+
+.conversation-composer [data-testid="copilot-chat-input-send"]:hover:not(:disabled) {
+  filter: brightness(1.07) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 7px 18px rgba(74, 97, 160, .28), 0 1px 0 rgba(255, 255, 255, .25) inset !important;
+}
+
+.conversation-composer [data-testid="copilot-chat-input-send"]:active:not(:disabled) { transform: translateY(0) scale(.97); }
+
+.conversation-composer [data-testid="copilot-chat-input-send"]:disabled {
+  border-color: rgba(171, 191, 211, .1) !important;
+  background: rgba(171, 191, 211, .08) !important;
+  color: rgba(196, 204, 215, .42) !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 760px) {
+  .conversation-composer .conversation-composer__controls { right: 66px !important; }
+  .conversation-composer [data-testid="copilot-chat-input-shell"] > div { padding-left: 8px !important; padding-right: 8px !important; }
+  .conversation-composer .model-selector__mark { display: none !important; }
+}
