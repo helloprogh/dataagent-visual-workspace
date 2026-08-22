@@ -29,7 +29,7 @@ const readJsonBody = async (req) => {
   }
 }
 
-export const createOpenCodeManagementHandler = (client) => async (req, res, url) => {
+export const createOpenCodeManagementHandler = (client, options = {}) => async (req, res, url) => {
   if (!url.pathname.startsWith('/api/opencode/')) return false
   try {
     if (req.method === 'GET' && url.pathname === '/api/opencode/health') {
@@ -37,14 +37,12 @@ export const createOpenCodeManagementHandler = (client) => async (req, res, url)
       return true
     }
 
-    if (req.method === 'GET' && url.pathname === '/api/opencode/models') {
-      const result = await client.listModels()
-      const data = Array.isArray(result)
-        ? result
-        : Array.isArray(result?.models)
-          ? result.models
-          : []
-      sendJson(res, 200, { data })
+    if (req.method === 'POST' && url.pathname === '/api/opencode/thread-session') {
+      const body = await readJsonBody(req)
+      if (typeof body.threadId !== 'string' || !body.threadId.trim()) throw new HttpError(400, 'threadId is required')
+      if (typeof options.resolveThreadSession !== 'function') throw new HttpError(501, 'Thread session resolution is unavailable')
+      const sessionId = await options.resolveThreadSession(body.threadId)
+      sendJson(res, 200, { data: { sessionId } })
       return true
     }
 
