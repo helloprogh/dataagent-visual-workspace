@@ -114,15 +114,6 @@ export class OpenCodeClient {
     return this.json(`/api/skill${suffix}`, {}, 'Unable to list OpenCode skills')
   }
 
-  async listModels() {
-    try {
-      return await this.json('/api/catalog/model', {}, 'Unable to list OpenCode models')
-    } catch (error) {
-      if (!error.message.includes('(404)')) throw error
-      return this.json('/api/model', {}, 'Unable to list OpenCode models')
-    }
-  }
-
   async listProjects() {
     return this.json('/api/project', {}, 'Unable to list OpenCode projects')
   }
@@ -157,15 +148,11 @@ export class OpenCodeClient {
     }, 'Unable to delete OpenCode workspace')
   }
 
-  async prompt(sessionId, text, metadata = {}, model) {
+  async prompt(sessionId, text, metadata = {}) {
     return this.json(`/api/session/${encodeURIComponent(sessionId)}/prompt`, {
       method: 'POST',
       headers: jsonHeaders,
-      body: JSON.stringify({
-        text,
-        metadata,
-        ...(model ? { model } : {}),
-      }),
+      body: JSON.stringify({ text, metadata }),
     }, 'OpenCode prompt failed')
   }
 
@@ -194,7 +181,7 @@ export class OpenCodeClient {
   async disconnectMcp(server) {
     return this.json(`/api/mcp/${encodeURIComponent(server)}/disconnect`, {
       method: 'POST',
-    }, 'Unable to disconnect AG-UI frontend MCP server')
+    }, 'Unable to disconnect OpenCode MCP server')
   }
 
   async listMcp() {
