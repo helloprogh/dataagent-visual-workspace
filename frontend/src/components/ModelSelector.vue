@@ -4,8 +4,10 @@ import { ElMessage } from 'element-plus'
 import {
   getDefaultModel,
   listAvailableModels,
-  storedModelForThread,
-  switchThreadModel,
+  selectedModel,
+  selectModel,
+  setSelectedModel,
+  syncSelectedModel,
   type ModelCatalogItem,
   type ModelSelection,
 } from '../model/model-selection'
@@ -17,7 +19,6 @@ const props = defineProps<{
 
 const models = ref<ModelCatalogItem[]>([])
 const defaultModel = ref<ModelCatalogItem | null>(null)
-const currentModel = ref<ModelSelection | null>(null)
 const loading = ref(false)
 const switching = ref(false)
 const loadError = ref('')
@@ -37,7 +38,7 @@ const providerNames: Record<string, string> = {
 }
 
 const keyOf = (providerID: string, id: string) => JSON.stringify([providerID, id])
-const selectedKey = computed(() => currentModel.value ? keyOf(currentModel.value.providerID, currentModel.value.id) : '')
+const selectedKey = computed(() => selectedModel.value ? keyOf(selectedModel.value.providerID, selectedModel.value.id) : '')
 
 const selectableModels = computed(() => {
   const result = [...models.value]
@@ -74,18 +75,16 @@ function selectionFromKey(value: string): ModelSelection | null {
   return null
 }
 
-async function selectModel(value: string) {
+async function handleSelect(value: string) {
   const next = selectionFromKey(value)
   if (!next || switching.value || props.disabled) return
-  const previous = currentModel.value
+  const previous = selectedModel.value
   if (previous?.providerID === next.providerID && previous.id === next.id) return
 
   switching.value = true
   try {
-    await switchThreadModel(props.threadId, next)
-    currentModel.value = next
+    await selectModel(props.threadId, next)
   } catch (error) {
-    currentModel.value = previous
     ElMessage.error(error instanceof Error ? error.message : String(error))
   } finally {
     switching.value = false
@@ -103,12 +102,13 @@ async function loadModels() {
     models.value = catalog
     defaultModel.value = fallback
 
-    const stored = storedModelForThread(props.threadId)
-    const candidate = stored ?? fallback
-    if (candidate) {
-      currentModel.value = candidate
-    } else {
-      currentModel.value = null
+    const current = selectedModel.value
+    const exists = current && selectableModels.value.some(item => item.providerID === current.providerID && item.id === current.id)
+    if (!exists) setSelectedModel(fallback)
+
+    if (selectedModel.value && fallback
+      && (selectedModel.value.providerID !== fallback.providerID || selectedModel.value.id !== fallback.id)) {
+      await syncSelectedModel(props.threadId)
     }
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : String(error)
@@ -117,12 +117,23 @@ async function loadModels() {
   }
 }
 
-watch(() => props.threadId, loadModels)
+watch(() => props.threadId, async () => {
+  if (!selectedModel.value) return
+  switching.value = true
+  try {
+    await syncSelectedModel(props.threadId)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : String(error))
+  } finally {
+    switching.value = false
+  }
+})
+
 onMounted(loadModels)
 </script>
 
 <template>
-  <div class="model-selector" :title="loadError || '切换当前会话模型'">
+  <div class="model-selector" :title="loadError || '切换当前模型'">
     <span class="model-selector__icon" aria-hidden="true">◇</span>
     <el-select
       :model-value="selectedKey"
@@ -132,8 +143,8 @@ onMounted(loadModels)
       filterable
       :disabled="disabled || switching || Boolean(loadError && !models.length)"
       placeholder="加载默认模型…"
-      aria-label="切换当前会话模型"
-      @change="selectModel"
+      aria-label="切换当前模型"
+      @change="handleSelect"
     >
       <el-option-group v-for="group in groups" :key="group.providerID" :label="group.label">
         <el-option
