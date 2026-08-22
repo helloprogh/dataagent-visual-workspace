@@ -1,9 +1,8 @@
 import type { Interrupt, Message, State } from '@ag-ui/client'
 import type { ConversationRecord, ConversationRepository } from './types'
 
-const STORAGE_KEY = 'dataagent.conversations.v2.agui'
+const STORAGE_KEY = 'dataagent.conversations.v3.session-thread'
 const DEFAULT_NAME = '新需求'
-const ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -14,12 +13,6 @@ export function compactReasoningMessages(messages: Message[]): Message[] {
     if (message.role !== 'reasoning') return true
     return typeof message.content === 'string' && message.content.trim().length > 0
   })
-}
-
-export function createThreadId(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(26))
-  const suffix = Array.from(bytes, value => ALPHABET[value % ALPHABET.length]).join('')
-  return `thread-${suffix}`
 }
 
 function readAll(): ConversationRecord[] {
@@ -47,10 +40,15 @@ export class LocalConversationRepository implements ConversationRepository {
     return found ? clone({ ...found, messages: compactReasoningMessages(found.messages) }) : undefined
   }
 
-  create(displayName = DEFAULT_NAME): ConversationRecord {
+  create(id: string, displayName = DEFAULT_NAME): ConversationRecord {
+    const sessionId = id.trim()
+    if (!sessionId) throw new Error('sessionId is required')
+    const existing = readAll().find(item => item.id === sessionId)
+    if (existing) return clone(existing)
+
     const now = Date.now()
     const record: ConversationRecord = {
-      id: createThreadId(),
+      id: sessionId,
       displayName,
       messages: [],
       state: {},

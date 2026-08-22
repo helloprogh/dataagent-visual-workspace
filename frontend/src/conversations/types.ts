@@ -13,7 +13,7 @@ export interface ConversationRecord {
 export interface ConversationRepository {
   list(): ConversationRecord[]
   get(id: string): ConversationRecord | undefined
-  create(displayName?: string): ConversationRecord
+  create(id: string, displayName?: string): ConversationRecord
   rename(id: string, displayName: string): void
   saveSnapshot(id: string, messages: Message[], state: State): void
   saveInterrupts(id: string, interrupts: Interrupt[]): void

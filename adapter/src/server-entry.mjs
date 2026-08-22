@@ -12,7 +12,18 @@ const isDirectSkillApi = (req, url) => {
   return false
 }
 
-const proxyDirectSkillApi = async (client, req, res, url) => {
+const isDirectModelApi = (req, url) => {
+  if (req.method === 'GET' && url.pathname === '/dataagent/opencode/api/model') return true
+  if (req.method === 'GET' && url.pathname === '/dataagent/opencode/api/model/default') return true
+  if (req.method === 'POST' && /^\/dataagent\/opencode\/api\/session\/[^/]+\/model$/.test(url.pathname)) return true
+  return false
+}
+
+const isDirectConversationApi = (req, url) => (
+  req.method === 'POST' && url.pathname === '/dataseek/web/opencode/api/create'
+)
+
+const proxyDirectApi = async (client, req, res, url, prefix) => {
   const headers = new Headers()
   for (const [key, value] of Object.entries(req.headers)) {
     if (key === 'host' || value == null) continue
@@ -29,7 +40,7 @@ const proxyDirectSkillApi = async (client, req, res, url) => {
     init.duplex = 'half'
   }
 
-  const upstreamPath = `${url.pathname.slice('/opencode'.length)}${url.search}`
+  const upstreamPath = `${url.pathname.slice(prefix.length)}${url.search}`
   const upstream = await client.request(upstreamPath, init)
   const responseHeaders = {}
   const contentType = upstream.headers.get('content-type')
@@ -53,7 +64,17 @@ export const createServer = () => {
 
     try {
       if (isDirectSkillApi(req, url)) {
-        await proxyDirectSkillApi(client, req, res, url)
+        await proxyDirectApi(client, req, res, url, '/opencode')
+        return
+      }
+
+      if (isDirectModelApi(req, url)) {
+        await proxyDirectApi(client, req, res, url, '/dataagent/opencode')
+        return
+      }
+
+      if (isDirectConversationApi(req, url)) {
+        await proxyDirectApi(client, req, res, url, '/dataseek/web/opencode')
         return
       }
 

@@ -174,7 +174,8 @@ const ensureFrontendTools = async (threadId, tools, adapterBaseUrl) => {
   mcpRegistrations.set(serverName, signature)
 }
 
-const resolveSession = async (threadId) => {
+export const resolveOpenCodeSession = async (threadId) => {
+  if (typeof threadId !== 'string' || !threadId.trim()) throw new Error('threadId is required')
   const mapped = await registry.get(threadId)
   if (mapped?.sessionId) {
     try {
@@ -218,7 +219,7 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl, language } = {}) => 
     const resume = Array.isArray(input.resume) ? input.resume : []
     if (!text && !attachments.length && !results.length && !resume.length) throw new Error('RunAgentInput does not contain a user message, attachment, tool result, or resume entry')
     await ensureFrontendTools(input.threadId, input.tools ?? [], adapterBaseUrl)
-    const sessionId = await resolveSession(input.threadId)
+    const sessionId = await resolveOpenCodeSession(input.threadId)
     const pending = await registry.pendingInterrupts(input.threadId)
     const converter = new OpenCodeAguiConverter({
       threadId: input.threadId,

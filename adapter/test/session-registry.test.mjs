@@ -5,6 +5,18 @@ import path from 'node:path'
 import test from 'node:test'
 import { SessionRegistry } from '../src/session-registry.mjs'
 
+test('uses a server-created session id directly as the AG-UI thread id', async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'dataagent-session-registry-'))
+  const file = path.join(directory, 'thread-sessions.json')
+  t.after(() => rm(directory, { recursive: true, force: true }))
+
+  const registry = new SessionRegistry(file)
+  assert.deepEqual(await registry.get('session-created-by-api'), {
+    sessionId: 'session-created-by-api',
+    updatedAt: (await registry.get('session-created-by-api')).updatedAt,
+  })
+})
+
 test('persists pending interrupts and the latest resume receipt', async (t) => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'dataagent-session-registry-'))
   const file = path.join(directory, 'thread-sessions.json')

@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { CopilotChat, useAgent } from '@copilotkit/vue/v2'
+import { CopilotChat, CopilotChatInput, useAgent } from '@copilotkit/vue/v2'
 import type { AbstractAgent, Interrupt, ResumeEntry } from '@ag-ui/client'
 import { ElMessage } from 'element-plus'
 import { conversationRepository, deriveConversationName } from '../../conversations/local-repository'
 import { workspaceController } from '../../workspace/store'
+import ModelSelector from '../ModelSelector.vue'
 import ReasoningAwareAssistantMessage from './ReasoningAwareAssistantMessage.vue'
 import ReasoningProcessCard from './ReasoningProcessCard.vue'
 
@@ -223,6 +224,22 @@ onBeforeUnmount(() => {
       :throttle-ms="60"
       @submit-message="onSubmitMessage"
     >
+      <template #input="inputProps">
+        <div class="conversation-composer">
+          <div class="conversation-composer__controls">
+            <ModelSelector
+              :thread-id="threadId"
+              :disabled="Boolean(inputProps.isRunning) || hasInterrupts"
+            />
+            <span>当前会话模型</span>
+          </div>
+          <CopilotChatInput
+            v-bind="inputProps"
+            class="conversation-composer__input"
+            positioning="static"
+          />
+        </div>
+      </template>
       <template #assistant-message="{ message, messages, isRunning }">
         <ReasoningAwareAssistantMessage
           :message="message"
@@ -285,6 +302,13 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .conversation-chat{position:relative}
+.conversation-composer{overflow:hidden;border:1px solid var(--da-border-strong,rgba(171,191,211,.24));border-radius:14px;background:var(--da-surface-input,#111b27);box-shadow:0 8px 24px rgba(0,0,0,.17)}
+.conversation-composer__controls{height:36px;display:flex;align-items:center;gap:8px;padding:7px 10px 0;border-bottom:1px solid rgba(171,191,211,.09)}
+.conversation-composer__controls>span{color:var(--da-text-subtle,#8793a6);font-size:10px;letter-spacing:.02em}
+.conversation-composer :deep(.model-selector){height:26px;padding:0 5px;border-color:rgba(171,191,211,.12);background:rgba(255,255,255,.018)}
+.conversation-composer :deep(.model-selector__select){width:176px}
+.conversation-composer :deep([data-testid="copilot-chat-input-shell"]){border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
+.conversation-composer :deep([data-testid="copilot-chat-input-shell"]:focus-within){box-shadow:none!important}
 .agui-permission{position:absolute;z-index:12;left:14px;right:14px;bottom:102px;max-height:min(52%,390px);padding:13px;border:1px solid rgba(230,197,116,.34);border-radius:13px;background:linear-gradient(150deg,rgba(36,32,27,.985),rgba(23,24,31,.99));box-shadow:0 18px 48px rgba(0,0,0,.42),0 0 0 1px rgba(255,255,255,.025) inset;color:#f4f0e6;overflow:auto;backdrop-filter:blur(18px)}
 .agui-permission header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 1px 10px;border-bottom:1px solid rgba(230,197,116,.15)}
 .agui-permission header>div{display:flex;flex-direction:column;gap:4px}.agui-permission header span{color:#a99b7d;font-size:8px;font-weight:750;letter-spacing:.15em}.agui-permission header b{font-size:12px;font-weight:650}.agui-permission header i{font-style:normal;color:#e8c875;font-size:8px;letter-spacing:.1em}
@@ -315,5 +339,5 @@ onBeforeUnmount(() => {
 :deep([data-testid="copilot-chat-drop-overlay"] span){color:#e5cf91!important;font-size:10px!important;font-weight:700!important;letter-spacing:.06em!important}
 
 .has-interrupts :deep([data-testid="copilot-chat-input-shell"]){opacity:.48;pointer-events:none}.has-interrupts :deep([data-testid="copilot-chat-input-textarea"]){cursor:not-allowed}
-@media(max-width:540px){.agui-permission{left:8px;right:8px;bottom:96px}.permission-actions{flex-wrap:wrap}.permission-actions button.reject{margin-left:0}:deep([data-testid="copilot-chat-attachment-queue"]){padding-left:8px!important;padding-right:8px!important}:deep([data-testid="copilot-chat-attachment-item"][data-card-type="document"]){min-width:178px!important;max-width:100%!important}:deep([data-testid="copilot-chat-attachment-document-filename"]){max-width:145px!important}}
+@media(max-width:540px){.conversation-composer__controls>span{display:none}.conversation-composer :deep(.model-selector__select){width:132px}.agui-permission{left:8px;right:8px;bottom:96px}.permission-actions{flex-wrap:wrap}.permission-actions button.reject{margin-left:0}:deep([data-testid="copilot-chat-attachment-queue"]){padding-left:8px!important;padding-right:8px!important}:deep([data-testid="copilot-chat-attachment-item"][data-card-type="document"]){min-width:178px!important;max-width:100%!important}:deep([data-testid="copilot-chat-attachment-document-filename"]){max-width:145px!important}}
 </style>
