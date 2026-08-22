@@ -24,7 +24,15 @@ export class SessionRegistry {
 
   async get(threadId) {
     await this.ready
-    return this.sessions.get(threadId)
+    let record = this.sessions.get(threadId)
+    // New conversations are created by the frontend OpenCode create API and
+    // their returned sessionId is used directly as the AG-UI threadId.
+    // Keep an identity record only for adapter-local interrupt/resume state.
+    if (!record && typeof threadId === 'string' && threadId) {
+      record = { sessionId: threadId, updatedAt: Date.now() }
+      this.sessions.set(threadId, record)
+    }
+    return record
   }
 
   async set(threadId, sessionId) {
