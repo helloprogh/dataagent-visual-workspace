@@ -1,5 +1,5 @@
 import http from 'node:http'
-import { createServer as createAgentServer, resolveOpenCodeSession } from './server.mjs'
+import { createServer as createAgentServer } from './server.mjs'
 import { OpenCodeClient } from './opencode-client.mjs'
 import { createOpenCodeManagementHandler } from './opencode-management.mjs'
 
@@ -18,6 +18,10 @@ const isDirectModelApi = (req, url) => {
   if (req.method === 'POST' && /^\/dataagent\/opencode\/api\/session\/[^/]+\/model$/.test(url.pathname)) return true
   return false
 }
+
+const isDirectConversationApi = (req, url) => (
+  req.method === 'POST' && url.pathname === '/dataseek/web/opencode/api/create'
+)
 
 const proxyDirectApi = async (client, req, res, url, prefix) => {
   const headers = new Headers()
@@ -53,9 +57,7 @@ const proxyDirectApi = async (client, req, res, url, prefix) => {
 export const createServer = () => {
   const agentServer = createAgentServer()
   const client = new OpenCodeClient({ baseUrl: process.env.OPENCODE_BASE_URL })
-  const handleManagement = createOpenCodeManagementHandler(client, {
-    resolveThreadSession: resolveOpenCodeSession,
-  })
+  const handleManagement = createOpenCodeManagementHandler(client)
 
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host ?? '127.0.0.1'}`)
@@ -68,6 +70,11 @@ export const createServer = () => {
 
       if (isDirectModelApi(req, url)) {
         await proxyDirectApi(client, req, res, url, '/dataagent/opencode')
+        return
+      }
+
+      if (isDirectConversationApi(req, url)) {
+        await proxyDirectApi(client, req, res, url, '/dataseek/web/opencode')
         return
       }
 
