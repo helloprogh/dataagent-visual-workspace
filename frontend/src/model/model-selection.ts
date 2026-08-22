@@ -15,7 +15,6 @@ export type ModelCatalogItem = ModelSelection & {
 const STORAGE_KEY = 'dataagent.model.selection.v3'
 const MODEL_LIST_URL = '/dataagent/opencode/api/model'
 const DEFAULT_MODEL_URL = '/dataagent/opencode/api/model/default'
-const THREAD_SESSION_URL = '/api/opencode/thread-session'
 
 function isSelection(value: unknown): value is ModelSelection {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
@@ -107,19 +106,10 @@ export async function getDefaultModel(): Promise<ModelCatalogItem | null> {
   return normalizeModel(root?.model ?? root)
 }
 
-async function resolveSessionId(threadId: string): Promise<string> {
-  const body = await requestJson(THREAD_SESSION_URL, {
-    method: 'POST',
-    body: JSON.stringify({ threadId }),
-  }, '模型切换初始化失败')
-  const sessionId = body?.data?.sessionId ?? body?.sessionId
-  if (typeof sessionId !== 'string' || !sessionId) throw new Error('模型切换初始化失败：未返回 sessionId')
-  return sessionId
-}
-
-async function applyModel(threadId: string, model: ModelSelection) {
-  const sessionId = await resolveSessionId(threadId)
-  await requestJson(`/dataagent/opencode/api/session/${encodeURIComponent(sessionId)}/model`, {
+async function applyModel(sessionId: string, model: ModelSelection) {
+  const id = sessionId.trim()
+  if (!id) throw new Error('模型切换失败：sessionId 为空')
+  await requestJson(`/dataagent/opencode/api/session/${encodeURIComponent(id)}/model`, {
     method: 'POST',
     body: JSON.stringify({
       model: {
@@ -130,12 +120,12 @@ async function applyModel(threadId: string, model: ModelSelection) {
   }, '模型切换失败')
 }
 
-export async function selectModel(threadId: string, model: ModelSelection) {
-  await applyModel(threadId, model)
+export async function selectModel(sessionId: string, model: ModelSelection) {
+  await applyModel(sessionId, model)
   setSelectedModel(model)
 }
 
-export async function syncSelectedModel(threadId: string) {
+export async function syncSelectedModel(sessionId: string) {
   if (!selectedModel.value) return
-  await applyModel(threadId, selectedModel.value)
+  await applyModel(sessionId, selectedModel.value)
 }
