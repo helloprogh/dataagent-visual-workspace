@@ -7,14 +7,17 @@ export type ModelSelection = {
 
 export type ModelCatalogItem = ModelSelection & {
   name: string
-  family?: string
   enabled?: boolean
-  available?: boolean
+  capabilities?: {
+    tools?: boolean
+    input?: string[]
+  }
 }
 
 const STORAGE_KEY = 'dataagent.model.selection.v3'
-const MODEL_LIST_URL = '/dataagent/opencode/api/model'
-const DEFAULT_MODEL_URL = '/dataagent/opencode/api/model/default'
+const MODEL_LIST_URL = '/dataagent/web/opencode/api/model'
+const DEFAULT_MODEL_URL = '/dataagent/web/opencode/api/model/default'
+const MODEL_API_BASE = '/dataagent/web/opencode/api'
 
 function isSelection(value: unknown): value is ModelSelection {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
@@ -47,17 +50,28 @@ export function setSelectedModel(model: ModelSelection | null) {
 function normalizeModel(value: unknown): ModelCatalogItem | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const item = value as Record<string, any>
-  const providerID = item.providerID ?? item.providerId ?? item.provider?.id ?? item.provider?.providerID
+  const rawProviderID = item.providerID ?? item.providerId ?? item.provider?.id ?? item.provider?.providerID
+  const providerID = typeof rawProviderID === 'string' && rawProviderID.trim()
+    ? rawProviderID.trim()
+    : 'local'
   const id = item.id ?? item.modelID ?? item.modelId
-  if (typeof providerID !== 'string' || typeof id !== 'string') return null
-  if (!providerID.trim() || !id.trim()) return null
+  if (typeof id !== 'string' || !id.trim()) return null
+
+  const capabilities = item.capabilities && typeof item.capabilities === 'object'
+    ? {
+        ...(typeof item.capabilities.tools === 'boolean' ? { tools: item.capabilities.tools } : {}),
+        ...(Array.isArray(item.capabilities.input)
+          ? { input: item.capabilities.input.filter((entry: unknown): entry is string => typeof entry === 'string') }
+          : {}),
+      }
+    : undefined
+
   return {
     providerID,
-    id,
+    id: id.trim(),
     name: String(item.name ?? item.displayName ?? item.title ?? id),
-    ...(typeof item.family === 'string' ? { family: item.family } : {}),
     ...(typeof item.enabled === 'boolean' ? { enabled: item.enabled } : {}),
-    ...(typeof item.available === 'boolean' ? { available: item.available } : {}),
+    ...(capabilities ? { capabilities } : {}),
   }
 }
 
@@ -85,31 +99,38 @@ async function requestJson(url: string, init: RequestInit = {}, action: string) 
   return response.json()
 }
 
+function unwrapModelData(body: any): unknown {
+  if (body?.data?.data != null) return body.data.data
+  if (body?.data != null) return body.data
+  return body
+}
+
 export async function listAvailableModels(): Promise<ModelCatalogItem[]> {
   const body = await requestJson(MODEL_LIST_URL, { method: 'GET' }, '模型列表加载失败')
-  const root = body?.data ?? body
+  const root = unwrapModelData(body)
   const source: unknown[] = Array.isArray(root)
     ? root
-    : Array.isArray(root?.models)
-      ? root.models
+    : Array.isArray((root as any)?.models)
+      ? (root as any).models
       : []
+
   return source
     .map(normalizeModel)
     .filter((item): item is ModelCatalogItem => Boolean(item))
-    .filter(item => item.enabled !== false && item.available !== false)
+    .filter(item => item.enabled !== false)
     .sort((left, right) => left.providerID.localeCompare(right.providerID) || left.name.localeCompare(right.name))
 }
 
 export async function getDefaultModel(): Promise<ModelCatalogItem | null> {
   const body = await requestJson(DEFAULT_MODEL_URL, { method: 'GET' }, '默认模型加载失败')
-  const root = body?.data ?? body
-  return normalizeModel(root?.model ?? root)
+  const root = unwrapModelData(body)
+  return normalizeModel((root as any)?.model ?? root)
 }
 
 async function applyModel(sessionId: string, model: ModelSelection) {
   const id = sessionId.trim()
   if (!id) throw new Error('模型切换失败：sessionId 为空')
-  await requestJson(`/dataagent/opencode/api/session/${encodeURIComponent(id)}/model`, {
+  await requestJson(`${MODEL_API_BASE}/session/${encodeURIComponent(id)}/model`, {
     method: 'POST',
     body: JSON.stringify({
       model: {
