@@ -13,10 +13,10 @@ const isDirectSkillApi = (req, url) => {
 }
 
 const isDirectOpenCodeApi = (req, url) => {
-  if (req.method === 'POST' && url.pathname === '/dataagent/opencode/api/session') return true
-  if (req.method === 'GET' && url.pathname === '/dataagent/opencode/api/model') return true
-  if (req.method === 'GET' && url.pathname === '/dataagent/opencode/api/model/default') return true
-  if (req.method === 'POST' && /^\/dataagent\/opencode\/api\/session\/[^/]+\/model$/.test(url.pathname)) return true
+  if (req.method === 'POST' && url.pathname === '/dataagent/web/opencode/api/session') return true
+  if (req.method === 'GET' && url.pathname === '/dataagent/web/opencode/api/model') return true
+  if (req.method === 'GET' && url.pathname === '/dataagent/web/opencode/api/model/default') return true
+  if (req.method === 'POST' && /^\/dataagent\/web\/opencode\/api\/session\/[^/]+\/model$/.test(url.pathname)) return true
   return false
 }
 
@@ -66,7 +66,7 @@ export const createServer = () => {
       }
 
       if (isDirectOpenCodeApi(req, url)) {
-        await proxyDirectApi(client, req, res, url, '/dataagent/opencode')
+        await proxyDirectApi(client, req, res, url, '/dataagent/web/opencode')
         return
       }
 
