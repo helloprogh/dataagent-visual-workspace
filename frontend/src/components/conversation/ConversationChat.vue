@@ -227,8 +227,11 @@ onBeforeUnmount(() => {
       <template #input="inputProps">
         <div class="conversation-composer">
           <div class="conversation-composer__controls">
-            <ModelSelector />
-            <span>下一条消息使用</span>
+            <ModelSelector
+              :thread-id="threadId"
+              :disabled="Boolean(inputProps.isRunning) || hasInterrupts"
+            />
+            <span>当前会话模型</span>
           </div>
           <CopilotChatInput
             v-bind="inputProps"
