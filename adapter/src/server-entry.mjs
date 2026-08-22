@@ -12,16 +12,13 @@ const isDirectSkillApi = (req, url) => {
   return false
 }
 
-const isDirectModelApi = (req, url) => {
+const isDirectOpenCodeApi = (req, url) => {
+  if (req.method === 'POST' && url.pathname === '/dataagent/opencode/api/session') return true
   if (req.method === 'GET' && url.pathname === '/dataagent/opencode/api/model') return true
   if (req.method === 'GET' && url.pathname === '/dataagent/opencode/api/model/default') return true
   if (req.method === 'POST' && /^\/dataagent\/opencode\/api\/session\/[^/]+\/model$/.test(url.pathname)) return true
   return false
 }
-
-const isDirectConversationApi = (req, url) => (
-  req.method === 'POST' && url.pathname === '/dataseek/web/opencode/api/create'
-)
 
 const proxyDirectApi = async (client, req, res, url, prefix) => {
   const headers = new Headers()
@@ -68,13 +65,8 @@ export const createServer = () => {
         return
       }
 
-      if (isDirectModelApi(req, url)) {
+      if (isDirectOpenCodeApi(req, url)) {
         await proxyDirectApi(client, req, res, url, '/dataagent/opencode')
-        return
-      }
-
-      if (isDirectConversationApi(req, url)) {
-        await proxyDirectApi(client, req, res, url, '/dataseek/web/opencode')
         return
       }
 
