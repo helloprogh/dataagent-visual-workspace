@@ -1,3 +1,5 @@
+import { ref } from 'vue'
+
 export type ModelSelection = {
   providerID: string
   id: string
@@ -10,21 +12,10 @@ export type ModelCatalogItem = ModelSelection & {
   available?: boolean
 }
 
-const STORAGE_KEY = 'dataagent.model.selection.by-thread.v2'
+const STORAGE_KEY = 'dataagent.model.selection.v3'
 const MODEL_LIST_URL = '/dataagent/opencode/api/model'
 const DEFAULT_MODEL_URL = '/dataagent/opencode/api/model/default'
 const THREAD_SESSION_URL = '/api/opencode/thread-session'
-
-function readStoredSelections(): Record<string, ModelSelection> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return {}
-    const value = JSON.parse(raw)
-    return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
-  } catch {
-    return {}
-  }
-}
 
 function isSelection(value: unknown): value is ModelSelection {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
@@ -35,15 +26,23 @@ function isSelection(value: unknown): value is ModelSelection {
     && Boolean(item.id.trim())
 }
 
-export function storedModelForThread(threadId: string): ModelSelection | null {
-  const value = readStoredSelections()[threadId]
-  return isSelection(value) ? { providerID: value.providerID, id: value.id } : null
+function readStoredSelection(): ModelSelection | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const value = JSON.parse(raw)
+    return isSelection(value) ? { providerID: value.providerID, id: value.id } : null
+  } catch {
+    return null
+  }
 }
 
-function rememberModelForThread(threadId: string, model: ModelSelection) {
-  const selections = readStoredSelections()
-  selections[threadId] = model
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(selections))
+export const selectedModel = ref<ModelSelection | null>(readStoredSelection())
+
+export function setSelectedModel(model: ModelSelection | null) {
+  selectedModel.value = model
+  if (model) localStorage.setItem(STORAGE_KEY, JSON.stringify(model))
+  else localStorage.removeItem(STORAGE_KEY)
 }
 
 function normalizeModel(value: unknown): ModelCatalogItem | null {
@@ -112,13 +111,13 @@ async function resolveSessionId(threadId: string): Promise<string> {
   const body = await requestJson(THREAD_SESSION_URL, {
     method: 'POST',
     body: JSON.stringify({ threadId }),
-  }, '会话模型初始化失败')
+  }, '模型切换初始化失败')
   const sessionId = body?.data?.sessionId ?? body?.sessionId
-  if (typeof sessionId !== 'string' || !sessionId) throw new Error('会话模型初始化失败：未返回 sessionId')
+  if (typeof sessionId !== 'string' || !sessionId) throw new Error('模型切换初始化失败：未返回 sessionId')
   return sessionId
 }
 
-export async function switchThreadModel(threadId: string, model: ModelSelection) {
+async function applyModel(threadId: string, model: ModelSelection) {
   const sessionId = await resolveSessionId(threadId)
   await requestJson(`/dataagent/opencode/api/session/${encodeURIComponent(sessionId)}/model`, {
     method: 'POST',
@@ -129,5 +128,14 @@ export async function switchThreadModel(threadId: string, model: ModelSelection)
       },
     }),
   }, '模型切换失败')
-  rememberModelForThread(threadId, model)
+}
+
+export async function selectModel(threadId: string, model: ModelSelection) {
+  await applyModel(threadId, model)
+  setSelectedModel(model)
+}
+
+export async function syncSelectedModel(threadId: string) {
+  if (!selectedModel.value) return
+  await applyModel(threadId, selectedModel.value)
 }
