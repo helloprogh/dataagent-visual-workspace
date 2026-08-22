@@ -75,6 +75,11 @@ function selectionFromKey(value: string): ModelSelection | null {
   return null
 }
 
+function supports(model: ModelCatalogItem, capability: 'tools' | 'image') {
+  if (capability === 'tools') return model.capabilities?.tools === true
+  return model.capabilities?.input?.includes('image') === true
+}
+
 async function handleSelect(value: string) {
   const next = selectionFromKey(value)
   if (!next || switching.value || props.disabled) return
@@ -133,8 +138,8 @@ onMounted(loadModels)
 </script>
 
 <template>
-  <div class="model-selector" :title="loadError || '切换当前模型'">
-    <span class="model-selector__icon" aria-hidden="true">◇</span>
+  <div class="model-selector" :class="{ 'model-selector--error': loadError }" :title="loadError || '切换模型'">
+    <span class="model-selector__mark" aria-hidden="true"><i></i></span>
     <el-select
       :model-value="selectedKey"
       class="model-selector__select"
@@ -142,8 +147,8 @@ onMounted(loadModels)
       :loading="loading || switching"
       filterable
       :disabled="disabled || switching || Boolean(loadError && !models.length)"
-      placeholder="加载默认模型…"
-      aria-label="切换当前模型"
+      placeholder="选择模型"
+      aria-label="切换模型"
       @change="handleSelect"
     >
       <el-option-group v-for="group in groups" :key="group.providerID" :label="group.label">
@@ -154,36 +159,51 @@ onMounted(loadModels)
           :value="keyOf(model.providerID, model.id)"
         >
           <div class="model-selector__option">
-            <span>
-              {{ model.name }}
+            <div class="model-selector__option-main">
+              <span>{{ model.name }}</span>
               <i v-if="defaultModel && model.providerID === defaultModel.providerID && model.id === defaultModel.id">默认</i>
-            </span>
-            <small>{{ model.id }}</small>
+            </div>
+            <div class="model-selector__option-meta">
+              <small>{{ model.id }}</small>
+              <em v-if="supports(model, 'tools')">TOOLS</em>
+              <em v-if="supports(model, 'image')">VISION</em>
+            </div>
           </div>
         </el-option>
       </el-option-group>
     </el-select>
-    <button v-if="loadError" class="model-selector__retry" type="button" title="重新加载模型" @click="loadModels">↻</button>
+    <button v-if="loadError" class="model-selector__retry" type="button" title="重新加载模型" @click.stop="loadModels">↻</button>
   </div>
 </template>
 
 <style scoped>
-.model-selector{height:32px;display:flex;align-items:center;gap:6px;padding:0 7px;border:1px solid var(--da-border,rgba(171,191,211,.16));border-radius:8px;background:rgba(255,255,255,.022)}
-.model-selector__icon{flex:none;color:var(--da-accent-blue,#8fa6e8);font-size:12px;line-height:1}
-.model-selector__select{width:190px}
-.model-selector__select :deep(.el-select__wrapper){min-height:28px!important;padding:0 5px!important;background:transparent!important;box-shadow:none!important}
-.model-selector__select :deep(.el-select__selected-item){max-width:152px;color:var(--da-text-secondary,#c4ccd7)!important;font-size:11.5px;font-weight:600}
+.model-selector{height:32px;display:flex;align-items:center;gap:5px;padding:0 7px 0 8px;border:1px solid rgba(171,191,211,.15);border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.018));box-shadow:0 1px 0 rgba(255,255,255,.025) inset;transition:border-color .16s ease,background .16s ease,box-shadow .16s ease}
+.model-selector:hover{border-color:rgba(143,166,232,.3);background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.026))}
+.model-selector:focus-within{border-color:rgba(143,166,232,.43);box-shadow:0 0 0 3px rgba(143,166,232,.07)}
+.model-selector--error{border-color:rgba(232,132,146,.28)}
+.model-selector__mark{position:relative;width:13px;height:13px;display:grid;place-items:center;flex:none;border:1px solid rgba(115,203,214,.34);border-radius:4px;background:rgba(115,203,214,.07);transform:rotate(45deg)}
+.model-selector__mark i{width:3px;height:3px;border-radius:50%;background:var(--da-accent-cyan,#73cbd6);box-shadow:0 0 7px rgba(115,203,214,.42)}
+.model-selector__select{width:158px}
+.model-selector__select :deep(.el-select__wrapper){min-height:28px!important;padding:0 3px!important;background:transparent!important;box-shadow:none!important}
+.model-selector__select :deep(.el-select__selected-item){max-width:126px;color:var(--da-text-secondary,#c4ccd7)!important;font-size:11.5px;font-weight:650;letter-spacing:-.01em}
 .model-selector__select :deep(.el-select__placeholder){color:var(--da-text-muted,#a4afbf)!important;font-size:11.5px}
-.model-selector__retry{width:24px;height:24px;display:grid;place-items:center;border:0;border-radius:6px;background:transparent;color:var(--da-text-muted,#a4afbf);cursor:pointer}
-.model-selector__retry:hover{background:rgba(255,255,255,.045);color:var(--da-text-primary,#e3e8ef)}
-@media(max-width:760px){.model-selector__select{width:130px}.model-selector__select :deep(.el-select__selected-item){max-width:96px}}
+.model-selector__select :deep(.el-select__caret){color:var(--da-text-subtle,#8793a6)!important;font-size:12px}
+.model-selector__retry{width:22px;height:22px;display:grid;place-items:center;flex:none;border:0;border-radius:6px;background:rgba(232,132,146,.07);color:var(--da-accent-red,#e88492);font-size:12px;cursor:pointer}
+.model-selector__retry:hover{background:rgba(232,132,146,.13)}
+@media(max-width:760px){.model-selector{padding-left:7px}.model-selector__select{width:116px}.model-selector__select :deep(.el-select__selected-item){max-width:84px}}
 </style>
 
 <style>
-.model-selector-popper .el-select-group__title{color:var(--da-text-muted,#a4afbf)!important;font-size:10px!important;font-weight:700!important;letter-spacing:.05em}
-.model-selector-popper .el-select-dropdown__item{height:auto!important;min-height:36px!important;padding:6px 12px!important}
-.model-selector__option{min-width:0;display:flex;flex-direction:column;gap:2px;line-height:1.25}
-.model-selector__option>span{overflow:hidden;text-overflow:ellipsis;color:var(--da-text-primary,#e3e8ef);font-size:12px;font-weight:600;white-space:nowrap}
-.model-selector__option>span i{display:inline-flex;margin-left:5px;padding:1px 4px;border:1px solid rgba(143,166,232,.22);border-radius:4px;color:var(--da-accent-blue,#8fa6e8);font-size:8px;font-style:normal;font-weight:700;vertical-align:1px}
-.model-selector__option>small{overflow:hidden;text-overflow:ellipsis;color:var(--da-text-muted,#a4afbf);font-size:10px;white-space:nowrap}
+.model-selector-popper{border:1px solid rgba(171,191,211,.16)!important;border-radius:12px!important;background:#101923!important;box-shadow:0 18px 42px rgba(0,0,0,.36)!important}
+.model-selector-popper .el-select-group__title{padding:8px 12px 5px!important;color:var(--da-text-subtle,#8793a6)!important;font-size:9px!important;font-weight:750!important;letter-spacing:.11em;text-transform:uppercase}
+.model-selector-popper .el-select-dropdown__item{height:auto!important;min-height:48px!important;margin:2px 5px!important;padding:7px 9px!important;border-radius:8px!important}
+.model-selector-popper .el-select-dropdown__item.is-selected{background:rgba(143,166,232,.1)!important}
+.model-selector-popper .el-select-dropdown__item:hover,.model-selector-popper .el-select-dropdown__item.is-hovering{background:rgba(255,255,255,.045)!important}
+.model-selector__option{min-width:0;display:flex;flex-direction:column;gap:4px;line-height:1.2}
+.model-selector__option-main{display:flex;align-items:center;min-width:0;gap:6px}
+.model-selector__option-main>span{overflow:hidden;text-overflow:ellipsis;color:var(--da-text-primary,#e3e8ef);font-size:12px;font-weight:650;white-space:nowrap}
+.model-selector__option-main>i{display:inline-flex;padding:1px 5px;border:1px solid rgba(143,166,232,.22);border-radius:5px;color:var(--da-accent-blue,#8fa6e8);font-size:8px;font-style:normal;font-weight:750}
+.model-selector__option-meta{display:flex;align-items:center;gap:5px;min-width:0}
+.model-selector__option-meta>small{max-width:210px;overflow:hidden;text-overflow:ellipsis;color:var(--da-text-subtle,#8793a6);font-size:9.5px;white-space:nowrap}
+.model-selector__option-meta>em{padding:1px 4px;border-radius:4px;background:rgba(115,203,214,.07);color:#8eced6;font-size:7px;font-style:normal;font-weight:750;letter-spacing:.05em}
 </style>
