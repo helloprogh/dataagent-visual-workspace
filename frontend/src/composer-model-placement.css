@@ -1,6 +1,7 @@
 /* Composer polish: one visual surface, CopilotKit keeps all behavior. */
 .conversation-composer {
   position: relative !important;
+  min-height: 112px !important;
   overflow: visible !important;
   border: 1px solid rgba(171, 191, 211, .17) !important;
   border-radius: 18px !important;
@@ -15,38 +16,29 @@
   box-shadow: 0 10px 30px rgba(0, 0, 0, .18), 0 1px 0 rgba(255, 255, 255, .022) inset !important;
 }
 
-/* The model control belongs to the composer toolbar rather than looking like a card. */
+/* Second row, right side: model control immediately before Send/Stop. */
 .conversation-composer .conversation-composer__controls {
   position: absolute !important;
   z-index: 12 !important;
-  right: 66px !important;
-  height: 32px !important;
+  top: auto !important;
+  right: 58px !important;
+  bottom: 10px !important;
+  height: 34px !important;
   display: flex !important;
   align-items: center !important;
   padding: 0 !important;
   border: 0 !important;
   background: transparent !important;
   pointer-events: auto;
+  transform: none !important;
 }
 
 .conversation-composer .conversation-composer__controls > span { display: none !important; }
 
-.conversation-composer:has([data-testid="copilot-chat-input-shell"][data-layout="compact"]) .conversation-composer__controls {
-  top: 50% !important;
-  bottom: auto !important;
-  transform: translateY(-50%) !important;
-}
-
-.conversation-composer:has([data-testid="copilot-chat-input-shell"][data-layout="expanded"]) .conversation-composer__controls {
-  top: auto !important;
-  bottom: 10px !important;
-  transform: none !important;
-}
-
 .conversation-composer .model-selector,
 .conversation-composer .model-selector:hover,
 .conversation-composer .model-selector:focus-within {
-  height: 32px !important;
+  height: 34px !important;
   padding: 0 5px !important;
   border: 0 !important;
   border-radius: 8px !important;
@@ -101,6 +93,7 @@
 .conversation-composer [data-testid="copilot-chat-input-shell"]:focus-within {
   position: relative !important;
   width: 100% !important;
+  min-height: 110px !important;
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
@@ -108,16 +101,20 @@
 }
 
 .conversation-composer [data-testid="copilot-chat-input-shell"] > div {
-  padding: 8px 10px 8px 11px !important;
+  position: relative !important;
+  min-height: 110px !important;
+  padding: 10px 10px 52px 11px !important;
   column-gap: 8px !important;
   row-gap: 6px !important;
   background: transparent !important;
 }
 
+/* First row: text gets the full content width. */
 .conversation-composer [data-testid="copilot-chat-input-textarea"] {
+  width: 100% !important;
   min-height: 48px !important;
-  padding-top: 12px !important;
-  padding-bottom: 12px !important;
+  max-height: 150px !important;
+  padding: 11px 13px !important;
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
@@ -130,7 +127,7 @@
   outline: none !important;
 }
 
-/* The product-level helper text is intentionally concise in compact mode. */
+/* The product-level helper text is intentionally concise. */
 .conversation-composer [data-testid="copilot-chat-input-textarea"]::placeholder {
   color: transparent !important;
 }
@@ -139,9 +136,9 @@
   content: '描述你的数据需求或业务目标';
   position: absolute;
   z-index: 1;
-  left: 56px;
-  right: 216px;
-  top: 50%;
+  left: 24px;
+  right: 24px;
+  top: 21px;
   overflow: hidden;
   color: rgba(164, 175, 191, .64);
   font-size: 14px;
@@ -150,23 +147,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   pointer-events: none;
-  transform: translateY(-50%);
 }
 
-.conversation-composer [data-testid="copilot-chat-input-shell"][data-layout="compact"] [data-testid="copilot-chat-input-textarea"] {
-  padding-right: 216px !important;
-}
-
-.conversation-composer [data-testid="copilot-chat-input-shell"][data-layout="expanded"] [data-testid="copilot-chat-input-textarea"] {
-  padding-left: 13px !important;
-  padding-right: 13px !important;
-}
-
-/* Attachment entry reads as another toolbar action, not a separate button card. */
+/* Second row, left side: upload entry. */
 .conversation-composer [data-testid="copilot-chat-input-add"] {
+  position: absolute !important;
+  z-index: 10 !important;
+  left: 10px !important;
+  bottom: 10px !important;
   width: 34px !important;
   height: 34px !important;
-  margin-left: 0 !important;
+  margin: 0 !important;
   border: 0 !important;
   background: transparent !important;
   color: var(--da-text-muted, #a4afbf) !important;
@@ -179,10 +170,15 @@
   color: var(--da-text-primary, #e3e8ef) !important;
 }
 
-/* Keep the primary action visible, but remove the floating-button feel. */
+/* Second row, far right: primary Send/Stop action. */
 .conversation-composer [data-testid="copilot-chat-input-send"] {
+  position: absolute !important;
+  z-index: 11 !important;
+  right: 10px !important;
+  bottom: 9px !important;
   width: 36px !important;
   height: 36px !important;
+  margin: 0 !important;
   border: 0 !important;
   background: linear-gradient(145deg, #98abe8, #849ce1) !important;
   color: #0b1119 !important;
@@ -208,19 +204,21 @@
 }
 
 @media (max-width: 760px) {
-  .conversation-composer .conversation-composer__controls { right: 62px !important; }
+  .conversation-composer { min-height: 108px !important; }
+  .conversation-composer .conversation-composer__controls { right: 56px !important; bottom: 9px !important; }
+  .conversation-composer [data-testid="copilot-chat-input-shell"],
+  .conversation-composer [data-testid="copilot-chat-input-shell"] > div { min-height: 106px !important; }
   .conversation-composer [data-testid="copilot-chat-input-shell"] > div {
-    padding-left: 8px !important;
-    padding-right: 8px !important;
+    padding: 8px 8px 50px !important;
   }
   .conversation-composer .model-selector__mark { display: none !important; }
   .conversation-composer .model-selector__select { width: 116px !important; }
-  .conversation-composer [data-testid="copilot-chat-input-shell"][data-layout="compact"] [data-testid="copilot-chat-input-textarea"] {
-    padding-right: 174px !important;
-  }
   .conversation-composer [data-testid="copilot-chat-input-shell"]:has([data-testid="copilot-chat-input-textarea"]:placeholder-shown)::before {
-    left: 50px;
-    right: 174px;
+    left: 20px;
+    right: 20px;
+    top: 19px;
     font-size: 13px;
   }
+  .conversation-composer [data-testid="copilot-chat-input-add"] { left: 8px !important; bottom: 9px !important; }
+  .conversation-composer [data-testid="copilot-chat-input-send"] { right: 8px !important; bottom: 8px !important; }
 }
