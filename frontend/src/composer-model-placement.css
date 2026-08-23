@@ -99,6 +99,7 @@
 
 .conversation-composer [data-testid="copilot-chat-input-shell"],
 .conversation-composer [data-testid="copilot-chat-input-shell"]:focus-within {
+  position: relative !important;
   width: 100% !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -129,8 +130,27 @@
   outline: none !important;
 }
 
+/* The product-level helper text is intentionally concise in compact mode. */
 .conversation-composer [data-testid="copilot-chat-input-textarea"]::placeholder {
-  color: rgba(164, 175, 191, .64) !important;
+  color: transparent !important;
+}
+
+.conversation-composer [data-testid="copilot-chat-input-shell"]:has([data-testid="copilot-chat-input-textarea"]:placeholder-shown)::before {
+  content: '描述你的数据需求或业务目标';
+  position: absolute;
+  z-index: 1;
+  left: 56px;
+  right: 216px;
+  top: 50%;
+  overflow: hidden;
+  color: rgba(164, 175, 191, .64);
+  font-size: 14px;
+  line-height: 1.55;
+  letter-spacing: -.005em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateY(-50%);
 }
 
 .conversation-composer [data-testid="copilot-chat-input-shell"][data-layout="compact"] [data-testid="copilot-chat-input-textarea"] {
@@ -197,5 +217,10 @@
   .conversation-composer .model-selector__select { width: 116px !important; }
   .conversation-composer [data-testid="copilot-chat-input-shell"][data-layout="compact"] [data-testid="copilot-chat-input-textarea"] {
     padding-right: 174px !important;
+  }
+  .conversation-composer [data-testid="copilot-chat-input-shell"]:has([data-testid="copilot-chat-input-textarea"]:placeholder-shown)::before {
+    left: 50px;
+    right: 174px;
+    font-size: 13px;
   }
 }
