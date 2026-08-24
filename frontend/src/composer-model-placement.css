@@ -59,9 +59,7 @@
   opacity: .86;
 }
 
-.conversation-composer .model-selector__select {
-  width: 150px !important;
-}
+.conversation-composer .model-selector__select { width: 150px !important; }
 
 .conversation-composer .model-selector__select .el-select__wrapper,
 .conversation-composer .model-selector__select .el-select__wrapper:hover,
@@ -104,6 +102,7 @@
   box-shadow: none !important;
 }
 
+/* The CopilotKit grid is the positioning context for the two-row toolbar. */
 .conversation-composer [data-testid="copilot-chat-input-shell"] > div {
   position: relative !important;
   min-height: 110px !important;
@@ -113,10 +112,52 @@
   background: transparent !important;
 }
 
+/* Move the add-button CONTAINER, not the button itself. CopilotKit makes this
+   wrapper position:relative, which was the reason the old absolute button
+   appeared in the first row in the real app. */
+.conversation-composer [data-testid="copilot-chat-input-shell"] > div > div:has(> [data-testid="copilot-chat-input-add"]) {
+  position: absolute !important;
+  z-index: 10 !important;
+  left: 10px !important;
+  bottom: 10px !important;
+  width: 34px !important;
+  height: 34px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+}
+
+/* Move the actions CONTAINER to the bottom-right. */
+.conversation-composer [data-testid="copilot-chat-input-shell"] > div > div:has(> div > [data-testid="copilot-chat-input-send"]) {
+  position: absolute !important;
+  z-index: 11 !important;
+  right: 10px !important;
+  bottom: 9px !important;
+  height: 36px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0 !important;
+  margin: 0 !important;
+}
+
+.conversation-composer [data-testid="copilot-chat-input-shell"] > div > div:has(> div > [data-testid="copilot-chat-input-send"]) > div {
+  margin: 0 !important;
+}
+
+/* Voice input is not part of the Data Agent composer. */
+.conversation-composer [data-testid="copilot-chat-input-start-transcribe"],
+.conversation-composer [data-testid="copilot-chat-input-cancel-transcribe"],
+.conversation-composer [data-testid="copilot-chat-input-finish-transcribe"] {
+  display: none !important;
+}
+
 /* First row: text gets the full content width. */
 .conversation-composer [data-testid="copilot-chat-input-textarea"],
 .conversation-composer [data-testid="copilot-chat-input-textarea"]:focus,
 .conversation-composer [data-testid="copilot-chat-input-textarea"]:focus-visible {
+  position: relative !important;
+  z-index: 1 !important;
   width: 100% !important;
   min-height: 48px !important;
   max-height: 150px !important;
@@ -133,41 +174,36 @@
   outline: none !important;
 }
 
-/* The product-level helper text is intentionally concise. */
+/* Use the textarea's single native placeholder; never draw a second hint layer. */
 .conversation-composer [data-testid="copilot-chat-input-textarea"]::placeholder {
-  color: transparent !important;
+  color: rgba(164, 175, 191, .64) !important;
+  opacity: 1 !important;
 }
 
-.conversation-composer [data-testid="copilot-chat-input-shell"]:has([data-testid="copilot-chat-input-textarea"]:placeholder-shown)::before {
-  content: '描述你的数据需求或业务目标';
-  position: absolute;
-  z-index: 1;
-  left: 24px;
-  right: 24px;
-  top: 21px;
-  overflow: hidden;
-  color: rgba(164, 175, 191, .64);
-  font-size: 14px;
-  line-height: 1.55;
-  letter-spacing: -.005em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-/* Second row, left side: upload entry. */
+/* Second row, left side: upload is a lightweight paperclip action. */
 .conversation-composer [data-testid="copilot-chat-input-add"] {
-  position: absolute !important;
-  z-index: 10 !important;
-  left: 10px !important;
-  bottom: 10px !important;
+  position: static !important;
   width: 34px !important;
   height: 34px !important;
   margin: 0 !important;
+  padding: 0 !important;
   border: 0 !important;
+  border-radius: 8px !important;
   background: transparent !important;
   color: var(--da-text-muted, #a4afbf) !important;
   box-shadow: none !important;
+}
+
+.conversation-composer [data-testid="copilot-chat-input-add"] > svg { display: none !important; }
+
+.conversation-composer [data-testid="copilot-chat-input-add"]::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  display: block;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 .conversation-composer [data-testid="copilot-chat-input-add"]:hover:not(:disabled) {
@@ -178,10 +214,7 @@
 
 /* Second row, far right: primary Send/Stop action. */
 .conversation-composer [data-testid="copilot-chat-input-send"] {
-  position: absolute !important;
-  z-index: 11 !important;
-  right: 10px !important;
-  bottom: 9px !important;
+  position: static !important;
   width: 36px !important;
   height: 36px !important;
   margin: 0 !important;
@@ -214,17 +247,16 @@
   .conversation-composer .conversation-composer__controls { right: 56px !important; bottom: 9px !important; }
   .conversation-composer [data-testid="copilot-chat-input-shell"],
   .conversation-composer [data-testid="copilot-chat-input-shell"] > div { min-height: 106px !important; }
-  .conversation-composer [data-testid="copilot-chat-input-shell"] > div {
-    padding: 8px 8px 50px !important;
-  }
+  .conversation-composer [data-testid="copilot-chat-input-shell"] > div { padding: 8px 8px 50px !important; }
   .conversation-composer .model-selector__mark { display: none !important; }
   .conversation-composer .model-selector__select { width: 116px !important; }
-  .conversation-composer [data-testid="copilot-chat-input-shell"]:has([data-testid="copilot-chat-input-textarea"]:placeholder-shown)::before {
-    left: 20px;
-    right: 20px;
-    top: 19px;
-    font-size: 13px;
+  .conversation-composer [data-testid="copilot-chat-input-add"] { width: 32px !important; height: 32px !important; }
+  .conversation-composer [data-testid="copilot-chat-input-shell"] > div > div:has(> [data-testid="copilot-chat-input-add"]) {
+    left: 8px !important;
+    bottom: 9px !important;
   }
-  .conversation-composer [data-testid="copilot-chat-input-add"] { left: 8px !important; bottom: 9px !important; }
-  .conversation-composer [data-testid="copilot-chat-input-send"] { right: 8px !important; bottom: 8px !important; }
+  .conversation-composer [data-testid="copilot-chat-input-shell"] > div > div:has(> div > [data-testid="copilot-chat-input-send"]) {
+    right: 8px !important;
+    bottom: 8px !important;
+  }
 }
