@@ -14,7 +14,7 @@ export type ModelCatalogItem = ModelSelection & {
   }
 }
 
-const STORAGE_KEY = 'dataagent.model.selection.v3'
+const STORAGE_KEY = 'dataagent.model.selection.v4.by-session'
 const MODEL_LIST_URL = '/dataagent/web/opencode/api/model'
 const DEFAULT_MODEL_URL = '/dataagent/web/opencode/api/model/default'
 const MODEL_API_BASE = '/dataagent/web/opencode/api'
@@ -28,23 +28,44 @@ function isSelection(value: unknown): value is ModelSelection {
     && Boolean(item.id.trim())
 }
 
-function readStoredSelection(): ModelSelection | null {
+function readStoredSelections(): Record<string, ModelSelection> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
+    if (!raw) return {}
     const value = JSON.parse(raw)
-    return isSelection(value) ? { providerID: value.providerID, id: value.id } : null
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, model]) => isSelection(model))
+        .map(([sessionId, model]) => [sessionId, {
+          providerID: (model as ModelSelection).providerID,
+          id: (model as ModelSelection).id,
+        }]),
+    )
   } catch {
-    return null
+    return {}
   }
 }
 
-export const selectedModel = ref<ModelSelection | null>(readStoredSelection())
+export const selectedModels = ref<Record<string, ModelSelection>>(readStoredSelections())
 
-export function setSelectedModel(model: ModelSelection | null) {
-  selectedModel.value = model
-  if (model) localStorage.setItem(STORAGE_KEY, JSON.stringify(model))
-  else localStorage.removeItem(STORAGE_KEY)
+export function getSelectedModel(sessionId: string): ModelSelection | null {
+  const id = sessionId.trim()
+  if (!id) return null
+  return selectedModels.value[id] ?? null
+}
+
+export function setSelectedModel(sessionId: string, model: ModelSelection | null) {
+  const id = sessionId.trim()
+  if (!id) return
+
+  const next = { ...selectedModels.value }
+  if (model) next[id] = { providerID: model.providerID, id: model.id }
+  else delete next[id]
+
+  selectedModels.value = next
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
 }
 
 function normalizeModel(value: unknown): ModelCatalogItem | null {
@@ -143,10 +164,5 @@ async function applyModel(sessionId: string, model: ModelSelection) {
 
 export async function selectModel(sessionId: string, model: ModelSelection) {
   await applyModel(sessionId, model)
-  setSelectedModel(model)
-}
-
-export async function syncSelectedModel(sessionId: string) {
-  if (!selectedModel.value) return
-  await applyModel(sessionId, selectedModel.value)
+  setSelectedModel(sessionId, model)
 }
