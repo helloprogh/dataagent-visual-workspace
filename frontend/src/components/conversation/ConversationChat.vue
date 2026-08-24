@@ -211,6 +211,9 @@ async function onStop() {
   if (stopping.value) return
   stopping.value = true
   try {
+    // CopilotChat handles the AG-UI run abort internally. This companion call
+    // stops the actual OpenCode session so backend model/tool work does not
+    // continue after the UI stream has been cancelled.
     await interruptOpenCodeConversation(props.threadId)
   } catch (error) {
     ElMessage.error(`对话已停止显示，但后端中断失败：${error instanceof Error ? error.message : String(error)}`)
@@ -370,7 +373,7 @@ onBeforeUnmount(() => {
 :deep([data-testid="copilot-chat-attachment-uploading-overlay"]>div){width:15px!important;height:15px!important;border-width:1.5px!important;border-color:rgba(239,216,153,.95)!important;border-top-color:transparent!important}
 :deep([data-testid="copilot-chat-attachment-uploading-overlay"])::after{content:'UPLOADING';color:#d8c58d;font-size:7.5px;font-weight:750;letter-spacing:.12em}
 :deep([data-testid="copilot-chat-drop-overlay"]){margin:10px!important;border:1px dashed rgba(226,197,112,.55)!important;border-radius:16px!important;background:radial-gradient(circle at 50% 44%,rgba(226,197,112,.13),rgba(17,18,22,.90) 66%)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.025),0 18px 48px rgba(0,0,0,.32)!important;backdrop-filter:blur(12px)}
-:deep([data-testid="copilot-chat-drop-overlay"] span){color:#e5cf91!important;font-size:10px!important;font-weight:700!important;letter-spacing:.06em!important}
+:deep([data-testid="copilot-chat-drop-overlay"] span){color:#e5cf91!important;font-size:10px!important;font-weight:700!important;letter-spacing:.06em}
 
 .has-interrupts :deep([data-testid="copilot-chat-input-shell"]){opacity:.48;pointer-events:none}.has-interrupts :deep([data-testid="copilot-chat-input-textarea"]){cursor:not-allowed}
 @media(max-width:540px){.conversation-composer__controls>span{display:none}.conversation-composer :deep(.model-selector__select){width:132px}.agui-permission{left:8px;right:8px;bottom:96px}.permission-actions{flex-wrap:wrap}.permission-actions button.reject{margin-left:0}:deep([data-testid="copilot-chat-attachment-queue"]){padding-left:8px!important;padding-right:8px!important}:deep([data-testid="copilot-chat-attachment-item"][data-card-type="document"]){min-width:178px!important;max-width:100%!important}:deep([data-testid="copilot-chat-attachment-document-filename"]){max-width:145px!important}}
