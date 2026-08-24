@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   getDefaultModel,
+  getSelectedModel,
   listAvailableModels,
-  selectedModel,
   selectModel,
   setSelectedModel,
-  syncSelectedModel,
   type ModelCatalogItem,
   type ModelSelection,
 } from '../model/model-selection'
@@ -38,7 +37,10 @@ const providerNames: Record<string, string> = {
 }
 
 const keyOf = (providerID: string, id: string) => JSON.stringify([providerID, id])
-const selectedKey = computed(() => selectedModel.value ? keyOf(selectedModel.value.providerID, selectedModel.value.id) : '')
+const selectedKey = computed(() => {
+  const current = getSelectedModel(props.threadId)
+  return current ? keyOf(current.providerID, current.id) : ''
+})
 
 const selectableModels = computed(() => {
   const result = [...models.value]
@@ -83,11 +85,12 @@ function supports(model: ModelCatalogItem, capability: 'tools' | 'image') {
 async function handleSelect(value: string) {
   const next = selectionFromKey(value)
   if (!next || switching.value || props.disabled) return
-  const previous = selectedModel.value
+  const previous = getSelectedModel(props.threadId)
   if (previous?.providerID === next.providerID && previous.id === next.id) return
 
   switching.value = true
   try {
+    // Only a real user selection reaches the model-switch API.
     await selectModel(props.threadId, next)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : String(error))
@@ -107,32 +110,18 @@ async function loadModels() {
     models.value = catalog
     defaultModel.value = fallback
 
-    const current = selectedModel.value
+    // Hydration is local-only. Opening a conversation must never switch the
+    // backend model. A session without a saved choice simply displays the
+    // backend default until the user explicitly picks another model.
+    const current = getSelectedModel(props.threadId)
     const exists = current && selectableModels.value.some(item => item.providerID === current.providerID && item.id === current.id)
-    if (!exists) setSelectedModel(fallback)
-
-    if (selectedModel.value && fallback
-      && (selectedModel.value.providerID !== fallback.providerID || selectedModel.value.id !== fallback.id)) {
-      await syncSelectedModel(props.threadId)
-    }
+    if (!exists) setSelectedModel(props.threadId, fallback)
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : String(error)
   } finally {
     loading.value = false
   }
 }
-
-watch(() => props.threadId, async () => {
-  if (!selectedModel.value) return
-  switching.value = true
-  try {
-    await syncSelectedModel(props.threadId)
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : String(error))
-  } finally {
-    switching.value = false
-  }
-})
 
 onMounted(loadModels)
 </script>
