@@ -174,28 +174,10 @@
   outline: none !important;
 }
 
-/* Keep only one concise empty-state hint. The real CopilotKit placeholder is
-   fully hidden to prevent double-rendering with the product helper text. */
+/* Use the textarea's single native placeholder; never draw a second hint layer. */
 .conversation-composer [data-testid="copilot-chat-input-textarea"]::placeholder {
-  color: transparent !important;
-  opacity: 0 !important;
-}
-
-.conversation-composer [data-testid="copilot-chat-input-shell"]:has([data-testid="copilot-chat-input-textarea"]:placeholder-shown)::before {
-  content: '描述你的数据需求或业务目标';
-  position: absolute;
-  z-index: 0;
-  left: 24px;
-  right: 24px;
-  top: 21px;
-  overflow: hidden;
-  color: rgba(164, 175, 191, .64);
-  font-size: 14px;
-  line-height: 1.55;
-  letter-spacing: -.005em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  pointer-events: none;
+  color: rgba(164, 175, 191, .64) !important;
+  opacity: 1 !important;
 }
 
 /* Second row, left side: upload is a lightweight paperclip action. */
@@ -268,12 +250,7 @@
   .conversation-composer [data-testid="copilot-chat-input-shell"] > div { padding: 8px 8px 50px !important; }
   .conversation-composer .model-selector__mark { display: none !important; }
   .conversation-composer .model-selector__select { width: 116px !important; }
-  .conversation-composer [data-testid="copilot-chat-input-shell"]:has([data-testid="copilot-chat-input-textarea"]:placeholder-shown)::before {
-    left: 20px;
-    right: 20px;
-    top: 19px;
-    font-size: 13px;
-  }
+  .conversation-composer [data-testid="copilot-chat-input-add"] { width: 32px !important; height: 32px !important; }
   .conversation-composer [data-testid="copilot-chat-input-shell"] > div > div:has(> [data-testid="copilot-chat-input-add"]) {
     left: 8px !important;
     bottom: 9px !important;
