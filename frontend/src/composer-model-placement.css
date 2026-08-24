@@ -7,12 +7,12 @@
   border-radius: 18px !important;
   background: linear-gradient(180deg, rgba(17, 27, 39, .99), rgba(14, 23, 33, .99)) !important;
   box-shadow: 0 10px 30px rgba(0, 0, 0, .18), 0 1px 0 rgba(255, 255, 255, .022) inset !important;
-  transition: background .18s ease !important;
+  transition: border-color .16s ease, background .18s ease !important;
 }
 
-/* Editing must not create a second visual state around the composer. */
+/* Focus belongs to the composer as a whole, never the nested input shell. */
 .conversation-composer:focus-within {
-  border-color: rgba(171, 191, 211, .17) !important;
+  border-color: var(--da-border-focus, rgba(143, 166, 232, .46)) !important;
   box-shadow: 0 10px 30px rgba(0, 0, 0, .18), 0 1px 0 rgba(255, 255, 255, .022) inset !important;
 }
 
@@ -71,6 +71,7 @@
   border: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
+  outline: none !important;
 }
 
 /* Remove CopilotKit's own card geometry: the outer composer is the only container. */
@@ -90,12 +91,15 @@
 }
 
 .conversation-composer [data-testid="copilot-chat-input-shell"],
+.conversation-composer [data-testid="copilot-chat-input-shell"]:focus,
+.conversation-composer [data-testid="copilot-chat-input-shell"]:focus-visible,
 .conversation-composer [data-testid="copilot-chat-input-shell"]:focus-within {
   position: relative !important;
   width: 100% !important;
   min-height: 110px !important;
   border: 0 !important;
   border-radius: 0 !important;
+  outline: none !important;
   background: transparent !important;
   box-shadow: none !important;
 }
@@ -110,7 +114,9 @@
 }
 
 /* First row: text gets the full content width. */
-.conversation-composer [data-testid="copilot-chat-input-textarea"] {
+.conversation-composer [data-testid="copilot-chat-input-textarea"],
+.conversation-composer [data-testid="copilot-chat-input-textarea"]:focus,
+.conversation-composer [data-testid="copilot-chat-input-textarea"]:focus-visible {
   width: 100% !important;
   min-height: 48px !important;
   max-height: 150px !important;
