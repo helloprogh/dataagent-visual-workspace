@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useAgent } from '@copilotkit/vue/v2'
 import { ElMessage } from 'element-plus'
-import { AGENT_ID } from '../copilot/agent'
-import { interruptOpenCodeConversation } from '../conversations/opencode-session'
 import {
   getDefaultModel,
   getSelectedModel,
@@ -23,13 +20,7 @@ const models = ref<ModelCatalogItem[]>([])
 const defaultModel = ref<ModelCatalogItem | null>(null)
 const loading = ref(false)
 const switching = ref(false)
-const interrupting = ref(false)
 const loadError = ref('')
-const { agent } = useAgent({
-  agentId: AGENT_ID,
-  threadId: () => props.threadId,
-  throttleMs: 60,
-})
 
 const providerNames: Record<string, string> = {
   local: 'Local',
@@ -50,7 +41,6 @@ const selectedKey = computed(() => {
   const current = getSelectedModel(props.threadId)
   return current ? keyOf(current.providerID, current.id) : ''
 })
-const isRunning = computed(() => Boolean(agent.value?.isRunning))
 
 const selectableModels = computed(() => {
   const result = [...models.value]
@@ -106,24 +96,6 @@ async function handleSelect(value: string) {
     ElMessage.error(error instanceof Error ? error.message : String(error))
   } finally {
     switching.value = false
-  }
-}
-
-async function handleInterrupt() {
-  const target = agent.value
-  if (!target || !target.isRunning || interrupting.value) return
-
-  interrupting.value = true
-  try {
-    // Interrupt the real OpenCode session first. Aborting only the AG-UI HTTP
-    // stream would stop rendering but does not guarantee the backend run stops.
-    await interruptOpenCodeConversation(props.threadId)
-    target.abortRun()
-    ElMessage.info('已中断当前会话')
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : String(error))
-  } finally {
-    interrupting.value = false
   }
 }
 
@@ -189,14 +161,6 @@ onMounted(loadModels)
         </el-option>
       </el-option-group>
     </el-select>
-    <button
-      v-if="isRunning"
-      class="model-selector__interrupt"
-      type="button"
-      :disabled="interrupting"
-      :title="interrupting ? '正在中断' : '中断当前会话'"
-      @click.stop="handleInterrupt"
-    ><i></i>{{ interrupting ? '停止中' : '停止' }}</button>
     <button v-if="loadError" class="model-selector__retry" type="button" title="重新加载模型" @click.stop="loadModels">↻</button>
   </div>
 </template>
@@ -213,10 +177,6 @@ onMounted(loadModels)
 .model-selector__select :deep(.el-select__selected-item){max-width:126px;color:var(--da-text-secondary,#c4ccd7)!important;font-size:11.5px;font-weight:650;letter-spacing:-.01em}
 .model-selector__select :deep(.el-select__placeholder){color:var(--da-text-muted,#a4afbf)!important;font-size:11.5px}
 .model-selector__select :deep(.el-select__caret){color:var(--da-text-subtle,#8793a6)!important;font-size:12px}
-.model-selector__interrupt{height:22px;display:inline-flex;align-items:center;gap:5px;flex:none;padding:0 7px;border:1px solid rgba(232,132,146,.25);border-radius:6px;background:rgba(232,132,146,.07);color:var(--da-accent-red,#e88492);font-size:9px;font-weight:700;cursor:pointer;transition:.16s ease}
-.model-selector__interrupt:hover:not(:disabled){border-color:rgba(232,132,146,.42);background:rgba(232,132,146,.13);color:#f0a1ad}
-.model-selector__interrupt:disabled{opacity:.55;cursor:wait}
-.model-selector__interrupt i{width:6px;height:6px;border-radius:1px;background:currentColor;box-shadow:0 0 7px rgba(232,132,146,.28)}
 .model-selector__retry{width:22px;height:22px;display:grid;place-items:center;flex:none;border:0;border-radius:6px;background:rgba(232,132,146,.07);color:var(--da-accent-red,#e88492);font-size:12px;cursor:pointer}
 .model-selector__retry:hover{background:rgba(232,132,146,.13)}
 @media(max-width:760px){.model-selector{padding-left:7px}.model-selector__select{width:116px}.model-selector__select :deep(.el-select__selected-item){max-width:84px}}

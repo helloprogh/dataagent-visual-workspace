@@ -4,6 +4,7 @@ import { CopilotChat, CopilotChatInput, useAgent } from '@copilotkit/vue/v2'
 import type { AbstractAgent, Interrupt, ResumeEntry } from '@ag-ui/client'
 import { ElMessage } from 'element-plus'
 import { conversationRepository, deriveConversationName } from '../../conversations/local-repository'
+import { interruptOpenCodeConversation } from '../../conversations/opencode-session'
 import { workspaceController } from '../../workspace/store'
 import ModelSelector from '../ModelSelector.vue'
 import ReasoningAwareAssistantMessage from './ReasoningAwareAssistantMessage.vue'
@@ -33,6 +34,7 @@ const pendingInterrupts = ref<Interrupt[]>([])
 const decisions = ref<Record<string, PermissionDecision>>({})
 const resumeError = ref('')
 const resuming = ref(false)
+const stopping = ref(false)
 let persistTimer: number | undefined
 let currentAgent: AbstractAgent | null = null
 let currentThreadId = ''
@@ -205,6 +207,21 @@ function onSubmitMessage(value: string) {
   if (props.displayName === '新需求' || props.displayName === '新对话' || props.displayName === '新分析') emit('rename', deriveConversationName(value))
 }
 
+async function onStop() {
+  if (stopping.value) return
+  stopping.value = true
+  try {
+    // CopilotChat handles the AG-UI run abort internally. This companion call
+    // stops the actual OpenCode session so backend model/tool work does not
+    // continue after the UI stream has been cancelled.
+    await interruptOpenCodeConversation(props.threadId)
+  } catch (error) {
+    ElMessage.error(`对话已停止显示，但后端中断失败：${error instanceof Error ? error.message : String(error)}`)
+  } finally {
+    stopping.value = false
+  }
+}
+
 onBeforeUnmount(() => {
   if (persistTimer) window.clearTimeout(persistTimer)
   releaseCurrentAgent()
@@ -223,6 +240,7 @@ onBeforeUnmount(() => {
       :attachments="attachmentsConfig"
       :throttle-ms="60"
       @submit-message="onSubmitMessage"
+      @stop="onStop"
     >
       <template #input="inputProps">
         <div class="conversation-composer">
