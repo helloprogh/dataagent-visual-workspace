@@ -222,6 +222,14 @@ async function onStop() {
   }
 }
 
+function handleInputStop(stop?: () => void) {
+  // Stop the CopilotKit/AG-UI run immediately, then explicitly interrupt the
+  // matching OpenCode session. Do not rely solely on CopilotChat's outer stop
+  // event bubbling when a custom input slot is used.
+  stop?.()
+  void onStop()
+}
+
 onBeforeUnmount(() => {
   if (persistTimer) window.clearTimeout(persistTimer)
   releaseCurrentAgent()
@@ -260,7 +268,7 @@ onBeforeUnmount(() => {
             positioning="static"
             @update:model-value="inputProps.onUpdateModelValue"
             @submit-message="inputProps.onSubmitMessage"
-            @stop="inputProps.onStop?.()"
+            @stop="handleInputStop(inputProps.onStop)"
             @add-file="inputProps.onAddFile"
             @start-transcribe="inputProps.onStartTranscribe"
             @cancel-transcribe="inputProps.onCancelTranscribe"
