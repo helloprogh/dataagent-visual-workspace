@@ -47,7 +47,7 @@
   --da-shadow-raised:0 16px 42px rgba(0,0,0,.22);
 }
 
-/* ---------- global reading hierarchy ---------- */
+/* ---------- application tokens ---------- */
 .dataagent-shell{
   --el-text-color-primary:var(--da-text-primary);
   --el-text-color-regular:var(--da-text-secondary);
@@ -58,20 +58,10 @@
   --el-fill-color-blank:var(--da-surface-1);
   --el-fill-color-light:var(--da-surface-2);
   --el-fill-color-lighter:var(--da-surface-3);
-  color:var(--da-text-primary)!important;
+  color:var(--da-text-primary);
 }
 
-.dataagent-shell :where(p,li,dd,dt,label,input,textarea){
-  color:var(--da-text-primary)!important;
-}
-
-.dataagent-shell :where(h1,h2),
-.management-page__header h1,
-.component-gallery__stats b{
-  color:var(--da-text-emphasis)!important;
-}
-
-.dataagent-shell :where(h3,h4,h5,h6,strong,b),
+/* ---------- app chrome ---------- */
 .app-sidebar__brand b,
 .app-sidebar__thread-copy b,
 .assistant-name b,
@@ -79,7 +69,6 @@
   color:var(--da-text-primary)!important;
 }
 
-/* ---------- app chrome ---------- */
 .app-sidebar__brand small,
 .app-sidebar__new small,
 .app-sidebar__nav-copy small,
@@ -182,6 +171,10 @@
 }
 
 /* ---------- management surfaces ---------- */
+.management-page__header h1{
+  color:var(--da-text-emphasis)!important;
+}
+
 .skill-summary-card,
 .workspace-summary-grid>article,
 .management-surface,
@@ -655,7 +648,8 @@
   border-bottom-color:var(--da-border)!important;
 }
 .component-gallery__header h1,
-.component-gallery__section-head h2{color:var(--da-text-emphasis)!important}
+.component-gallery__section-head h2,
+.component-gallery__stats b{color:var(--da-text-emphasis)!important}
 .component-gallery__header p{color:var(--da-text-secondary)!important}
 .component-gallery__header span,
 .component-gallery__section-head small,
