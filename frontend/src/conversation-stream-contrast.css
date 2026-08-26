@@ -1,0 +1,228 @@
+/* =========================================================
+   Conversation stream — final contrast hardening
+
+   This file is intentionally loaded after the visual theme. It only targets
+   the conversation surface so soft global theme tokens cannot reduce message
+   readability after the dedicated contrast styles have run.
+   ========================================================= */
+
+.visual-chat{
+  --da-chat-text-primary:#F4F7FA;
+  --da-chat-text-secondary:#DEE5ED;
+  --da-chat-text-muted:#C5CFDA;
+  --da-chat-text-subtle:#B9C4D1;
+  --da-chat-link:#AFCBFF;
+  --da-chat-surface:#0D171F;
+  --da-chat-surface-raised:#121D2A;
+  --da-chat-user-surface:#1A2738;
+  --da-chat-code-surface:#0A1119;
+  color:var(--da-chat-text-primary)!important;
+}
+
+/* ---------- assistant / user message shells ---------- */
+.visual-chat [data-testid="copilot-chat-assistant-message"],
+.visual-chat [data-testid="copilot-chat-message"]{
+  color:var(--da-chat-text-primary)!important;
+}
+
+.visual-chat [data-testid="copilot-chat-user-message"]{
+  color:var(--da-chat-text-primary)!important;
+  background:var(--da-chat-user-surface)!important;
+  border-color:rgba(175,203,255,.28)!important;
+}
+
+.visual-chat [data-testid="copilot-chat-user-message"] :where(p,span,strong,b,em,i,code){
+  color:inherit!important;
+}
+
+/* ---------- assistant markdown ---------- */
+.visual-chat .copilot-chat-assistant-markdown{
+  color:var(--da-chat-text-primary)!important;
+}
+
+.visual-chat .copilot-chat-assistant-markdown :where(
+  p,li,span,strong,b,em,i,del,
+  h1,h2,h3,h4,h5,h6,
+  dt,dd,figcaption,summary
+){
+  color:var(--da-chat-text-primary)!important;
+}
+
+.visual-chat .copilot-chat-assistant-markdown :where(ul,ol){
+  color:var(--da-chat-text-primary)!important;
+}
+
+.visual-chat .copilot-chat-assistant-markdown :where(li)::marker{
+  color:var(--da-chat-text-secondary)!important;
+}
+
+.visual-chat .copilot-chat-assistant-markdown :where(a){
+  color:var(--da-chat-link)!important;
+  text-decoration-color:rgba(175,203,255,.72)!important;
+}
+
+.visual-chat .copilot-chat-assistant-markdown :where(a:hover){
+  color:#D4E3FF!important;
+  text-decoration-color:currentColor!important;
+}
+
+.visual-chat .copilot-chat-assistant-markdown :where(code):not(pre code),
+.visual-chat .copilot-chat-assistant-markdown :where(kbd){
+  color:#F2F5F9!important;
+  background:#1A2838!important;
+  border:1px solid rgba(190,207,224,.28)!important;
+}
+
+.visual-chat .copilot-chat-assistant-markdown :where(pre){
+  color:#F2F5F9!important;
+  background:var(--da-chat-code-surface)!important;
+  border-color:rgba(190,207,224,.26)!important;
+}
+
+/* Syntax-highlighter token colors can be much darker than the chat theme. */
+.visual-chat .copilot-chat-assistant-markdown :where(pre code),
+.visual-chat .copilot-chat-assistant-markdown :where(pre code *){
+  color:#F2F5F9!important;
+  background:transparent!important;
+}
+
+.visual-chat .copilot-chat-assistant-markdown :where(blockquote){
+  color:var(--da-chat-text-secondary)!important;
+  background:var(--da-chat-surface-raised)!important;
+  border-left-color:rgba(175,203,255,.72)!important;
+}
+
+.visual-chat .copilot-chat-assistant-markdown :where(blockquote p,blockquote span,blockquote strong,blockquote em){
+  color:var(--da-chat-text-secondary)!important;
+}
+
+.visual-chat .copilot-chat-assistant-markdown :where(table){
+  color:var(--da-chat-text-primary)!important;
+  background:#0E1823!important;
+  border-color:rgba(190,207,224,.26)!important;
+}
+
+.visual-chat .copilot-chat-assistant-markdown :where(th){
+  color:var(--da-chat-text-primary)!important;
+  background:#1B2A3A!important;
+  border-color:rgba(190,207,224,.28)!important;
+}
+
+.visual-chat .copilot-chat-assistant-markdown :where(td){
+  color:var(--da-chat-text-secondary)!important;
+  background:#111C28!important;
+  border-color:rgba(190,207,224,.22)!important;
+}
+
+.visual-chat .copilot-chat-assistant-markdown :where(tr:nth-child(even) td){
+  background:#162331!important;
+}
+
+.visual-chat .copilot-chat-assistant-markdown :where(mark){
+  color:#17130A!important;
+  background:#F4D58A!important;
+}
+
+.visual-chat .copilot-chat-assistant-markdown :where(hr){
+  border-color:rgba(190,207,224,.28)!important;
+}
+
+/* ---------- reasoning ---------- */
+.conversation-chat .reasoning-card{
+  color:var(--da-chat-text-primary,#F4F7FA)!important;
+  background:linear-gradient(145deg,#111E27,#0D171F)!important;
+  border-color:rgba(125,213,224,.30)!important;
+}
+
+.conversation-chat .reasoning-card__heading b,
+.conversation-chat .reasoning-card__header{
+  color:var(--da-chat-text-primary,#F4F7FA)!important;
+}
+
+.conversation-chat .reasoning-card__heading small,
+.conversation-chat .reasoning-card__status,
+.conversation-chat .reasoning-card__chevron{
+  color:var(--da-chat-text-muted,#C5CFDA)!important;
+  stroke:var(--da-chat-text-muted,#C5CFDA)!important;
+}
+
+.conversation-chat .reasoning-card [data-message-id] > div > div > div > div,
+.conversation-chat .reasoning-card [data-message-id] :where(p,li,span,strong,b,em,i,code){
+  color:var(--da-chat-text-secondary,#DEE5ED)!important;
+}
+
+/* ---------- tool / execution cards rendered in the conversation ---------- */
+.visual-chat .tool-call,
+.visual-chat .workspace-command-status{
+  color:var(--da-chat-text-primary)!important;
+  background:linear-gradient(145deg,#121E2A,#0D1721)!important;
+  border-color:rgba(190,207,224,.22)!important;
+}
+
+.visual-chat .tool-call header>b,
+.visual-chat .workspace-command-status b{
+  color:var(--da-chat-text-primary)!important;
+}
+
+.visual-chat .tool-call-state,
+.visual-chat .tool-section summary,
+.visual-chat .tool-hint,
+.visual-chat .workspace-command-status small{
+  color:var(--da-chat-text-muted)!important;
+}
+
+.visual-chat .tool-command,
+.visual-chat .tool-section pre{
+  color:#F2F5F9!important;
+  background:var(--da-chat-code-surface)!important;
+  border-color:rgba(190,207,224,.24)!important;
+}
+
+.visual-chat .tool-result pre{
+  color:#CDE8D9!important;
+}
+
+/* ---------- approval / interruption card ---------- */
+.conversation-chat .agui-permission{
+  color:var(--da-chat-text-primary,#F4F7FA)!important;
+  background:linear-gradient(150deg,#262119,#151B24)!important;
+  border-color:rgba(244,213,138,.36)!important;
+}
+
+.conversation-chat .agui-permission header b,
+.conversation-chat .permission-copy b{
+  color:var(--da-chat-text-primary,#F4F7FA)!important;
+}
+
+.conversation-chat .permission-copy p{
+  color:var(--da-chat-text-secondary,#DEE5ED)!important;
+}
+
+.conversation-chat .permission-copy code,
+.conversation-chat .agui-permission>small,
+.conversation-chat .agui-permission header span{
+  color:var(--da-chat-text-muted,#C5CFDA)!important;
+}
+
+.conversation-chat .permission-list article{
+  background:rgba(255,255,255,.065)!important;
+  border-color:rgba(190,207,224,.22)!important;
+}
+
+/* ---------- composer / attachment supporting text ---------- */
+.visual-chat [data-testid="copilot-chat-input-textarea"]{
+  color:var(--da-chat-text-primary)!important;
+}
+
+.visual-chat [data-testid="copilot-chat-input-textarea"]::placeholder{
+  color:var(--da-chat-text-subtle)!important;
+}
+
+.visual-chat [data-testid="copilot-chat-attachment-document-filename"],
+.visual-chat [data-testid="copilot-chat-attachment-document-button"]{
+  color:var(--da-chat-text-primary)!important;
+}
+
+.visual-chat [data-testid="copilot-chat-attachment-document-button"] > div:last-child > span:last-child{
+  color:var(--da-chat-text-muted)!important;
+}
