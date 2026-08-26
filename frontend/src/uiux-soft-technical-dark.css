@@ -34,7 +34,7 @@
   --da-accent-red:#E88492;
   --da-link:#AFCBFF;
 
-  /* aliases still consumed by the visual-workspace base styles */
+  /* aliases still consumed by the visual-workspace base layout */
   --da-cyan:var(--da-accent-cyan);
   --da-blue:var(--da-accent-blue);
   --da-violet:var(--da-accent-violet);
@@ -67,10 +67,6 @@
 
 .dataagent-shell :where(h1,h2),
 .management-page__header h1,
-.visual-workspace .metric-value,
-.visual-workspace .kpi-cell strong,
-.visual-workspace .donut-center,
-.visual-workspace .quality-ring-inner b,
 .component-gallery__stats b{
   color:var(--da-text-emphasis)!important;
 }
@@ -141,8 +137,7 @@
 .dataagent-shell .el-button:not(.el-button--primary):not(.is-text),
 .management-surface__actions button,
 .opencode-dialog-button,
-.component-gallery__composer button,
-.permission-actions button{
+.component-gallery__composer button{
   color:var(--da-text-primary)!important;
   background:var(--da-surface-3)!important;
   border-color:var(--da-border)!important;
@@ -152,8 +147,7 @@
 .dataagent-shell .el-button:not(.el-button--primary):not(.is-text):hover,
 .management-surface__actions button:hover,
 .opencode-dialog-button:hover,
-.component-gallery__composer button:hover,
-.permission-actions button:hover{
+.component-gallery__composer button:hover{
   color:var(--da-text-emphasis)!important;
   background:var(--da-surface-4)!important;
   border-color:var(--da-border-strong)!important;
@@ -230,8 +224,9 @@
 
 /* =========================================================
    Conversation / CopilotKit
-   Only style third-party CopilotKit DOM here.
-   Reasoning, tool cards and approval cards own their colors in their components.
+   Third-party CopilotKit DOM is themed here. Conversation-specific custom
+   surfaces (reasoning, approval, attachment presentation, tool cards) own
+   their colors in their component styles and consume these theme tokens.
    ========================================================= */
 .visual-chat{
   color:var(--da-text-primary)!important;
@@ -254,17 +249,6 @@
 
 .visual-chat [data-testid="copilot-chat-input-shell"]{
   box-shadow:0 8px 24px rgba(0,0,0,.17)!important;
-}
-
-.visual-chat [data-testid="copilot-chat-attachment-item"]{
-  color:var(--da-text-primary)!important;
-  background:#141F2B!important;
-  border-color:var(--da-border)!important;
-}
-
-.visual-chat [data-testid="copilot-chat-attachment-document-filename"],
-.visual-chat [data-testid="copilot-chat-attachment-document-button"]{
-  color:var(--da-text-primary)!important;
 }
 
 .visual-chat [data-testid="copilot-chat-input-textarea"]{
@@ -361,7 +345,7 @@
    metric/kpis/table/bar/line/area/donut/funnel/heatmap/rootCause/forecast/
    insights/analysisPlan/queryTrace/sql/dataQuality/fieldProfile/semanticModel/
    executiveSummary/agentGraph/agentTimeline/agentActivity/markdown.
-   Markdown and ToolStatus component-specific colors live in their own components.
+   MarkdownPanel and ToolStatus consume tokens directly in component styles.
    ========================================================= */
 .visual-workspace{
   color:var(--da-text-primary)!important;
@@ -372,38 +356,77 @@
   border-color:var(--da-border)!important;
 }
 
+/* Shared generated component hierarchy — explicit semantic classes only. */
 .visual-workspace .visual-title-row h1,
-.visual-workspace h1,
-.visual-workspace h2{
+.visual-workspace .metric-value,
+.visual-workspace .donut-center,
+.visual-workspace .quality-ring-inner b{
   color:var(--da-text-emphasis)!important;
 }
 
-.visual-workspace h3,
-.visual-workspace h4,
-.visual-workspace strong,
-.visual-workspace b,
 .visual-workspace .workspace-title,
 .visual-workspace .widget-title,
-.visual-workspace .gen-title{
+.visual-workspace .gen-title,
+.visual-workspace .kpi-cell strong,
+.visual-workspace .bar-label,
+.visual-workspace .bar-row b,
+.visual-workspace .insight-title-row b,
+.visual-workspace .plan-step b,
+.visual-workspace .field-main b,
+.visual-workspace .quality-label b,
+.visual-workspace .quality-label span,
+.visual-workspace .cause-title b,
+.visual-workspace .funnel-meta span,
+.visual-workspace .funnel-meta strong,
+.visual-workspace .trace-copy b,
+.visual-workspace .forecast-summary strong,
+.visual-workspace .legend-row b{
   color:var(--da-text-primary)!important;
 }
 
-.visual-workspace p,
 .visual-workspace .visual-title-block p,
-.visual-workspace .executive-summary{
+.visual-workspace .executive-summary,
+.visual-workspace .insight-body p,
+.visual-workspace .plan-step p,
+.visual-workspace .cause-main p,
+.visual-workspace .trace-copy p,
+.visual-workspace .activity-copy p,
+.visual-workspace .semantic-head p{
   color:var(--da-text-secondary)!important;
 }
 
-.visual-workspace small,
 .visual-workspace .visual-kicker,
 .visual-workspace .eyebrow,
 .visual-workspace .workspace-subtitle,
 .visual-workspace .widget-subtitle,
 .visual-workspace .widget-meta,
-.visual-workspace .muted{
+.visual-workspace .muted,
+.visual-workspace .context-chip span,
+.visual-workspace .metric-foot,
+.visual-workspace .field-stats,
+.visual-workspace .highlight-item span,
+.visual-workspace .tag-cloud span,
+.visual-workspace .funnel-conversion,
+.visual-workspace .quality-ring-inner span,
+.visual-workspace .quality-row small,
+.visual-workspace .trace-copy span,
+.visual-workspace .trace-step time,
+.visual-workspace .forecast-summary>div>span,
+.visual-workspace .forecast-horizon,
+.visual-workspace .confidence-chip,
+.visual-workspace .target-chip,
+.visual-workspace .trace-duration,
+.visual-workspace .semantic-label,
+.visual-workspace .semantic-sources{
   color:var(--da-text-muted)!important;
 }
 
+.visual-workspace .metric-value small,
+.visual-workspace .kpi-cell strong small{
+  color:var(--da-text-muted)!important;
+}
+
+/* Shared nested surfaces */
 .visual-workspace .widget-frame,
 .visual-workspace .gen-card{
   color:var(--da-text-primary)!important;
@@ -417,7 +440,6 @@
   box-shadow:0 12px 32px rgba(0,0,0,.18)!important;
 }
 
-/* Shared nested surfaces */
 .visual-workspace .context-chip,
 .visual-workspace .kpi-cell,
 .visual-workspace .insight-item,
@@ -429,55 +451,7 @@
   border-color:var(--da-border)!important;
 }
 
-.visual-workspace .context-chip b,
-.visual-workspace .kpi-cell strong,
-.visual-workspace .bar-label,
-.visual-workspace .bar-row b,
-.visual-workspace .metric-value,
-.visual-workspace .insight-title-row b,
-.visual-workspace .plan-step b,
-.visual-workspace .field-main b,
-.visual-workspace .quality-label b,
-.visual-workspace .quality-label span,
-.visual-workspace .cause-title b,
-.visual-workspace .funnel-meta span,
-.visual-workspace .funnel-meta strong,
-.visual-workspace .trace-copy b,
-.visual-workspace .forecast-summary strong{
-  color:var(--da-text-primary)!important;
-}
-
-.visual-workspace .metric-value{color:var(--da-text-emphasis)!important}
-
-.visual-workspace .context-chip span,
-.visual-workspace .metric-foot,
-.visual-workspace .field-stats,
-.visual-workspace .highlight-item span,
-.visual-workspace .tag-cloud span,
-.visual-workspace .funnel-conversion,
-.visual-workspace .quality-ring-inner span,
-.visual-workspace .quality-row small,
-.visual-workspace .cause-main p,
-.visual-workspace .trace-copy p,
-.visual-workspace .trace-copy span,
-.visual-workspace .trace-step time,
-.visual-workspace .forecast-summary>div>span,
-.visual-workspace .forecast-horizon,
-.visual-workspace .confidence-chip,
-.visual-workspace .target-chip,
-.visual-workspace .trace-duration,
-.visual-workspace .semantic-head p,
-.visual-workspace .semantic-label,
-.visual-workspace .semantic-sources{
-  color:var(--da-text-muted)!important;
-}
-
-/* Metric / KPI / executive summary */
-.visual-workspace .metric-value small,
-.visual-workspace .kpi-cell strong small{
-  color:var(--da-text-muted)!important;
-}
-
+/* Semantic state colors never replace neutral content colors. */
 .visual-workspace .tone-neutral{color:var(--da-text-secondary)!important}
 .visual-workspace .tone-positive,
 .visual-workspace .up{color:var(--da-accent-green)!important}
@@ -529,11 +503,8 @@
   color:var(--da-text-secondary)!important;
 }
 
-.visual-workspace .legend-row b{color:var(--da-text-primary)!important}
-
 .visual-workspace .donut-center,
 .visual-workspace .quality-ring-inner{
-  color:var(--da-text-emphasis)!important;
   background:var(--da-surface-input)!important;
   border-color:var(--da-border)!important;
   box-shadow:0 0 0 5px rgba(10,17,25,.24)!important;
@@ -542,9 +513,7 @@
 
 .visual-workspace .funnel-meta i{color:var(--da-text-subtle)!important}
 .visual-workspace .heat-x,
-.visual-workspace .heat-y{
-  color:var(--da-text-secondary)!important;
-}
+.visual-workspace .heat-y{color:var(--da-text-secondary)!important}
 .visual-workspace .heat-cell{
   color:#F4F7FA!important;
   border-color:rgba(220,230,239,.24)!important;
@@ -571,7 +540,7 @@
 .visual-workspace .plan-node.running{color:var(--da-accent-cyan)!important}
 .visual-workspace .plan-node.error{color:var(--da-accent-red)!important}
 
-/* Multi-agent: semantic status colors stay on decoration, content stays neutral. */
+/* Multi-agent: status lives on decoration, information remains neutral. */
 .visual-workspace .agent-root-node,
 .visual-workspace .agent-child-node{
   color:var(--da-text-primary)!important;
@@ -609,8 +578,6 @@
 .visual-workspace .timeline-total{
   color:var(--da-text-muted)!important;
 }
-
-.visual-workspace .activity-copy p{color:var(--da-text-secondary)!important}
 
 .visual-workspace .timeline-track{
   background:#0E1721!important;
