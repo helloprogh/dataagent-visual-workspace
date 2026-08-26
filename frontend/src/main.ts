@@ -12,6 +12,7 @@ import './high-contrast-text.css'
 import './copilot-markdown-contrast.css'
 import './uiux-soft-technical-dark.css'
 import './composer-model-placement.css'
+import './conversation-stream-contrast.css'
 import App from './App.vue'
 
 createApp(App).use(ElementPlus).mount('#app')
