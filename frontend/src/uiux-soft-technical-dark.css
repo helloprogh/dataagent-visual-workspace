@@ -1,19 +1,18 @@
 /* =========================================================
    Data Agent — UI/UX Pro Max / Soft Technical Dark
 
-   Intent:
-   - preserve AA contrast without large areas of pure white
-   - reserve the brightest tone for critical emphasis only
-   - reduce glow/noise and strengthen information hierarchy
-   - keep dense analytics surfaces comfortable for long sessions
+   Theme responsibilities:
+   - component files own layout and component-specific decoration
+   - this file owns shared application / GenUI theme colors
+   - no end-of-file contrast patches; fix each section in place
    ========================================================= */
 
 :root{
-  --da-text-emphasis:#F4F6F9;
-  --da-text-primary:#E3E8EF;
-  --da-text-secondary:#C4CCD7;
-  --da-text-muted:#A4AFBF;
-  --da-text-subtle:#8793A6;
+  --da-text-emphasis:#F4F7FA;
+  --da-text-primary:#E7EDF4;
+  --da-text-secondary:#CDD7E2;
+  --da-text-muted:#B7C4D2;
+  --da-text-subtle:#9CAABC;
 
   --da-surface-0:#0A1119;
   --da-surface-1:#0E1721;
@@ -23,15 +22,26 @@
   --da-surface-input:#111B27;
   --da-surface-code:#0A1119;
 
-  --da-border:rgba(171,191,211,.16);
-  --da-border-strong:rgba(171,191,211,.24);
-  --da-border-focus:rgba(143,166,232,.46);
+  --da-border:rgba(183,196,210,.18);
+  --da-border-strong:rgba(183,196,210,.28);
+  --da-border-focus:rgba(143,166,232,.52);
 
   --da-accent-cyan:#73CBD6;
   --da-accent-blue:#8FA6E8;
+  --da-accent-violet:#A894EA;
   --da-accent-green:#72C99E;
   --da-accent-yellow:#DDBB6A;
   --da-accent-red:#E88492;
+  --da-link:#AFCBFF;
+
+  /* aliases still consumed by the visual-workspace base styles */
+  --da-cyan:var(--da-accent-cyan);
+  --da-blue:var(--da-accent-blue);
+  --da-violet:var(--da-accent-violet);
+  --da-green:var(--da-accent-green);
+  --da-yellow:var(--da-accent-yellow);
+  --da-red:var(--da-accent-red);
+  --accent-cyan:var(--da-accent-cyan);
 
   --da-shadow-soft:0 10px 30px rgba(0,0,0,.18);
   --da-shadow-raised:0 16px 42px rgba(0,0,0,.22);
@@ -51,14 +61,10 @@
   color:var(--da-text-primary)!important;
 }
 
-.dataagent-shell :where(p,li,dd,dt,label,input,textarea),
-.visual-chat [data-testid="copilot-chat-assistant-message"],
-.visual-chat [data-testid="copilot-chat-user-message"],
-.visual-chat [data-testid="copilot-chat-message"]{
+.dataagent-shell :where(p,li,dd,dt,label,input,textarea){
   color:var(--da-text-primary)!important;
 }
 
-/* Brightest tone is deliberately rare. */
 .dataagent-shell :where(h1,h2),
 .management-page__header h1,
 .visual-workspace .metric-value,
@@ -73,9 +79,7 @@
 .app-sidebar__brand b,
 .app-sidebar__thread-copy b,
 .assistant-name b,
-.management-surface__head b,
-.visual-workspace .gen-title,
-.visual-workspace .widget-title{
+.management-surface__head b{
   color:var(--da-text-primary)!important;
 }
 
@@ -108,7 +112,7 @@
   background:rgba(255,255,255,.026)!important;
 }
 
-/* ---------- inputs / buttons ---------- */
+/* ---------- inputs / buttons / menus ---------- */
 .dataagent-shell .el-input__wrapper,
 .dataagent-shell .el-select__wrapper,
 .dataagent-shell .el-textarea__inner,
@@ -156,10 +160,10 @@
 }
 
 .dataagent-shell .el-tag{
-  --el-tag-bg-color:rgba(143,166,232,.09);
-  --el-tag-border-color:rgba(143,166,232,.24);
-  --el-tag-text-color:#C9D3EB;
-  color:#C9D3EB!important;
+  --el-tag-bg-color:rgba(143,166,232,.10);
+  --el-tag-border-color:rgba(143,166,232,.28);
+  --el-tag-text-color:#D8E1F2;
+  color:#D8E1F2!important;
 }
 
 .el-popper,
@@ -224,123 +228,125 @@
   background:#172332!important;
 }
 
-/* ---------- conversation ---------- */
-.visual-chat [data-testid="copilot-chat-assistant-message"]{
+/* =========================================================
+   Conversation / CopilotKit
+   Only style third-party CopilotKit DOM here.
+   Reasoning, tool cards and approval cards own their colors in their components.
+   ========================================================= */
+.visual-chat{
   color:var(--da-text-primary)!important;
 }
 
-.visual-chat [data-testid="copilot-chat-user-message"],
-.component-gallery__user-message{
+.visual-chat [data-testid="copilot-chat-assistant-message"],
+.visual-chat [data-testid="copilot-chat-message"]{
   color:var(--da-text-primary)!important;
+}
+
+.visual-chat [data-testid="copilot-chat-user-message"]{
+  color:var(--da-text-emphasis)!important;
   background:#1A2738!important;
-  border-color:rgba(143,166,232,.20)!important;
+  border-color:rgba(175,203,255,.28)!important;
+}
+
+.visual-chat [data-testid="copilot-chat-user-message"] :where(p,span,strong,b,em,i,code){
+  color:inherit!important;
 }
 
 .visual-chat [data-testid="copilot-chat-input-shell"]{
   box-shadow:0 8px 24px rgba(0,0,0,.17)!important;
 }
 
-.visual-chat [data-testid="copilot-chat-attachment-item"],
-.component-gallery__attachment{
+.visual-chat [data-testid="copilot-chat-attachment-item"]{
   color:var(--da-text-primary)!important;
   background:#141F2B!important;
   border-color:var(--da-border)!important;
 }
 
-/* Copilot assistant Markdown: comfortable long-form reading. */
-.copilot-chat-assistant-markdown,
-.copilot-chat-assistant-markdown :where(p,li,span,strong,b,em,i,del,h1,h2,h3,h4,h5,h6,dt,dd,figcaption){
+.visual-chat [data-testid="copilot-chat-attachment-document-filename"],
+.visual-chat [data-testid="copilot-chat-attachment-document-button"]{
   color:var(--da-text-primary)!important;
 }
 
-.copilot-chat-assistant-markdown :where(h1,h2){
-  color:var(--da-text-emphasis)!important;
+.visual-chat [data-testid="copilot-chat-input-textarea"]{
+  color:var(--da-text-primary)!important;
 }
+.visual-chat [data-testid="copilot-chat-input-textarea"]::placeholder{
+  color:var(--da-text-subtle)!important;
+}
+
+/* Copilot assistant Markdown */
+.copilot-chat-assistant-markdown{
+  color:var(--da-text-primary)!important;
+  background:transparent!important;
+}
+
+.copilot-chat-assistant-markdown :where(
+  div,p,li,span,strong,b,em,i,del,
+  h1,h2,h3,h4,h5,h6,dt,dd,figcaption,summary
+){
+  color:var(--da-text-primary)!important;
+}
+
+.copilot-chat-assistant-markdown :where(ul,ol){color:var(--da-text-primary)!important}
+.copilot-chat-assistant-markdown :where(li)::marker{color:var(--da-text-secondary)!important}
 
 .copilot-chat-assistant-markdown :where(a){
-  color:#9EB5EA!important;
-  text-decoration-color:rgba(158,181,234,.48)!important;
+  color:var(--da-link)!important;
+  text-decoration-color:rgba(175,203,255,.72)!important;
+}
+.copilot-chat-assistant-markdown :where(a:hover){
+  color:#D4E3FF!important;
+  text-decoration-color:currentColor!important;
 }
 
-.copilot-chat-assistant-markdown :where(code):not(pre code){
-  color:#DCE3EC!important;
-  background:#182433!important;
-  border-color:var(--da-border)!important;
+.copilot-chat-assistant-markdown :where(code):not(pre code),
+.copilot-chat-assistant-markdown :where(kbd){
+  color:#F2F5F9!important;
+  background:#1A2838!important;
+  border:1px solid var(--da-border-strong)!important;
 }
 
 .copilot-chat-assistant-markdown :where(pre){
-  color:#DCE3EC!important;
+  color:#F2F5F9!important;
   background:var(--da-surface-code)!important;
-  border-color:var(--da-border)!important;
+  border-color:var(--da-border-strong)!important;
   box-shadow:inset 0 1px 8px rgba(0,0,0,.22)!important;
 }
+.copilot-chat-assistant-markdown :where(pre code),
+.copilot-chat-assistant-markdown :where(pre code *){
+  color:#F2F5F9!important;
+  background:transparent!important;
+}
 
-.copilot-chat-assistant-markdown :where(pre code){color:#DCE3EC!important}
-.copilot-chat-assistant-markdown :where(blockquote),
+.copilot-chat-assistant-markdown :where(blockquote){
+  color:var(--da-text-secondary)!important;
+  background:#121D2A!important;
+  border-left-color:rgba(175,203,255,.72)!important;
+}
 .copilot-chat-assistant-markdown :where(blockquote p,blockquote span,blockquote strong,blockquote em){
   color:var(--da-text-secondary)!important;
 }
-.copilot-chat-assistant-markdown :where(blockquote){
-  background:#121D2A!important;
-  border-left-color:rgba(143,166,232,.46)!important;
-}
 
+.copilot-chat-assistant-markdown :where(table){
+  color:var(--da-text-primary)!important;
+  background:#0E1823!important;
+  border-color:var(--da-border-strong)!important;
+}
 .copilot-chat-assistant-markdown :where(th){
   color:var(--da-text-primary)!important;
-  background:#172433!important;
+  background:#1B2A3A!important;
+  border-color:var(--da-border-strong)!important;
 }
 .copilot-chat-assistant-markdown :where(td){
   color:var(--da-text-secondary)!important;
-  background:#101A25!important;
-}
-
-/* ---------- reasoning ---------- */
-.conversation-chat .reasoning-card,
-.component-gallery .reasoning-card{
-  background:linear-gradient(145deg,#111E27,#0D171F)!important;
-  border-color:rgba(115,203,214,.18)!important;
-  box-shadow:0 8px 24px rgba(0,0,0,.14)!important;
-}
-
-.conversation-chat .reasoning-card.is-streaming{
-  border-color:rgba(115,203,214,.32)!important;
-  box-shadow:0 0 0 2px rgba(115,203,214,.035),0 10px 28px rgba(0,0,0,.16)!important;
-}
-
-.conversation-chat .reasoning-card__heading b,
-.component-gallery .reasoning-card__heading b{
-  color:var(--da-text-primary)!important;
-}
-
-.conversation-chat .reasoning-card__heading small,
-.conversation-chat .reasoning-card__status,
-.component-gallery .reasoning-card__heading small,
-.component-gallery .reasoning-card__status{
-  color:var(--da-text-muted)!important;
-}
-
-.conversation-chat .reasoning-card [data-message-id] > div > div > div > div,
-.component-gallery__reasoning-body{
-  color:var(--da-text-secondary)!important;
-}
-
-/* ---------- tool execution: remove tiny, faint desktop text ---------- */
-.tool-call{
-  color:var(--da-text-primary)!important;
-  background:linear-gradient(145deg,#121D29,#0E1721)!important;
+  background:#111C28!important;
   border-color:var(--da-border)!important;
-  box-shadow:none!important;
 }
-.tool-call header>b{font-size:12.5px!important;color:var(--da-text-primary)!important}
-.tool-call-state{font-size:11px!important;color:var(--da-text-muted)!important}
-.tool-call-icon{font-size:11px!important;color:#B7C4EA!important;background:rgba(143,166,232,.08)!important;border-color:rgba(143,166,232,.20)!important}
-.tool-command{font-size:11.5px!important;color:#D7DEE8!important;background:var(--da-surface-code)!important;border-color:var(--da-border)!important}
-.tool-section{border-top-color:var(--da-border)!important}
-.tool-section summary{font-size:11px!important;color:var(--da-text-muted)!important}
-.tool-section pre{font-size:11.5px!important;color:var(--da-text-secondary)!important;background:var(--da-surface-code)!important}
-.tool-result pre{color:#BDD4C7!important}
-.tool-hint{font-size:11.5px!important;color:var(--da-text-muted)!important}
+.copilot-chat-assistant-markdown :where(tr:nth-child(even) td){background:#162331!important}
+.copilot-chat-assistant-markdown :where(mark){color:#17130A!important;background:#F4D58A!important}
+.copilot-chat-assistant-markdown :where(hr){border-color:var(--da-border-strong)!important}
 
+/* Workspace command messages have no component-local stylesheet. */
 .workspace-command-status{
   color:var(--da-text-primary)!important;
   background:#131F2B!important;
@@ -349,29 +355,29 @@
 .workspace-command-status b{color:var(--da-text-primary)!important}
 .workspace-command-status small{color:var(--da-text-muted)!important}
 
-/* ---------- permission ---------- */
-.agui-permission{
-  color:var(--da-text-primary)!important;
-  background:linear-gradient(150deg,#211E19,#141A22)!important;
-  border-color:rgba(221,187,106,.24)!important;
-  box-shadow:none!important;
-}
-.permission-copy p{color:var(--da-text-secondary)!important}
-.permission-copy code,.agui-permission>small{color:var(--da-text-muted)!important}
-
 /* =========================================================
-   Dynamic render space / GenUI
+   Generative UI shared theme
+   Registry coverage:
+   metric/kpis/table/bar/line/area/donut/funnel/heatmap/rootCause/forecast/
+   insights/analysisPlan/queryTrace/sql/dataQuality/fieldProfile/semanticModel/
+   executiveSummary/agentGraph/agentTimeline/agentActivity/markdown.
+   Markdown and ToolStatus component-specific colors live in their own components.
    ========================================================= */
-.visual-workspace{color:var(--da-text-primary)!important}
+.visual-workspace{
+  color:var(--da-text-primary)!important;
+}
+
 .visual-workspace .visual-toolbar{
   background:linear-gradient(180deg,rgba(16,26,37,.96),rgba(11,19,28,.94))!important;
   border-color:var(--da-border)!important;
 }
+
 .visual-workspace .visual-title-row h1,
 .visual-workspace h1,
 .visual-workspace h2{
   color:var(--da-text-emphasis)!important;
 }
+
 .visual-workspace h3,
 .visual-workspace h4,
 .visual-workspace strong,
@@ -381,10 +387,13 @@
 .visual-workspace .gen-title{
   color:var(--da-text-primary)!important;
 }
+
 .visual-workspace p,
-.visual-workspace .visual-title-block p{
+.visual-workspace .visual-title-block p,
+.visual-workspace .executive-summary{
   color:var(--da-text-secondary)!important;
 }
+
 .visual-workspace small,
 .visual-workspace .visual-kicker,
 .visual-workspace .eyebrow,
@@ -402,14 +411,18 @@
   border-color:var(--da-border)!important;
   box-shadow:0 8px 24px rgba(0,0,0,.15)!important;
 }
+
 .visual-workspace .widget-frame:hover{
   border-color:var(--da-border-strong)!important;
   box-shadow:0 12px 32px rgba(0,0,0,.18)!important;
 }
 
+/* Shared nested surfaces */
 .visual-workspace .context-chip,
 .visual-workspace .kpi-cell,
 .visual-workspace .insight-item,
+.visual-workspace .highlight-item,
+.visual-workspace .trace-step,
 .visual-workspace .agent-inspector,
 .visual-workspace .semantic-columns>div{
   background:#15212E!important;
@@ -420,17 +433,58 @@
 .visual-workspace .kpi-cell strong,
 .visual-workspace .bar-label,
 .visual-workspace .bar-row b,
-.visual-workspace .metric-value{
+.visual-workspace .metric-value,
+.visual-workspace .insight-title-row b,
+.visual-workspace .plan-step b,
+.visual-workspace .field-main b,
+.visual-workspace .quality-label b,
+.visual-workspace .quality-label span,
+.visual-workspace .cause-title b,
+.visual-workspace .funnel-meta span,
+.visual-workspace .funnel-meta strong,
+.visual-workspace .trace-copy b,
+.visual-workspace .forecast-summary strong{
   color:var(--da-text-primary)!important;
 }
+
 .visual-workspace .metric-value{color:var(--da-text-emphasis)!important}
+
 .visual-workspace .context-chip span,
 .visual-workspace .metric-foot,
-.visual-workspace .field-stats{
+.visual-workspace .field-stats,
+.visual-workspace .highlight-item span,
+.visual-workspace .tag-cloud span,
+.visual-workspace .funnel-conversion,
+.visual-workspace .quality-ring-inner span,
+.visual-workspace .quality-row small,
+.visual-workspace .cause-main p,
+.visual-workspace .trace-copy p,
+.visual-workspace .trace-copy span,
+.visual-workspace .trace-step time,
+.visual-workspace .forecast-summary>div>span,
+.visual-workspace .forecast-horizon,
+.visual-workspace .confidence-chip,
+.visual-workspace .target-chip,
+.visual-workspace .trace-duration,
+.visual-workspace .semantic-head p,
+.visual-workspace .semantic-label,
+.visual-workspace .semantic-sources{
   color:var(--da-text-muted)!important;
 }
 
-/* Tables */
+/* Metric / KPI / executive summary */
+.visual-workspace .metric-value small,
+.visual-workspace .kpi-cell strong small{
+  color:var(--da-text-muted)!important;
+}
+
+.visual-workspace .tone-neutral{color:var(--da-text-secondary)!important}
+.visual-workspace .tone-positive,
+.visual-workspace .up{color:var(--da-accent-green)!important}
+.visual-workspace .tone-negative,
+.visual-workspace .down{color:var(--da-accent-red)!important}
+
+/* Data table */
 .visual-workspace .el-table{
   --el-table-bg-color:#101923;
   --el-table-tr-bg-color:#101923;
@@ -443,60 +497,68 @@
   color:var(--da-text-secondary)!important;
   background:#101923!important;
 }
-.visual-workspace .el-table th.el-table__cell{color:var(--da-text-primary)!important;background:#172331!important}
+.visual-workspace .el-table th.el-table__cell{
+  color:var(--da-text-primary)!important;
+  background:#172331!important;
+}
 .visual-workspace .el-table td.el-table__cell{color:var(--da-text-secondary)!important}
 .visual-workspace .el-table__body tr.el-table__row--striped td.el-table__cell{background:#141F2B!important}
 
-/* Charts: readable without turning every label white. */
+/* Charts: line / area / bar / donut / funnel / forecast / heatmap */
 .visual-workspace .chart-grid,
-.visual-workspace .timeline-gridline{stroke:rgba(171,191,211,.14)!important}
-.visual-workspace .chart-label{fill:#AEB8C6!important;font-weight:500!important}
-.visual-workspace .chart-dot{fill:#111B27!important;stroke:var(--da-accent-blue)!important}
+.visual-workspace .timeline-gridline{
+  stroke:rgba(183,196,210,.18)!important;
+}
+
+.visual-workspace .chart-label{
+  fill:var(--da-text-muted)!important;
+  font-weight:550!important;
+}
+
+.visual-workspace .chart-dot{
+  fill:var(--da-surface-input)!important;
+  stroke:var(--da-accent-blue)!important;
+}
 .visual-workspace .chart-line{stroke:var(--da-accent-blue)!important}
+
+.visual-workspace .bar-row,
 .visual-workspace .legend-row,
 .visual-workspace .forecast-legend,
 .visual-workspace .timeline-axis,
-.visual-workspace .timeline-agent-name{color:var(--da-text-secondary)!important}
-.visual-workspace .legend-row b,
-.visual-workspace .forecast-summary strong{color:var(--da-text-primary)!important}
+.visual-workspace .timeline-agent-name{
+  color:var(--da-text-secondary)!important;
+}
+
+.visual-workspace .legend-row b{color:var(--da-text-primary)!important}
+
 .visual-workspace .donut-center,
 .visual-workspace .quality-ring-inner{
   color:var(--da-text-emphasis)!important;
-  background:#111B27!important;
+  background:var(--da-surface-input)!important;
   border-color:var(--da-border)!important;
   box-shadow:0 0 0 5px rgba(10,17,25,.24)!important;
   text-shadow:none!important;
 }
-.visual-workspace .heat-x,.visual-workspace .heat-y{color:var(--da-text-secondary)!important}
-.visual-workspace .heat-cell{color:#F0F3F7!important;border-color:rgba(220,230,239,.18)!important;text-shadow:0 1px 2px rgba(0,0,0,.78)!important}
 
-/* Status/analysis components */
+.visual-workspace .funnel-meta i{color:var(--da-text-subtle)!important}
+.visual-workspace .heat-x,
+.visual-workspace .heat-y{
+  color:var(--da-text-secondary)!important;
+}
+.visual-workspace .heat-cell{
+  color:#F4F7FA!important;
+  border-color:rgba(220,230,239,.24)!important;
+  text-shadow:0 1px 2px rgba(0,0,0,.82)!important;
+}
+
+/* Analysis / status */
 .visual-workspace .insight-index,
 .visual-workspace .plan-node,
 .visual-workspace .cause-rank,
 .visual-workspace .trace-index{
-  color:#DCE3EC!important;
-  background:#223247!important;
-  border-color:rgba(143,166,232,.22)!important;
-}
-.visual-workspace .insight-body p,
-.visual-workspace .plan-step p,
-.visual-workspace .cause-main p,
-.visual-workspace .trace-copy p,
-.visual-workspace .forecast-summary>div>span,
-.visual-workspace .forecast-horizon,
-.visual-workspace .confidence-chip{
-  color:var(--da-text-muted)!important;
-}
-
-.visual-workspace .quality-label b,
-.visual-workspace .quality-label span,
-.visual-workspace .cause-title b,
-.visual-workspace .funnel-meta span,
-.visual-workspace .funnel-meta strong,
-.visual-workspace .trace-copy b,
-.visual-workspace .field-main b{
   color:var(--da-text-primary)!important;
+  background:#223247!important;
+  border-color:rgba(143,166,232,.28)!important;
 }
 
 .visual-workspace .quality-status{
@@ -505,7 +567,11 @@
   border-color:var(--da-border)!important;
 }
 
-/* Multi-agent: status is color, content remains neutral. */
+.visual-workspace .plan-node.done{color:var(--da-accent-green)!important}
+.visual-workspace .plan-node.running{color:var(--da-accent-cyan)!important}
+.visual-workspace .plan-node.error{color:var(--da-accent-red)!important}
+
+/* Multi-agent: semantic status colors stay on decoration, content stays neutral. */
 .visual-workspace .agent-root-node,
 .visual-workspace .agent-child-node{
   color:var(--da-text-primary)!important;
@@ -513,17 +579,22 @@
   border-color:var(--da-border)!important;
   box-shadow:0 6px 18px rgba(0,0,0,.15)!important;
 }
+
 .visual-workspace .agent-root-node:hover,
 .visual-workspace .agent-child-node:hover,
 .visual-workspace .agent-child-node.selected{
   background:linear-gradient(145deg,#1A2938,#14212E)!important;
-  border-color:rgba(115,203,214,.28)!important;
+  border-color:rgba(115,203,214,.34)!important;
 }
+
 .visual-workspace .agent-node-copy b,
 .visual-workspace .agent-child-node b,
 .visual-workspace .agent-inspector-title b,
 .visual-workspace .agent-inspector-grid strong,
-.visual-workspace .activity-copy b{color:var(--da-text-primary)!important}
+.visual-workspace .activity-copy b{
+  color:var(--da-text-primary)!important;
+}
+
 .visual-workspace .agent-node-copy small,
 .visual-workspace .agent-node-copy em,
 .visual-workspace .agent-child-node small,
@@ -533,27 +604,79 @@
 .visual-workspace .agent-inspector-title>span,
 .visual-workspace .agent-inspector-grid small,
 .visual-workspace .agent-activity-item time,
-.visual-workspace .activity-copy small{color:var(--da-text-muted)!important}
+.visual-workspace .activity-copy small,
+.visual-workspace .agent-network-status,
+.visual-workspace .timeline-total{
+  color:var(--da-text-muted)!important;
+}
+
 .visual-workspace .activity-copy p{color:var(--da-text-secondary)!important}
 
-.visual-workspace .timeline-track{background:#0E1721!important;border-color:var(--da-border)!important}
-.visual-workspace .timeline-segment{color:#E8EDF3!important;background:#253548!important;border-color:rgba(143,166,232,.22)!important}
-.visual-workspace .timeline-segment.running{background:rgba(72,157,170,.20)!important;border-color:rgba(115,203,214,.28)!important}
-.visual-workspace .timeline-segment.done{background:rgba(70,145,108,.19)!important;border-color:rgba(114,201,158,.26)!important}
-.visual-workspace .timeline-segment.error{background:rgba(154,65,78,.20)!important;border-color:rgba(232,132,146,.28)!important}
-.visual-workspace .timeline-segment.waiting{background:rgba(142,112,52,.19)!important;border-color:rgba(221,187,106,.26)!important}
-.visual-workspace .timeline-segment span,
-.visual-workspace .timeline-segment time{color:#E8EDF3!important;text-shadow:none!important}
+.visual-workspace .timeline-track{
+  background:#0E1721!important;
+  border-color:var(--da-border)!important;
+}
 
-/* Semantic / SQL / Markdown */
-.visual-workspace .semantic-icon{color:#D8E1EA!important;background:#17303A!important;border-color:rgba(115,203,214,.22)!important}
+.visual-workspace .timeline-segment{
+  color:var(--da-text-primary)!important;
+  background:#253548!important;
+  border-color:rgba(143,166,232,.28)!important;
+}
+.visual-workspace .timeline-segment.running{
+  background:rgba(72,157,170,.20)!important;
+  border-color:rgba(115,203,214,.34)!important;
+}
+.visual-workspace .timeline-segment.done{
+  background:rgba(70,145,108,.19)!important;
+  border-color:rgba(114,201,158,.32)!important;
+}
+.visual-workspace .timeline-segment.error{
+  background:rgba(154,65,78,.20)!important;
+  border-color:rgba(232,132,146,.34)!important;
+}
+.visual-workspace .timeline-segment.waiting{
+  background:rgba(142,112,52,.19)!important;
+  border-color:rgba(221,187,106,.32)!important;
+}
+.visual-workspace .timeline-segment span,
+.visual-workspace .timeline-segment time{
+  color:var(--da-text-primary)!important;
+  text-shadow:none!important;
+}
+
+/* Semantic model / SQL */
+.visual-workspace .semantic-icon{
+  color:var(--da-accent-cyan)!important;
+  background:#17303A!important;
+  border-color:rgba(115,203,214,.28)!important;
+}
+
 .visual-workspace .semantic-pills span,
-.visual-workspace .semantic-sources code{color:#D5DDE7!important;background:#172433!important;border-color:var(--da-border)!important}
-.visual-workspace .markdown-content{color:var(--da-text-secondary)!important}
-.visual-workspace .markdown-content h2,
-.visual-workspace .markdown-content h3,
-.visual-workspace .markdown-content h4{color:var(--da-text-primary)!important}
-.visual-workspace .sql{color:#DCE3EC!important;background:var(--da-surface-code)!important;border-color:var(--da-border)!important;box-shadow:inset 0 1px 8px rgba(0,0,0,.22)!important}
+.visual-workspace .semantic-sources code{
+  color:var(--da-text-secondary)!important;
+  background:#172433!important;
+  border-color:var(--da-border)!important;
+}
+
+.visual-workspace .semantic-pills.measures span{
+  background:rgba(143,166,232,.10)!important;
+  border-color:rgba(143,166,232,.22)!important;
+}
+.visual-workspace .semantic-pills.metrics span{
+  background:rgba(168,148,234,.10)!important;
+  border-color:rgba(168,148,234,.22)!important;
+}
+
+.visual-workspace .sql{
+  color:#E7F1F7!important;
+  background:var(--da-surface-code)!important;
+  border-color:var(--da-border)!important;
+  box-shadow:inset 0 1px 8px rgba(0,0,0,.22)!important;
+}
+
+/* Generic renderer states */
+.visual-workspace .skeleton{color:var(--da-text-muted)!important}
+.visual-workspace .error-card{color:var(--da-accent-red)!important}
 
 /* ---------- component gallery ---------- */
 .component-gallery{
@@ -579,8 +702,11 @@
   box-shadow:none!important;
 }
 .component-gallery__label b{color:var(--da-text-primary)!important}
-.component-gallery__label code{color:#9EB5EA!important}
-.component-gallery__assistant-message{background:#101A25!important;border-color:var(--da-border)!important}
+.component-gallery__label code{color:var(--da-link)!important}
+.component-gallery__assistant-message{
+  background:#101A25!important;
+  border-color:var(--da-border)!important;
+}
 .component-gallery__attachment button,
 .component-gallery__composer textarea{color:var(--da-text-primary)!important}
 .component-gallery__attachment small{color:var(--da-text-muted)!important}
@@ -590,7 +716,7 @@
 .dataagent-shell [role="button"]:focus-visible,
 .dataagent-shell input:focus-visible,
 .dataagent-shell textarea:focus-visible{
-  outline:2px solid rgba(143,166,232,.62)!important;
+  outline:2px solid rgba(143,166,232,.68)!important;
   outline-offset:2px!important;
 }
 
@@ -604,138 +730,3 @@
     scroll-behavior:auto!important;
   }
 }
-
-/* =========================================================
-   Conversation contrast hardening
-
-   Keep the application soft, but make the actual conversation stream more
-   readable than surrounding chrome. These rules intentionally live at the
-   end of the theme so earlier soft tokens cannot lower message contrast.
-   ========================================================= */
-.visual-chat{
-  --da-chat-text-primary:#F4F7FA;
-  --da-chat-text-secondary:#DEE5ED;
-  --da-chat-text-muted:#C5CFDA;
-  --da-chat-text-subtle:#B9C4D1;
-  --da-chat-link:#AFCBFF;
-  --da-chat-user-surface:#1A2738;
-  --da-chat-code-surface:#0A1119;
-  color:var(--da-chat-text-primary)!important;
-}
-
-.visual-chat [data-testid="copilot-chat-assistant-message"],
-.visual-chat [data-testid="copilot-chat-message"]{
-  color:var(--da-chat-text-primary)!important;
-}
-
-.visual-chat [data-testid="copilot-chat-user-message"]{
-  color:var(--da-chat-text-primary)!important;
-  background:var(--da-chat-user-surface)!important;
-  border-color:rgba(175,203,255,.28)!important;
-}
-
-.visual-chat [data-testid="copilot-chat-user-message"] :where(p,span,strong,b,em,i,code){
-  color:inherit!important;
-}
-
-.visual-chat .copilot-chat-assistant-markdown,
-.visual-chat .copilot-chat-assistant-markdown :where(
-  p,li,span,strong,b,em,i,del,
-  h1,h2,h3,h4,h5,h6,
-  dt,dd,figcaption,summary
-){
-  color:var(--da-chat-text-primary)!important;
-}
-
-.visual-chat .copilot-chat-assistant-markdown :where(ul,ol){color:var(--da-chat-text-primary)!important}
-.visual-chat .copilot-chat-assistant-markdown :where(li)::marker{color:var(--da-chat-text-secondary)!important}
-.visual-chat .copilot-chat-assistant-markdown :where(a){
-  color:var(--da-chat-link)!important;
-  text-decoration-color:rgba(175,203,255,.72)!important;
-}
-.visual-chat .copilot-chat-assistant-markdown :where(a:hover){color:#D4E3FF!important;text-decoration-color:currentColor!important}
-
-.visual-chat .copilot-chat-assistant-markdown :where(code):not(pre code),
-.visual-chat .copilot-chat-assistant-markdown :where(kbd){
-  color:#F2F5F9!important;
-  background:#1A2838!important;
-  border:1px solid rgba(190,207,224,.28)!important;
-}
-.visual-chat .copilot-chat-assistant-markdown :where(pre){
-  color:#F2F5F9!important;
-  background:var(--da-chat-code-surface)!important;
-  border-color:rgba(190,207,224,.26)!important;
-}
-.visual-chat .copilot-chat-assistant-markdown :where(pre code),
-.visual-chat .copilot-chat-assistant-markdown :where(pre code *){
-  color:#F2F5F9!important;
-  background:transparent!important;
-}
-
-.visual-chat .copilot-chat-assistant-markdown :where(blockquote){
-  color:var(--da-chat-text-secondary)!important;
-  background:#121D2A!important;
-  border-left-color:rgba(175,203,255,.72)!important;
-}
-.visual-chat .copilot-chat-assistant-markdown :where(blockquote p,blockquote span,blockquote strong,blockquote em){color:var(--da-chat-text-secondary)!important}
-.visual-chat .copilot-chat-assistant-markdown :where(table){color:var(--da-chat-text-primary)!important;background:#0E1823!important;border-color:rgba(190,207,224,.26)!important}
-.visual-chat .copilot-chat-assistant-markdown :where(th){color:var(--da-chat-text-primary)!important;background:#1B2A3A!important;border-color:rgba(190,207,224,.28)!important}
-.visual-chat .copilot-chat-assistant-markdown :where(td){color:var(--da-chat-text-secondary)!important;background:#111C28!important;border-color:rgba(190,207,224,.22)!important}
-.visual-chat .copilot-chat-assistant-markdown :where(tr:nth-child(even) td){background:#162331!important}
-.visual-chat .copilot-chat-assistant-markdown :where(mark){color:#17130A!important;background:#F4D58A!important}
-.visual-chat .copilot-chat-assistant-markdown :where(hr){border-color:rgba(190,207,224,.28)!important}
-
-.conversation-chat .reasoning-card{
-  color:var(--da-chat-text-primary,#F4F7FA)!important;
-  background:linear-gradient(145deg,#111E27,#0D171F)!important;
-  border-color:rgba(125,213,224,.30)!important;
-}
-.conversation-chat .reasoning-card__heading b,
-.conversation-chat .reasoning-card__header{color:var(--da-chat-text-primary,#F4F7FA)!important}
-.conversation-chat .reasoning-card__heading small,
-.conversation-chat .reasoning-card__status,
-.conversation-chat .reasoning-card__chevron{
-  color:var(--da-chat-text-muted,#C5CFDA)!important;
-  stroke:var(--da-chat-text-muted,#C5CFDA)!important;
-}
-.conversation-chat .reasoning-card [data-message-id] > div > div > div > div,
-.conversation-chat .reasoning-card [data-message-id] :where(p,li,span,strong,b,em,i,code){color:var(--da-chat-text-secondary,#DEE5ED)!important}
-
-.visual-chat .tool-call,
-.visual-chat .workspace-command-status{
-  color:var(--da-chat-text-primary)!important;
-  background:linear-gradient(145deg,#121E2A,#0D1721)!important;
-  border-color:rgba(190,207,224,.22)!important;
-}
-.visual-chat .tool-call header>b,
-.visual-chat .workspace-command-status b{color:var(--da-chat-text-primary)!important}
-.visual-chat .tool-call-state,
-.visual-chat .tool-section summary,
-.visual-chat .tool-hint,
-.visual-chat .workspace-command-status small{color:var(--da-chat-text-muted)!important}
-.visual-chat .tool-command,
-.visual-chat .tool-section pre{
-  color:#F2F5F9!important;
-  background:var(--da-chat-code-surface)!important;
-  border-color:rgba(190,207,224,.24)!important;
-}
-.visual-chat .tool-result pre{color:#CDE8D9!important}
-
-.conversation-chat .agui-permission{
-  color:var(--da-chat-text-primary,#F4F7FA)!important;
-  background:linear-gradient(150deg,#262119,#151B24)!important;
-  border-color:rgba(244,213,138,.36)!important;
-}
-.conversation-chat .agui-permission header b,
-.conversation-chat .permission-copy b{color:var(--da-chat-text-primary,#F4F7FA)!important}
-.conversation-chat .permission-copy p{color:var(--da-chat-text-secondary,#DEE5ED)!important}
-.conversation-chat .permission-copy code,
-.conversation-chat .agui-permission>small,
-.conversation-chat .agui-permission header span{color:var(--da-chat-text-muted,#C5CFDA)!important}
-.conversation-chat .permission-list article{background:rgba(255,255,255,.065)!important;border-color:rgba(190,207,224,.22)!important}
-
-.visual-chat [data-testid="copilot-chat-input-textarea"]{color:var(--da-chat-text-primary)!important}
-.visual-chat [data-testid="copilot-chat-input-textarea"]::placeholder{color:var(--da-chat-text-subtle)!important}
-.visual-chat [data-testid="copilot-chat-attachment-document-filename"],
-.visual-chat [data-testid="copilot-chat-attachment-document-button"]{color:var(--da-chat-text-primary)!important}
-.visual-chat [data-testid="copilot-chat-attachment-document-button"] > div:last-child > span:last-child{color:var(--da-chat-text-muted)!important}
