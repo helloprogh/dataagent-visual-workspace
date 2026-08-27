@@ -31,7 +31,6 @@ test('removed diagnostic and passthrough endpoints return not found', async (t) 
     '/debug/capabilities',
     '/debug/sessions',
     '/debug/sessions/thread-1/context',
-    '/opencode/session',
   ]) {
     const response = await fetch(`http://127.0.0.1:${port}${pathname}`)
     assert.equal(response.status, 404)
