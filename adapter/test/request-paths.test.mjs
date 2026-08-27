@@ -6,6 +6,9 @@ const read = async (path) => fs.readFile(new URL(path, import.meta.url), 'utf8')
 
 const publicRequestSources = async () => Promise.all([
   read('../../frontend/src/config/api.ts'),
+  read('../../frontend/src/conversations/opencode-session.ts'),
+  read('../../frontend/src/model/model-selection.ts'),
+  read('../../frontend/src/opencode/management.ts'),
   read('../../frontend/src/copilot/agent.ts'),
   read('../../frontend/src/components/conversation/ConversationChat.vue'),
   read('../../frontend/vite.config.ts'),
