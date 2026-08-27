@@ -39,7 +39,7 @@ defineProps<{
           </span>
 
           <span class="reasoning-card__heading">
-            <small>AG-UI REASONING</small>
+            <small>分析过程</small>
             <b>思考过程</b>
           </span>
 
@@ -129,7 +129,7 @@ defineProps<{
 .reasoning-card__icon::before{left:9px;transform:rotate(-42deg)}
 .reasoning-card__icon::after{right:9px;transform:rotate(42deg)}
 .reasoning-card__heading{min-width:0;display:flex;flex-direction:column;gap:3px}
-.reasoning-card__heading small{color:var(--da-text-muted);font-weight:700;letter-spacing:.11em}
+.reasoning-card__heading small{color:var(--da-text-muted);font-weight:700;letter-spacing:.08em}
 .reasoning-card__heading b{color:var(--da-text-emphasis);font-size:15px;font-weight:650}
 .reasoning-card__status{
   min-width:70px;
