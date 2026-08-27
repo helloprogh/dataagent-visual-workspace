@@ -1,5 +1,4 @@
-const CREATE_CONVERSATION_URL = '/dataagent/web/opencode/api/session'
-const INTERRUPT_CONVERSATION_URL = '/dataagent/opencode/api/session'
+import { dataAgentApi, dataAgentWebApi } from '../config/api'
 
 async function responseError(response: Response, action: string) {
   let detail = ''
@@ -13,7 +12,7 @@ async function responseError(response: Response, action: string) {
 }
 
 export async function createOpenCodeConversation(): Promise<string> {
-  const response = await fetch(CREATE_CONVERSATION_URL, {
+  const response = await fetch(dataAgentWebApi('/session'), {
     method: 'POST',
     headers: { Accept: 'application/json' },
     credentials: 'same-origin',
@@ -27,7 +26,6 @@ export async function createOpenCodeConversation(): Promise<string> {
     throw new Error(`新建对话失败${body?.message ? `：${body.message}` : ''}`)
   }
 
-  // Backend response: { code: 20000, data: { data: { id: 'ses_...' } } }
   const sessionId = body?.data?.data?.id
     ?? body?.data?.id
     ?? body?.data?.sessionId
@@ -43,7 +41,7 @@ export async function interruptOpenCodeConversation(sessionId: string): Promise<
   const id = sessionId.trim()
   if (!id) throw new Error('中断对话失败：sessionId 为空')
 
-  const response = await fetch(`${INTERRUPT_CONVERSATION_URL}/${encodeURIComponent(id)}/interrupt`, {
+  const response = await fetch(dataAgentApi(`/session/${encodeURIComponent(id)}/interrupt`), {
     method: 'POST',
     headers: { Accept: 'application/json' },
     credentials: 'same-origin',
