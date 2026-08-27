@@ -29,21 +29,26 @@ const readJsonBody = async (req) => {
   }
 }
 
+const isManagementPath = (pathname) => pathname === '/api/health'
+  || pathname === '/api/projects'
+  || pathname === '/api/workspaces'
+  || /^\/api\/workspaces\/[^/]+$/.test(pathname)
+
 export const createOpenCodeManagementHandler = (client) => async (req, res, url) => {
-  if (!url.pathname.startsWith('/api/opencode/')) return false
+  if (!isManagementPath(url.pathname)) return false
   try {
-    if (req.method === 'GET' && url.pathname === '/api/opencode/health') {
+    if (req.method === 'GET' && url.pathname === '/api/health') {
       sendJson(res, 200, await client.diagnostics())
       return true
     }
 
-    if (req.method === 'GET' && url.pathname === '/api/opencode/projects') {
+    if (req.method === 'GET' && url.pathname === '/api/projects') {
       const data = await client.listProjects()
       sendJson(res, 200, { data: Array.isArray(data) ? data : [] })
       return true
     }
 
-    if (url.pathname === '/api/opencode/workspaces') {
+    if (url.pathname === '/api/workspaces') {
       if (req.method === 'GET') {
         const projectID = url.searchParams.get('projectID') || undefined
         const data = await client.listWorkspaces({ projectID })
@@ -58,7 +63,7 @@ export const createOpenCodeManagementHandler = (client) => async (req, res, url)
       }
     }
 
-    const match = url.pathname.match(/^\/api\/opencode\/workspaces\/([^/]+)$/)
+    const match = url.pathname.match(/^\/api\/workspaces\/([^/]+)$/)
     if (match) {
       const workspaceID = decodeURIComponent(match[1])
       if (req.method === 'GET') {
