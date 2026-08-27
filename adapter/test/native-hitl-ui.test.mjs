@@ -6,7 +6,7 @@ const readRepo = async path => fs.readFile(new URL(`../../${path}`, import.meta.
 const readConversation = path => readRepo(`frontend/src/components/conversation/${path}`)
 const templateOf = source => source.match(/<template>([\s\S]*?)<\/template>/)?.[1] ?? ''
 
-test('conversation HITL uses CopilotKit native interrupt lifecycle', async () => {
+test('conversation HITL uses CopilotKit native interrupt lifecycle through the fully typed message view', async () => {
   const [chat, controller] = await Promise.all([
     readConversation('ConversationChat.vue'),
     readConversation('AguiInterruptController.vue'),
@@ -14,7 +14,10 @@ test('conversation HITL uses CopilotKit native interrupt lifecycle', async () =>
 
   assert.match(controller, /useInterrupt\(\)/)
   assert.doesNotMatch(chat, /ResumeEntry|pendingInterrupts|decisions|function\s+decide\s*\(/)
-  assert.match(chat, /#interrupt=/)
+  assert.match(chat, /CopilotChatMessageView/)
+  assert.match(chat, /#message-view=/)
+  assert.match(chat, /<CopilotChatMessageView[\s\S]*?#interrupt=/)
+  assert.match(chat, /:interrupt="interrupt"[\s\S]*:interrupts="interrupts"[\s\S]*:resolve="resolve"[\s\S]*:cancel="cancel"/)
 })
 
 test('interrupt choices are rendered from responseSchema instead of a fixed option list', async () => {
