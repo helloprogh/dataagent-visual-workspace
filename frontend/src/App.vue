@@ -21,7 +21,6 @@ type AppPage = 'chat' | 'history' | 'skills' | 'workspace'
 const galleryMode = import.meta.env.VITE_COMPONENT_GALLERY === 'true'
   || new URLSearchParams(window.location.search).get('gallery') === 'components'
 const runtime = createAgentRuntime()
-const showDevConsole = import.meta.env.DEV
 const ACTIVE_CONVERSATION_KEY = 'dataagent.conversations.active.v2.session-thread'
 const conversations = ref<ConversationRecord[]>([])
 const activeId = ref(localStorage.getItem(ACTIVE_CONVERSATION_KEY) ?? '')
@@ -136,7 +135,7 @@ function autoRename(name: string) {
   <CopilotKitProvider
     v-else
     :self-managed-agents="runtime.selfManagedAgents"
-    :show-dev-console="showDevConsole"
+    :show-dev-console="false"
   >
     <GenUIBridge>
       <main class="dataagent-shell dataagent-shell--three-zone" :class="{ 'has-dynamic-workspace': renderAreaVisible }">
