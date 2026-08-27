@@ -24,8 +24,8 @@ const emit = defineEmits<{
       <div class="assistant-identity">
         <div class="assistant-orb"><span></span></div>
         <div>
-          <div class="assistant-name"><b>{{ agentDisplayName }}</b><span>ONLINE</span></div>
-          <small>SA Data Delivery Copilot</small>
+          <div class="assistant-name"><b>{{ agentDisplayName }}</b><span>在线</span></div>
+          <small>SA 数据需求开发与交付助手</small>
         </div>
       </div>
       <div class="assistant-actions">
@@ -34,7 +34,7 @@ const emit = defineEmits<{
     </header>
 
     <div class="assistant-context">
-      <span>THREAD</span>
+      <span>当前会话</span>
       <b>{{ activeConversation?.displayName || '新需求' }}</b>
       <i></i>
       <small>{{ activeId.slice(0, 18) }}</small>
@@ -54,8 +54,8 @@ const emit = defineEmits<{
     </div>
 
     <footer class="assistant-footer">
-      <span><i></i> AG-UI STREAM</span>
-      <span>CENTER CONVERSATION</span>
+      <span><i></i> 实时连接</span>
+      <span>对话工作区</span>
     </footer>
   </section>
 </template>

@@ -22,6 +22,18 @@ const busyIds = ref<string[]>([])
 const error = ref('')
 
 const activeInterrupts = computed(() => props.interrupts.length ? props.interrupts : (props.interrupt ? [props.interrupt] : []))
+const primaryInterrupt = computed(() => activeInterrupts.value[0] ?? null)
+const requestTitle = computed(() => {
+  const reason = primaryInterrupt.value?.reason
+  if (reason === 'tool_call') return '操作确认'
+  if (reason === 'confirmation') return '请确认'
+  if (reason === 'input_required') return '需要补充信息'
+  return '需要你的处理'
+})
+const requestStatus = computed(() => {
+  const reason = primaryInterrupt.value?.reason
+  return reason === 'input_required' ? '等待填写' : '等待确认'
+})
 
 watch(activeInterrupts, interrupts => {
   const ids = new Set(interrupts.map(item => item.id))
@@ -55,11 +67,22 @@ function fieldsFor(interrupt: Interrupt): Field[] {
   }))
 }
 
+function fallbackChoiceLabel(value: any) {
+  if (typeof value !== 'string') return JSON.stringify(value)
+  const normalized = value.trim().toLowerCase()
+  if (/^(once|allow[_-]?once)$/.test(normalized)) return '允许一次'
+  if (/^(always|allow[_-]?always)$/.test(normalized)) return '始终允许'
+  if (/^(reject|deny)$/.test(normalized)) return '拒绝'
+  if (/^(approve|allow|accept|yes)$/.test(normalized)) return '允许'
+  if (/^(cancel|abort|no)$/.test(normalized)) return '取消'
+  return value
+}
+
 function choicesFor(schema: JsonSchema): Choice[] {
   if (Array.isArray(schema.oneOf)) {
     const choices = schema.oneOf
       .filter((item: any) => item && Object.prototype.hasOwnProperty.call(item, 'const'))
-      .map((item: any) => ({ value: item.const, label: String(item.title ?? item.const) }))
+      .map((item: any) => ({ value: item.const, label: String(item.title ?? fallbackChoiceLabel(item.const)) }))
     if (choices.length) return choices
   }
   if (!Array.isArray(schema.enum)) return []
@@ -70,13 +93,25 @@ function choicesFor(schema: JsonSchema): Choice[] {
       : []
   return schema.enum.map((value: any, index: number) => ({
     value,
-    label: String(labels[index] ?? (typeof value === 'string' ? value : JSON.stringify(value))),
+    label: String(labels[index] ?? fallbackChoiceLabel(value)),
   }))
 }
 
 function titleFor(interrupt: Interrupt) {
   const metadata = interrupt.metadata as { action?: unknown } | undefined
-  return metadata?.action ? String(metadata.action) : interrupt.reason
+  if (metadata?.action) return String(metadata.action)
+  if (interrupt.reason === 'tool_call') return '执行操作'
+  if (interrupt.reason === 'input_required') return '补充信息'
+  if (interrupt.reason === 'confirmation') return '确认操作'
+  return '继续处理'
+}
+
+function messageFor(interrupt: Interrupt) {
+  if (interrupt.message) return interrupt.message
+  if (interrupt.reason === 'tool_call') return '即将执行以下操作，请确认是否继续。'
+  if (interrupt.reason === 'input_required') return '需要补充以下信息后才能继续。'
+  if (interrupt.reason === 'confirmation') return '请确认是否继续。'
+  return '需要你的输入后才能继续处理。'
 }
 
 function resourceFor(interrupt: Interrupt) {
@@ -84,7 +119,7 @@ function resourceFor(interrupt: Interrupt) {
   const resources = metadata?.resources
   if (Array.isArray(resources)) return resources.map(String).join(' · ')
   if (resources != null) return String(resources)
-  return interrupt.toolCallId || interrupt.id
+  return ''
 }
 
 function isBusy(id: string) {
@@ -190,29 +225,30 @@ async function chooseRoot(interrupt: Interrupt, value: any) {
 </script>
 
 <template>
-  <section v-if="activeInterrupts.length" class="agui-interrupt" role="alert" aria-live="assertive">
-    <header>
-      <div>
-        <span>AG-UI · HUMAN IN THE LOOP</span>
-        <b>{{ activeInterrupts.length > 1 ? `${activeInterrupts.length} 项操作等待处理` : '操作等待处理' }}</b>
+  <section v-if="activeInterrupts.length" class="approval-request" role="alert" aria-live="polite">
+    <header class="approval-request__header">
+      <span class="approval-request__icon" aria-hidden="true">!</span>
+      <div class="approval-request__heading">
+        <b>{{ requestTitle }}</b>
+        <span v-if="activeInterrupts.length > 1">{{ activeInterrupts.length }} 项待处理</span>
       </div>
-      <i>ACTION REQUIRED</i>
+      <span class="approval-request__state"><i></i>{{ requestStatus }}</span>
     </header>
 
-    <div class="interrupt-list">
+    <div class="approval-request__list">
       <article v-for="item in activeInterrupts" :key="item.id" :class="{ submitted: isSubmitted(item.id) }">
-        <div class="interrupt-copy">
+        <div class="approval-request__copy">
           <b>{{ titleFor(item) }}</b>
-          <p>{{ item.message || 'Agent 正在等待你的输入后继续执行。' }}</p>
-          <code>{{ resourceFor(item) }}</code>
+          <p>{{ messageFor(item) }}</p>
+          <code v-if="resourceFor(item)">{{ resourceFor(item) }}</code>
         </div>
 
-        <div v-if="!isSubmitted(item.id)" class="interrupt-response">
+        <div v-if="!isSubmitted(item.id)" class="approval-request__response">
           <template v-if="fieldsFor(item).length">
-            <label v-for="field in fieldsFor(item)" :key="field.name" class="interrupt-field">
+            <label v-for="field in fieldsFor(item)" :key="field.name" class="approval-request__field">
               <span>{{ field.schema.title || field.name }}<em v-if="field.required">*</em></span>
 
-              <div v-if="choicesFor(field.schema).length" class="interrupt-choices">
+              <div v-if="choicesFor(field.schema).length" class="approval-request__choices">
                 <button
                   v-for="choice in choicesFor(field.schema)"
                   :key="JSON.stringify(choice.value)"
@@ -223,9 +259,9 @@ async function chooseRoot(interrupt: Interrupt, value: any) {
                 >{{ choice.label }}</button>
               </div>
 
-              <div v-else-if="field.schema.type === 'boolean'" class="interrupt-choices">
-                <button type="button" :disabled="isBusy(item.id)" :class="{ selected: answers[item.id]?.[field.name] === true }" @click="chooseField(item, field, true)">true</button>
-                <button type="button" :disabled="isBusy(item.id)" :class="{ selected: answers[item.id]?.[field.name] === false }" @click="chooseField(item, field, false)">false</button>
+              <div v-else-if="field.schema.type === 'boolean'" class="approval-request__choices">
+                <button type="button" :disabled="isBusy(item.id)" :class="{ selected: answers[item.id]?.[field.name] === true }" @click="chooseField(item, field, true)">是</button>
+                <button type="button" :disabled="isBusy(item.id)" :class="{ selected: answers[item.id]?.[field.name] === false }" @click="chooseField(item, field, false)">否</button>
               </div>
 
               <input
@@ -240,7 +276,7 @@ async function chooseRoot(interrupt: Interrupt, value: any) {
           </template>
 
           <template v-else-if="choicesFor(schemaFor(item)).length">
-            <div class="interrupt-choices">
+            <div class="approval-request__choices">
               <button
                 v-for="choice in choicesFor(schemaFor(item))"
                 :key="JSON.stringify(choice.value)"
@@ -253,9 +289,9 @@ async function chooseRoot(interrupt: Interrupt, value: any) {
           </template>
 
           <template v-else-if="schemaFor(item).type === 'boolean'">
-            <div class="interrupt-choices">
-              <button type="button" :disabled="isBusy(item.id)" :class="{ selected: rootAnswers[item.id] === true }" @click="chooseRoot(item, true)">true</button>
-              <button type="button" :disabled="isBusy(item.id)" :class="{ selected: rootAnswers[item.id] === false }" @click="chooseRoot(item, false)">false</button>
+            <div class="approval-request__choices">
+              <button type="button" :disabled="isBusy(item.id)" :class="{ selected: rootAnswers[item.id] === true }" @click="chooseRoot(item, true)">是</button>
+              <button type="button" :disabled="isBusy(item.id)" :class="{ selected: rootAnswers[item.id] === false }" @click="chooseRoot(item, false)">否</button>
             </div>
           </template>
 
@@ -263,41 +299,41 @@ async function chooseRoot(interrupt: Interrupt, value: any) {
             v-else-if="schemaFor(item).type === 'string' || schemaFor(item).type === 'number' || schemaFor(item).type === 'integer'"
             :value="rootAnswers[item.id] ?? ''"
             :type="schemaFor(item).type === 'number' || schemaFor(item).type === 'integer' ? 'number' : 'text'"
-            :placeholder="schemaFor(item).description || schemaFor(item).title || '请输入响应'"
+            :placeholder="schemaFor(item).description || schemaFor(item).title || '请输入内容'"
             :disabled="isBusy(item.id)"
             @input="setRootInput(item, $event)"
           />
 
-          <div class="interrupt-footer">
+          <div class="approval-request__footer">
             <button
               v-if="needsSubmit(item)"
               type="button"
               class="primary"
               :disabled="isBusy(item.id) || !isComplete(item)"
               @click="submit(item)"
-            >提交</button>
-            <button type="button" class="cancel" :disabled="isBusy(item.id)" @click="cancel(item)">取消请求</button>
+            >确认</button>
+            <button type="button" class="cancel" :disabled="isBusy(item.id)" @click="cancel(item)">取消</button>
           </div>
         </div>
 
-        <small v-else>已记录，等待其余操作完成后由 CopilotKit 自动恢复运行。</small>
+        <small v-else>已处理，等待其他待处理项完成。</small>
       </article>
     </div>
 
-    <p v-if="error" class="interrupt-error">{{ error }}</p>
+    <p v-if="error" class="approval-request__error">处理失败：{{ error }}</p>
   </section>
 </template>
 
 <style scoped>
-.agui-interrupt{margin:12px 0 6px;padding:13px;border:1px solid color-mix(in srgb,var(--da-accent-yellow) 36%,transparent);border-radius:13px;background:linear-gradient(150deg,#262119,#151B24);box-shadow:0 18px 48px rgba(0,0,0,.32),0 0 0 1px rgba(255,255,255,.025) inset;color:var(--da-text-primary);backdrop-filter:blur(18px)}
-.agui-interrupt header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 1px 10px;border-bottom:1px solid color-mix(in srgb,var(--da-accent-yellow) 20%,transparent)}
-.agui-interrupt header>div{display:flex;flex-direction:column;gap:4px}.agui-interrupt header span{color:var(--da-text-muted);font-size:10px;font-weight:750;letter-spacing:.12em}.agui-interrupt header b{color:var(--da-text-emphasis);font-size:13px;font-weight:650}.agui-interrupt header i{font-style:normal;color:var(--da-accent-yellow);font-size:10px;letter-spacing:.08em}
-.interrupt-list{display:flex;flex-direction:column;gap:9px;margin-top:10px}.interrupt-list article{padding:10px;border:1px solid var(--da-border);border-radius:10px;background:rgba(255,255,255,.055)}.interrupt-list article.submitted{opacity:.72}
-.interrupt-copy{display:flex;flex-direction:column;gap:4px}.interrupt-copy b{color:var(--da-text-primary);font-size:12px}.interrupt-copy p{margin:0;color:var(--da-text-secondary);font-size:11px;line-height:1.55}.interrupt-copy code{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--da-text-muted);font-size:10px}
-.interrupt-response{display:flex;flex-direction:column;gap:9px;margin-top:10px}.interrupt-field{display:flex;flex-direction:column;gap:6px}.interrupt-field>span{color:var(--da-text-secondary);font-size:10.5px}.interrupt-field em{margin-left:3px;color:var(--da-accent-red);font-style:normal}
-.interrupt-choices{display:flex;flex-wrap:wrap;gap:7px}.interrupt-choices button,.interrupt-footer button{padding:7px 10px;border:1px solid color-mix(in srgb,var(--da-accent-yellow) 28%,transparent);border-radius:7px;background:color-mix(in srgb,var(--da-accent-yellow) 8%,transparent);color:var(--da-text-primary);font-size:10.5px;cursor:pointer;transition:.16s}.interrupt-choices button:hover,.interrupt-choices button.selected,.interrupt-footer button.primary:hover{border-color:var(--da-accent-yellow);background:var(--da-accent-yellow);color:#17140d}
-.interrupt-response input{height:32px;padding:0 9px;border:1px solid var(--da-border);border-radius:7px;outline:none;background:var(--da-surface-input);color:var(--da-text-primary);font:inherit;font-size:11px}.interrupt-response input:focus{border-color:var(--da-accent-yellow)}
-.interrupt-footer{display:flex;justify-content:flex-end;gap:7px}.interrupt-footer button.cancel{border-color:var(--da-border);background:transparent;color:var(--da-text-muted)}.interrupt-footer button.cancel:hover{border-color:var(--da-border-strong);color:var(--da-text-primary)}
-.interrupt-choices button:disabled,.interrupt-footer button:disabled,.interrupt-response input:disabled{opacity:.5;cursor:wait}.interrupt-list small{display:block;margin-top:8px;color:var(--da-text-muted);font-size:10px}.interrupt-error{margin:9px 0 0;color:#FFB0BC;font-size:10px}
-@media(max-width:540px){.agui-interrupt{margin-left:0;margin-right:0}.interrupt-footer{justify-content:flex-start;flex-wrap:wrap}}
+.approval-request{margin:9px 0;padding:10px 11px;border:1px solid var(--da-border);border-radius:10px;background:linear-gradient(145deg,var(--da-surface-2),var(--da-surface-1));color:var(--da-text-primary)}
+.approval-request__header{display:flex;align-items:center;gap:9px}.approval-request__icon{display:grid;place-items:center;width:25px;height:25px;flex:none;border:1px solid color-mix(in srgb,var(--da-accent-yellow) 30%,transparent);border-radius:7px;background:color-mix(in srgb,var(--da-accent-yellow) 9%,transparent);color:#E7D7A2;font:750 12px/1 ui-sans-serif,system-ui,sans-serif}.approval-request__heading{min-width:0;flex:1;display:flex;align-items:baseline;gap:8px}.approval-request__heading b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--da-text-primary);font-size:12.5px;font-weight:650}.approval-request__heading>span{color:var(--da-text-muted);font-size:10.5px}.approval-request__state{display:inline-flex;align-items:center;gap:5px;flex:none;color:var(--da-text-muted);font-size:11px}.approval-request__state i{width:6px;height:6px;border-radius:50%;background:var(--da-accent-yellow);box-shadow:0 0 8px color-mix(in srgb,var(--da-accent-yellow) 55%,transparent);animation:approval-pulse 1.2s ease-in-out infinite}
+.approval-request__list{display:flex;flex-direction:column;margin-top:9px;border-top:1px solid var(--da-border)}.approval-request__list article{padding:9px 0 1px}.approval-request__list article+article{margin-top:8px;border-top:1px solid var(--da-border);padding-top:9px}.approval-request__list article.submitted{opacity:.68}
+.approval-request__copy{display:flex;flex-direction:column;gap:4px}.approval-request__copy b{color:var(--da-text-primary);font-size:12px;font-weight:620}.approval-request__copy p{margin:0;color:var(--da-text-secondary);font-size:11.5px;line-height:1.55}.approval-request__copy code{display:block;margin-top:3px;padding:7px 8px;overflow:auto;border:1px solid var(--da-border);border-radius:7px;background:var(--da-surface-code);color:var(--da-text-secondary);font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;word-break:break-word}
+.approval-request__response{display:flex;flex-direction:column;gap:9px;margin-top:9px}.approval-request__field{display:flex;flex-direction:column;gap:6px}.approval-request__field>span{color:var(--da-text-muted);font-size:11px}.approval-request__field em{margin-left:3px;color:var(--da-accent-red);font-style:normal}
+.approval-request__choices{display:flex;flex-wrap:wrap;gap:7px}.approval-request__choices button,.approval-request__footer button{min-height:30px;padding:6px 10px;border:1px solid var(--da-border-strong);border-radius:7px;background:rgba(255,255,255,.025);color:var(--da-text-primary);font-size:11px;cursor:pointer;transition:border-color .16s ease,background .16s ease,color .16s ease}.approval-request__choices button:hover,.approval-request__choices button.selected,.approval-request__footer button.primary:hover{border-color:color-mix(in srgb,var(--da-accent-yellow) 70%,var(--da-border));background:color-mix(in srgb,var(--da-accent-yellow) 14%,transparent);color:var(--da-text-emphasis)}
+.approval-request__response input{height:32px;padding:0 9px;border:1px solid var(--da-border);border-radius:7px;outline:none;background:var(--da-surface-input);color:var(--da-text-primary);font:inherit;font-size:11.5px}.approval-request__response input:focus{border-color:color-mix(in srgb,var(--da-accent-yellow) 68%,var(--da-border))}
+.approval-request__footer{display:flex;justify-content:flex-end;gap:7px}.approval-request__footer button.primary{border-color:color-mix(in srgb,var(--da-accent-yellow) 42%,var(--da-border));background:color-mix(in srgb,var(--da-accent-yellow) 8%,transparent)}.approval-request__footer button.cancel{border-color:var(--da-border);background:transparent;color:var(--da-text-muted)}.approval-request__footer button.cancel:hover{border-color:var(--da-border-strong);color:var(--da-text-primary)}
+.approval-request__choices button:disabled,.approval-request__footer button:disabled,.approval-request__response input:disabled{opacity:.5;cursor:wait}.approval-request__list small{display:block;margin-top:7px;color:var(--da-text-muted);font-size:10.5px}.approval-request__error{margin:8px 0 0;color:#FFB0BC;font-size:10.5px}
+@keyframes approval-pulse{0%,100%{opacity:.45;transform:scale(.82)}50%{opacity:1;transform:scale(1)}}
+@media(max-width:540px){.approval-request__heading>span{display:none}.approval-request__footer{justify-content:flex-start;flex-wrap:wrap}}
 </style>

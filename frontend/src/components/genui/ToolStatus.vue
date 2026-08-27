@@ -62,7 +62,7 @@ const resultText = computed(() => formatValue(props.result))
       <pre>{{ resultText }}</pre>
     </details>
 
-    <p v-else-if="status === 'executing'" class="gen-tool-status__hint">工具正在执行，等待 AG-UI 返回调用结果…</p>
+    <p v-else-if="status === 'executing'" class="gen-tool-status__hint">工具正在执行，等待返回结果…</p>
     <p v-else-if="status === 'inProgress'" class="gen-tool-status__hint">正在接收工具调用参数…</p>
   </section>
 </template>
