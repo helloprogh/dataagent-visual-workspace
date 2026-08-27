@@ -1,4 +1,4 @@
-import { dataAgentApi, dataAgentWebApi } from '../config/api'
+import { dataAgentWebApi } from '../config/api'
 
 async function responseError(response: Response, action: string) {
   let detail = ''
@@ -41,7 +41,7 @@ export async function interruptOpenCodeConversation(sessionId: string): Promise<
   const id = sessionId.trim()
   if (!id) throw new Error('中断对话失败：sessionId 为空')
 
-  const response = await fetch(dataAgentApi(`/session/${encodeURIComponent(id)}/interrupt`), {
+  const response = await fetch(dataAgentWebApi(`/session/${encodeURIComponent(id)}/interrupt`), {
     method: 'POST',
     headers: { Accept: 'application/json' },
     credentials: 'same-origin',

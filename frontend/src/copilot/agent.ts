@@ -1,4 +1,5 @@
 import { HttpAgent } from '@ag-ui/client'
+import { AGUI_URL } from '../config/api'
 
 export const AGENT_ID = import.meta.env.VITE_AGENT_ID || 'data-agent'
 export const AGENT_DISPLAY_NAME = import.meta.env.VITE_AGENT_DISPLAY_NAME || 'Data Agent'
@@ -15,7 +16,7 @@ export function createAgentRuntime(): AgentRuntime {
   if (token) headers.Authorization = `Bearer ${token}`
 
   const agent = new HttpAgent({
-    url: '/api/agui',
+    url: AGUI_URL,
     agentId: AGENT_ID,
     headers,
     debug: import.meta.env.DEV

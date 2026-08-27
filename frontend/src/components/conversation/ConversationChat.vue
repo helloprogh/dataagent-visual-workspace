@@ -47,7 +47,7 @@ const chatLabels = computed(() => ({
   modalHeaderTitle: props.agentDisplayName,
 })) as any
 
-const uploadUrl = '/api/agui/upload'
+const uploadUrl = '/dataagent/web/api/agui/upload'
 const attachmentsConfig = computed(() => ({
   enabled: true,
   accept: '*/*',

@@ -4,26 +4,22 @@ import { OpenCodeClient } from './opencode-client.mjs'
 import { createOpenCodeManagementHandler } from './opencode-management.mjs'
 
 const port = Number(process.env.ADAPTER_PORT ?? 3001)
+const WEB_PREFIX = '/dataagent/web'
+const API_BASE = `${WEB_PREFIX}/api`
 
-const isDirectSkillApi = (req, url) => {
-  if (req.method === 'GET' && url.pathname === '/api/skill') return true
-  if (req.method === 'POST' && url.pathname === '/api/skill/upload') return true
-  if (req.method === 'DELETE' && /^\/api\/skill\/upload\/delete\/[^/]+$/.test(url.pathname)) return true
+const isDirectUpstreamApi = (req, url) => {
+  if (req.method === 'GET' && url.pathname === `${API_BASE}/skill`) return true
+  if (req.method === 'POST' && url.pathname === `${API_BASE}/skill/upload`) return true
+  if (req.method === 'DELETE' && new RegExp(`^${API_BASE}/skill/upload/delete/[^/]+$`).test(url.pathname)) return true
+  if (req.method === 'POST' && url.pathname === `${API_BASE}/session`) return true
+  if (req.method === 'GET' && url.pathname === `${API_BASE}/model`) return true
+  if (req.method === 'GET' && url.pathname === `${API_BASE}/model/default`) return true
+  if (req.method === 'POST' && new RegExp(`^${API_BASE}/session/[^/]+/model$`).test(url.pathname)) return true
+  if (req.method === 'POST' && new RegExp(`^${API_BASE}/session/[^/]+/interrupt$`).test(url.pathname)) return true
   return false
 }
 
-const isDirectDataAgentWebApi = (req, url) => {
-  if (req.method === 'POST' && url.pathname === '/dataagent/web/api/session') return true
-  if (req.method === 'GET' && url.pathname === '/dataagent/web/api/model') return true
-  if (req.method === 'GET' && url.pathname === '/dataagent/web/api/model/default') return true
-  if (req.method === 'POST' && /^\/dataagent\/web\/api\/session\/[^/]+\/model$/.test(url.pathname)) return true
-  return false
-}
-
-const isDirectDataAgentApi = (req, url) => req.method === 'POST'
-  && /^\/dataagent\/api\/session\/[^/]+\/interrupt$/.test(url.pathname)
-
-const proxyDirectApi = async (client, req, res, url, prefix) => {
+const proxyDirectApi = async (client, req, res, url) => {
   const headers = new Headers()
   for (const [key, value] of Object.entries(req.headers)) {
     if (key === 'host' || value == null) continue
@@ -40,7 +36,7 @@ const proxyDirectApi = async (client, req, res, url, prefix) => {
     init.duplex = 'half'
   }
 
-  const upstreamPath = `${url.pathname.slice(prefix.length)}${url.search}`
+  const upstreamPath = `${url.pathname.slice(WEB_PREFIX.length)}${url.search}`
   const upstream = await client.request(upstreamPath, init)
   const responseHeaders = {}
   const contentType = upstream.headers.get('content-type')
@@ -63,18 +59,14 @@ export const createServer = () => {
     const url = new URL(req.url, `http://${req.headers.host ?? '127.0.0.1'}`)
 
     try {
-      if (isDirectSkillApi(req, url)) {
-        await proxyDirectApi(client, req, res, url, '')
+      if (isDirectUpstreamApi(req, url)) {
+        await proxyDirectApi(client, req, res, url)
         return
       }
 
-      if (isDirectDataAgentWebApi(req, url)) {
-        await proxyDirectApi(client, req, res, url, '/dataagent/web')
-        return
-      }
-
-      if (isDirectDataAgentApi(req, url)) {
-        await proxyDirectApi(client, req, res, url, '/dataagent')
+      if (req.method === 'POST' && url.pathname === `${API_BASE}/agui`) {
+        req.url = `/agent${url.search}`
+        agentServer.emit('request', req, res)
         return
       }
 
