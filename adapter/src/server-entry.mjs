@@ -6,19 +6,22 @@ import { createOpenCodeManagementHandler } from './opencode-management.mjs'
 const port = Number(process.env.ADAPTER_PORT ?? 3001)
 
 const isDirectSkillApi = (req, url) => {
-  if (req.method === 'GET' && url.pathname === '/opencode/api/skill') return true
-  if (req.method === 'POST' && url.pathname === '/opencode/api/skill/upload') return true
-  if (req.method === 'DELETE' && /^\/opencode\/api\/skill\/upload\/delete\/[^/]+$/.test(url.pathname)) return true
+  if (req.method === 'GET' && url.pathname === '/api/skill') return true
+  if (req.method === 'POST' && url.pathname === '/api/skill/upload') return true
+  if (req.method === 'DELETE' && /^\/api\/skill\/upload\/delete\/[^/]+$/.test(url.pathname)) return true
   return false
 }
 
-const isDirectOpenCodeApi = (req, url) => {
-  if (req.method === 'POST' && url.pathname === '/dataagent/web/opencode/api/session') return true
-  if (req.method === 'GET' && url.pathname === '/dataagent/web/opencode/api/model') return true
-  if (req.method === 'GET' && url.pathname === '/dataagent/web/opencode/api/model/default') return true
-  if (req.method === 'POST' && /^\/dataagent\/web\/opencode\/api\/session\/[^/]+\/model$/.test(url.pathname)) return true
+const isDirectDataAgentWebApi = (req, url) => {
+  if (req.method === 'POST' && url.pathname === '/dataagent/web/api/session') return true
+  if (req.method === 'GET' && url.pathname === '/dataagent/web/api/model') return true
+  if (req.method === 'GET' && url.pathname === '/dataagent/web/api/model/default') return true
+  if (req.method === 'POST' && /^\/dataagent\/web\/api\/session\/[^/]+\/model$/.test(url.pathname)) return true
   return false
 }
+
+const isDirectDataAgentApi = (req, url) => req.method === 'POST'
+  && /^\/dataagent\/api\/session\/[^/]+\/interrupt$/.test(url.pathname)
 
 const proxyDirectApi = async (client, req, res, url, prefix) => {
   const headers = new Headers()
@@ -61,19 +64,21 @@ export const createServer = () => {
 
     try {
       if (isDirectSkillApi(req, url)) {
-        await proxyDirectApi(client, req, res, url, '/opencode')
+        await proxyDirectApi(client, req, res, url, '')
         return
       }
 
-      if (isDirectOpenCodeApi(req, url)) {
-        await proxyDirectApi(client, req, res, url, '/dataagent/web/opencode')
+      if (isDirectDataAgentWebApi(req, url)) {
+        await proxyDirectApi(client, req, res, url, '/dataagent/web')
         return
       }
 
-      if (url.pathname.startsWith('/api/opencode/') && req.method !== 'OPTIONS') {
-        await handleManagement(req, res, url)
+      if (isDirectDataAgentApi(req, url)) {
+        await proxyDirectApi(client, req, res, url, '/dataagent')
         return
       }
+
+      if (req.method !== 'OPTIONS' && await handleManagement(req, res, url)) return
 
       agentServer.emit('request', req, res)
     } catch (error) {
