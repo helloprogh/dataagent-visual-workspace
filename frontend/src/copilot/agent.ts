@@ -15,7 +15,7 @@ export function createAgentRuntime(): AgentRuntime {
   if (token) headers.Authorization = `Bearer ${token}`
 
   const agent = new HttpAgent({
-    url: import.meta.env.VITE_AGUI_URL || '/api/agui',
+    url: '/api/agui',
     agentId: AGENT_ID,
     headers,
     debug: import.meta.env.DEV

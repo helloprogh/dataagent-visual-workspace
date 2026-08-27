@@ -47,7 +47,7 @@ const chatLabels = computed(() => ({
   modalHeaderTitle: props.agentDisplayName,
 })) as any
 
-const uploadUrl = import.meta.env.VITE_AGUI_UPLOAD_URL || '/api/agui/upload'
+const uploadUrl = '/api/agui/upload'
 const attachmentsConfig = computed(() => ({
   enabled: true,
   accept: '*/*',

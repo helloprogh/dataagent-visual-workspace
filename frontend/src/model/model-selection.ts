@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { dataAgentWebApi } from '../config/api'
 
 export type ModelSelection = {
   providerID: string
@@ -15,9 +16,6 @@ export type ModelCatalogItem = ModelSelection & {
 }
 
 const STORAGE_KEY = 'dataagent.model.selection.v4.by-session'
-const MODEL_LIST_URL = '/dataagent/web/opencode/api/model'
-const DEFAULT_MODEL_URL = '/dataagent/web/opencode/api/model/default'
-const MODEL_API_BASE = '/dataagent/web/opencode/api'
 
 function isSelection(value: unknown): value is ModelSelection {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
@@ -127,7 +125,7 @@ function unwrapModelData(body: any): unknown {
 }
 
 export async function listAvailableModels(): Promise<ModelCatalogItem[]> {
-  const body = await requestJson(MODEL_LIST_URL, { method: 'GET' }, '模型列表加载失败')
+  const body = await requestJson(dataAgentWebApi('/model'), { method: 'GET' }, '模型列表加载失败')
   const root = unwrapModelData(body)
   const source: unknown[] = Array.isArray(root)
     ? root
@@ -143,7 +141,7 @@ export async function listAvailableModels(): Promise<ModelCatalogItem[]> {
 }
 
 export async function getDefaultModel(): Promise<ModelCatalogItem | null> {
-  const body = await requestJson(DEFAULT_MODEL_URL, { method: 'GET' }, '默认模型加载失败')
+  const body = await requestJson(dataAgentWebApi('/model/default'), { method: 'GET' }, '默认模型加载失败')
   const root = unwrapModelData(body)
   return normalizeModel((root as any)?.model ?? root)
 }
@@ -151,7 +149,7 @@ export async function getDefaultModel(): Promise<ModelCatalogItem | null> {
 async function applyModel(sessionId: string, model: ModelSelection) {
   const id = sessionId.trim()
   if (!id) throw new Error('模型切换失败：sessionId 为空')
-  await requestJson(`${MODEL_API_BASE}/session/${encodeURIComponent(id)}/model`, {
+  await requestJson(dataAgentWebApi(`/session/${encodeURIComponent(id)}/model`), {
     method: 'POST',
     body: JSON.stringify({
       model: {

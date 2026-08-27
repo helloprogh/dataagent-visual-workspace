@@ -1,3 +1,5 @@
+import { managementApi } from '../config/api'
+
 export interface AgentSkill {
   name: string
   description?: string
@@ -79,41 +81,41 @@ function normalizeSkillList(value: unknown): AgentSkill[] {
 }
 
 export async function listAgentSkills(): Promise<AgentSkill[]> {
-  return normalizeSkillList(await requestJson<unknown>('/opencode/api/skill'))
+  return normalizeSkillList(await requestJson<unknown>(managementApi('/skill')))
 }
 
 export async function uploadAgentSkill(file: File): Promise<void> {
   const form = new FormData()
   form.append('file', file)
-  await requestJson('/opencode/api/skill/upload', {
+  await requestJson(managementApi('/skill/upload'), {
     method: 'POST',
     body: form,
   })
 }
 
 export async function deleteAgentSkill(skillName: string): Promise<void> {
-  await requestJson(`/opencode/api/skill/upload/delete/${encodeURIComponent(skillName)}`, {
+  await requestJson(managementApi(`/skill/upload/delete/${encodeURIComponent(skillName)}`), {
     method: 'DELETE',
   })
 }
 
 export async function getOpenCodeDiagnostics(): Promise<OpenCodeDiagnostics> {
-  return requestJson<OpenCodeDiagnostics>('/api/opencode/health')
+  return requestJson<OpenCodeDiagnostics>(managementApi('/health'))
 }
 
 export async function listOpenCodeProjects(): Promise<OpenCodeProject[]> {
-  const response = await requestJson<{ data?: OpenCodeProject[] }>('/api/opencode/projects')
+  const response = await requestJson<{ data?: OpenCodeProject[] }>(managementApi('/projects'))
   return Array.isArray(response.data) ? response.data : []
 }
 
 export async function listOpenCodeWorkspaces(projectID?: string): Promise<OpenCodeWorkspace[]> {
   const query = projectID ? `?projectID=${encodeURIComponent(projectID)}` : ''
-  const response = await requestJson<{ data?: OpenCodeWorkspace[] }>(`/api/opencode/workspaces${query}`)
+  const response = await requestJson<{ data?: OpenCodeWorkspace[] }>(managementApi(`/workspaces${query}`))
   return Array.isArray(response.data) ? response.data : []
 }
 
 export async function createOpenCodeWorkspace(input: CreateOpenCodeWorkspaceInput): Promise<OpenCodeWorkspace> {
-  const response = await requestJson<{ data: OpenCodeWorkspace }>('/api/opencode/workspaces', {
+  const response = await requestJson<{ data: OpenCodeWorkspace }>(managementApi('/workspaces'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -122,7 +124,7 @@ export async function createOpenCodeWorkspace(input: CreateOpenCodeWorkspaceInpu
 }
 
 export async function updateOpenCodeWorkspace(workspaceID: string, input: Partial<CreateOpenCodeWorkspaceInput> & { archived?: boolean }): Promise<OpenCodeWorkspace> {
-  const response = await requestJson<{ data: OpenCodeWorkspace }>(`/api/opencode/workspaces/${encodeURIComponent(workspaceID)}`, {
+  const response = await requestJson<{ data: OpenCodeWorkspace }>(managementApi(`/workspaces/${encodeURIComponent(workspaceID)}`), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -131,7 +133,7 @@ export async function updateOpenCodeWorkspace(workspaceID: string, input: Partia
 }
 
 export async function deleteOpenCodeWorkspace(workspaceID: string): Promise<void> {
-  await requestJson(`/api/opencode/workspaces/${encodeURIComponent(workspaceID)}`, { method: 'DELETE' })
+  await requestJson(managementApi(`/workspaces/${encodeURIComponent(workspaceID)}`), { method: 'DELETE' })
 }
 
 export function workspaceId(workspace: OpenCodeWorkspace): string {

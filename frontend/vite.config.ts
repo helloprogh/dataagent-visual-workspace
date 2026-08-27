@@ -12,18 +12,6 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       host: '0.0.0.0',
       proxy: {
-        '/opencode': {
-          target: proxyTarget,
-          changeOrigin: true,
-        },
-        '/dataagent/web/opencode': {
-          target: proxyTarget,
-          changeOrigin: true,
-        },
-        '/api/opencode': {
-          target: proxyTarget,
-          changeOrigin: true,
-        },
         '/api/agui/upload': {
           target: uploadProxyTarget,
           changeOrigin: true,
@@ -32,6 +20,30 @@ export default defineConfig(({ mode }) => {
           target: proxyTarget,
           changeOrigin: true,
           rewrite: () => '/agent',
+        },
+        '/dataagent/web/api': {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        '/dataagent/api': {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        '/api/skill': {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        '/api/health': {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        '/api/projects': {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        '/api/workspaces': {
+          target: proxyTarget,
+          changeOrigin: true,
         },
       },
     },
