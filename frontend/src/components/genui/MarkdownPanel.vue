@@ -37,11 +37,11 @@ const lines = computed(() => props.content.split(/\r?\n/).map((raw, index) => {
 
 <style scoped>
 .markdown-panel{height:100%;padding:22px 24px}
-.markdown-content{display:flex;flex-direction:column;gap:8px;color:#d8e7f5;line-height:1.7}
-.markdown-content h2,.markdown-content h3,.markdown-content h4{margin:0;color:#f4f9ff;letter-spacing:-.01em}
+.markdown-content{display:flex;flex-direction:column;gap:8px;color:var(--da-text-secondary);line-height:1.7}
+.markdown-content h2,.markdown-content h3,.markdown-content h4{margin:0;color:var(--da-text-emphasis);letter-spacing:-.01em}
 .markdown-content h2{font-size:24px}.markdown-content h3{font-size:19px}.markdown-content h4{font-size:16px}
-.markdown-content p{margin:0;white-space:pre-wrap;font-size:14px}
+.markdown-content p{margin:0;white-space:pre-wrap;font-size:14px;color:var(--da-text-secondary)}
 .markdown-space{height:4px}
-.markdown-item{display:flex;gap:10px;align-items:flex-start;font-size:14px}
-.markdown-item i{width:6px;height:6px;margin-top:9px;border-radius:50%;background:#4ee6c3;box-shadow:0 0 10px rgba(78,230,195,.55);flex:0 0 auto}
+.markdown-item{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--da-text-secondary)}
+.markdown-item i{width:6px;height:6px;margin-top:9px;border-radius:50%;background:var(--da-accent-green);box-shadow:0 0 10px color-mix(in srgb,var(--da-accent-green) 45%,transparent);flex:0 0 auto}
 </style>
