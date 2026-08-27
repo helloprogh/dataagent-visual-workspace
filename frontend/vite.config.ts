@@ -12,36 +12,15 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       host: '0.0.0.0',
       proxy: {
-        '/api/agui/upload': {
+        '/dataagent/web/api/agui/upload': {
           target: uploadProxyTarget,
           changeOrigin: true,
         },
-        '/api/agui': {
+        '/dataagent/web/api/agui': {
           target: proxyTarget,
           changeOrigin: true,
-          rewrite: () => '/agent',
         },
         '/dataagent/web/api': {
-          target: proxyTarget,
-          changeOrigin: true,
-        },
-        '/dataagent/api': {
-          target: proxyTarget,
-          changeOrigin: true,
-        },
-        '/api/skill': {
-          target: proxyTarget,
-          changeOrigin: true,
-        },
-        '/api/health': {
-          target: proxyTarget,
-          changeOrigin: true,
-        },
-        '/api/projects': {
-          target: proxyTarget,
-          changeOrigin: true,
-        },
-        '/api/workspaces': {
           target: proxyTarget,
           changeOrigin: true,
         },

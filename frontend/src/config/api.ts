@@ -1,6 +1,7 @@
 const DATAAGENT_WEB_API_BASE = '/dataagent/web/api'
-const DATAAGENT_API_BASE = '/dataagent/api'
-const MANAGEMENT_API_BASE = '/api'
+
+export const AGUI_URL = `${DATAAGENT_WEB_API_BASE}/agui`
+export const AGUI_UPLOAD_URL = `${AGUI_URL}/upload`
 
 function join(base: string, path: string): string {
   const suffix = path.startsWith('/') ? path : `/${path}`
@@ -11,10 +12,6 @@ export function dataAgentWebApi(path: string): string {
   return join(DATAAGENT_WEB_API_BASE, path)
 }
 
-export function dataAgentApi(path: string): string {
-  return join(DATAAGENT_API_BASE, path)
-}
-
 export function managementApi(path: string): string {
-  return join(MANAGEMENT_API_BASE, path)
+  return join(DATAAGENT_WEB_API_BASE, path)
 }
