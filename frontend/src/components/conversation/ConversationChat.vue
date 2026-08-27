@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { CopilotChat, CopilotChatInput, useAgent } from '@copilotkit/vue/v2'
-import type { AbstractAgent, Interrupt, ResumeEntry } from '@ag-ui/client'
+import type { AbstractAgent } from '@ag-ui/client'
 import { ElMessage } from 'element-plus'
 import { conversationRepository, deriveConversationName } from '../../conversations/local-repository'
 import { interruptOpenCodeConversation } from '../../conversations/opencode-session'
 import { workspaceController } from '../../workspace/store'
 import ModelSelector from '../ModelSelector.vue'
+import AguiInterruptCard from './AguiInterruptCard.vue'
+import AguiInterruptController from './AguiInterruptController.vue'
 import ReasoningAwareAssistantMessage from './ReasoningAwareAssistantMessage.vue'
 import ReasoningProcessCard from './ReasoningProcessCard.vue'
 
@@ -29,17 +31,12 @@ const { agent } = useAgent({
   throttleMs: 60,
   updates: [],
 })
-type PermissionDecision = 'once' | 'always' | 'reject'
-const pendingInterrupts = ref<Interrupt[]>([])
-const decisions = ref<Record<string, PermissionDecision>>({})
-const resumeError = ref('')
-const resuming = ref(false)
+const hasInterrupts = ref(false)
 const stopping = ref(false)
 let persistTimer: number | undefined
 let currentAgent: AbstractAgent | null = null
 let currentThreadId = ''
 let agentSubscription: { unsubscribe: () => void } | null = null
-const hasInterrupts = computed(() => pendingInterrupts.value.length > 0)
 const chatLabels = computed(() => ({
   chatInputPlaceholder: '描述你的数据需求或业务目标',
   chatInputToolbarAddButtonLabel: '上传文件',
@@ -112,49 +109,6 @@ function persistSnapshot(threadId: string, target: AbstractAgent, immediate = fa
   persistTimer = window.setTimeout(save, 100)
 }
 
-function updateInterrupts(interrupts: Interrupt[], threadId?: string) {
-  pendingInterrupts.value = interrupts
-  const ids = new Set(interrupts.map(item => item.id))
-  decisions.value = Object.fromEntries(Object.entries(decisions.value).filter(([id]) => ids.has(id)))
-  if (!interrupts.length) resumeError.value = ''
-  if (threadId) conversationRepository.saveInterrupts(threadId, interrupts)
-}
-
-function interruptAction(interrupt: Interrupt) {
-  const metadata = interrupt.metadata as { action?: string } | undefined
-  return metadata?.action || (interrupt.reason === 'tool_call' ? '工具调用' : '继续执行')
-}
-
-function interruptResource(interrupt: Interrupt) {
-  const metadata = interrupt.metadata as { resources?: unknown } | undefined
-  const resources = metadata?.resources
-  if (Array.isArray(resources)) return resources.map(String).join(' · ')
-  if (resources) return String(resources)
-  return interrupt.toolCallId || interrupt.id
-}
-
-async function decide(interruptId: string, decision: PermissionDecision) {
-  if (resuming.value || !agent.value) return
-  decisions.value = { ...decisions.value, [interruptId]: decision }
-  await nextTick()
-  if (!pendingInterrupts.value.every(item => decisions.value[item.id])) return
-
-  resumeError.value = ''
-  resuming.value = true
-  try {
-    const resume: ResumeEntry[] = pendingInterrupts.value.map(item => ({
-      interruptId: item.id,
-      status: 'resolved',
-      payload: { decision: decisions.value[item.id] },
-    }))
-    await agent.value.runAgent({ resume })
-  } catch (reason) {
-    resumeError.value = reason instanceof Error ? reason.message : String(reason)
-  } finally {
-    resuming.value = false
-  }
-}
-
 function releaseCurrentAgent() {
   if (currentAgent && currentThreadId) persistSnapshot(currentThreadId, currentAgent, true)
   agentSubscription?.unsubscribe()
@@ -170,8 +124,8 @@ watch([agent, () => props.threadId], ([nextAgent, nextThreadId]) => {
   if (nextAgent && currentAgent === nextAgent && currentThreadId === nextThreadId) return
 
   hydrated.value = false
+  hasInterrupts.value = false
   releaseCurrentAgent()
-  updateInterrupts([])
   if (!nextAgent) return
 
   const threadId = nextThreadId
@@ -181,23 +135,18 @@ watch([agent, () => props.threadId], ([nextAgent, nextThreadId]) => {
   if (conversation) {
     nextAgent.setMessages(conversation.messages)
     nextAgent.setState(conversation.state)
-    nextAgent.pendingInterrupts = conversation.pendingInterrupts ?? nextAgent.pendingInterrupts
   }
   // Workspace tools persist synchronously in the dedicated per-thread store.
   // A throttled conversation snapshot can lag behind the latest tool result,
   // so it must not overwrite the newer workspace when a page is reloaded.
   const workspace = workspaceController.snapshot()
   if (workspace) nextAgent.setState({ ...(nextAgent.state ?? {}), workspace })
-  updateInterrupts(nextAgent.pendingInterrupts ?? [])
   agentSubscription = nextAgent.subscribe({
     onMessagesChanged: ({ agent: changedAgent }) => persistSnapshot(threadId, changedAgent),
     onStateChanged: ({ agent: changedAgent }) => {
       const workspace = (changedAgent.state as { workspace?: unknown })?.workspace
       if (workspace && typeof workspace === 'object') workspaceController.applyShared(workspace as any)
       persistSnapshot(threadId, changedAgent)
-    },
-    onRunFinishedEvent: (params) => {
-      updateInterrupts(params.outcome === 'interrupt' ? params.interrupts : [], threadId)
     },
   })
   hydrated.value = true
@@ -251,6 +200,7 @@ onBeforeUnmount(() => {
       @stop="onStop"
     >
       <template #input="inputProps">
+        <AguiInterruptController @active-change="hasInterrupts = $event" />
         <div class="conversation-composer">
           <div class="conversation-composer__controls">
             <ModelSelector
@@ -307,49 +257,15 @@ onBeforeUnmount(() => {
           :is-running="isRunning"
         />
       </template>
+      <template #interrupt="{ interrupt, interrupts, resolve, cancel }">
+        <AguiInterruptCard
+          :interrupt="interrupt"
+          :interrupts="interrupts"
+          :resolve="resolve"
+          :cancel="cancel"
+        />
+      </template>
     </CopilotChat>
-
-    <transition name="permission-rise">
-      <section v-if="hasInterrupts" class="agui-permission" role="alert" aria-live="assertive">
-        <header>
-          <div>
-            <span>AG-UI · HUMAN APPROVAL</span>
-            <b>{{ pendingInterrupts.length > 1 ? `${pendingInterrupts.length} 项操作等待授权` : '操作等待授权' }}</b>
-          </div>
-          <i>{{ resuming ? 'RESUMING' : 'ACTION REQUIRED' }}</i>
-        </header>
-
-        <div class="permission-list">
-          <article v-for="interrupt in pendingInterrupts" :key="interrupt.id">
-            <div class="permission-copy">
-              <b>{{ interruptAction(interrupt) }}</b>
-              <p>{{ interrupt.message || 'Agent 请求在继续执行前获得你的授权。' }}</p>
-              <code>{{ interruptResource(interrupt) }}</code>
-            </div>
-            <div class="permission-actions">
-              <button
-                :disabled="resuming"
-                :class="{ selected: decisions[interrupt.id] === 'once' }"
-                @click="decide(interrupt.id, 'once')"
-              >允许一次</button>
-              <button
-                :disabled="resuming"
-                :class="{ selected: decisions[interrupt.id] === 'always' }"
-                @click="decide(interrupt.id, 'always')"
-              >始终允许</button>
-              <button
-                class="reject"
-                :disabled="resuming"
-                :class="{ selected: decisions[interrupt.id] === 'reject' }"
-                @click="decide(interrupt.id, 'reject')"
-              >拒绝</button>
-            </div>
-          </article>
-        </div>
-        <p v-if="resumeError" class="permission-error">{{ resumeError }}</p>
-        <small v-else-if="pendingInterrupts.length > 1">为每一项选择后，将通过同一个 AG-UI Run 自动恢复执行。</small>
-      </section>
-    </transition>
   </div>
 </template>
 
@@ -362,14 +278,6 @@ onBeforeUnmount(() => {
 .conversation-composer :deep(.model-selector__select){width:176px}
 .conversation-composer :deep([data-testid="copilot-chat-input-shell"]){border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
 .conversation-composer :deep([data-testid="copilot-chat-input-shell"]:focus-within){box-shadow:none!important}
-
-.agui-permission{position:absolute;z-index:12;left:14px;right:14px;bottom:102px;max-height:min(52%,390px);padding:13px;border:1px solid color-mix(in srgb,var(--da-accent-yellow) 36%,transparent);border-radius:13px;background:linear-gradient(150deg,#262119,#151B24);box-shadow:0 18px 48px rgba(0,0,0,.42),0 0 0 1px rgba(255,255,255,.025) inset;color:var(--da-text-primary);overflow:auto;backdrop-filter:blur(18px)}
-.agui-permission header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 1px 10px;border-bottom:1px solid color-mix(in srgb,var(--da-accent-yellow) 20%,transparent)}
-.agui-permission header>div{display:flex;flex-direction:column;gap:4px}.agui-permission header span{color:var(--da-text-muted);font-size:10px;font-weight:750;letter-spacing:.12em}.agui-permission header b{color:var(--da-text-emphasis);font-size:13px;font-weight:650}.agui-permission header i{font-style:normal;color:var(--da-accent-yellow);font-size:10px;letter-spacing:.08em}
-.permission-list{display:flex;flex-direction:column;gap:9px;margin-top:10px}.permission-list article{padding:10px;border:1px solid var(--da-border);border-radius:10px;background:rgba(255,255,255,.055)}
-.permission-copy{display:flex;flex-direction:column;gap:4px}.permission-copy b{color:var(--da-text-primary);font-size:12px}.permission-copy p{margin:0;color:var(--da-text-secondary);font-size:11px;line-height:1.55}.permission-copy code{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--da-text-muted);font-size:10px}
-.permission-actions{display:flex;gap:7px;margin-top:9px}.permission-actions button{padding:7px 10px;border:1px solid color-mix(in srgb,var(--da-accent-yellow) 28%,transparent);border-radius:7px;background:color-mix(in srgb,var(--da-accent-yellow) 8%,transparent);color:var(--da-text-primary);font-size:10.5px;cursor:pointer;transition:.16s}.permission-actions button:hover,.permission-actions button.selected{border-color:var(--da-accent-yellow);background:var(--da-accent-yellow);color:#17140d}.permission-actions button.reject{margin-left:auto;border-color:color-mix(in srgb,var(--da-accent-red) 32%,transparent);background:color-mix(in srgb,var(--da-accent-red) 8%,transparent);color:#F4C5CC}.permission-actions button.reject:hover,.permission-actions button.reject.selected{border-color:var(--da-accent-red);background:#C75C6D;color:#fff}.permission-actions button:disabled{opacity:.5;cursor:wait}
-.agui-permission>small{display:block;margin-top:9px;color:var(--da-text-muted);font-size:10px}.permission-error{margin:9px 0 0;color:#FFB0BC;font-size:10px}.permission-rise-enter-active,.permission-rise-leave-active{transition:.2s ease}.permission-rise-enter-from,.permission-rise-leave-to{opacity:0;transform:translateY(8px)}
 
 /* CopilotKit attachment queue — component-specific presentation. */
 :deep([data-testid="copilot-chat-attachment-queue"]){gap:8px!important;padding:0 14px 9px!important;margin:0!important;align-items:center}
@@ -394,5 +302,5 @@ onBeforeUnmount(() => {
 
 .has-interrupts :deep([data-testid="copilot-chat-input-shell"]){opacity:1;pointer-events:auto}
 .has-interrupts :deep([data-testid="copilot-chat-input-textarea"]),.has-interrupts :deep([data-testid="copilot-chat-input-add"]){opacity:.52;pointer-events:none;cursor:not-allowed}
-@media(max-width:540px){.conversation-composer__controls>span{display:none}.conversation-composer :deep(.model-selector__select){width:132px}.agui-permission{left:8px;right:8px;bottom:96px}.permission-actions{flex-wrap:wrap}.permission-actions button.reject{margin-left:0}:deep([data-testid="copilot-chat-attachment-queue"]){padding-left:8px!important;padding-right:8px!important}:deep([data-testid="copilot-chat-attachment-item"][data-card-type="document"]){min-width:178px!important;max-width:100%!important}:deep([data-testid="copilot-chat-attachment-document-filename"]){max-width:145px!important}}
+@media(max-width:540px){.conversation-composer__controls>span{display:none}.conversation-composer :deep(.model-selector__select){width:132px}:deep([data-testid="copilot-chat-attachment-queue"]){padding-left:8px!important;padding-right:8px!important}:deep([data-testid="copilot-chat-attachment-item"][data-card-type="document"]){min-width:178px!important;max-width:100%!important}:deep([data-testid="copilot-chat-attachment-document-filename"]){max-width:145px!important}}
 </style>
