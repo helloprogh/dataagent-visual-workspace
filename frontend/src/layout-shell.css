@@ -59,7 +59,7 @@
 /* ---------- dynamic workspace boundary only ---------- */
 .dynamic-workspace-shell{position:relative;z-index:4;min-width:0;height:100%;overflow:hidden;border-left:1px solid var(--da-border);background:var(--da-surface-0);box-shadow:none}
 .dynamic-workspace-close{position:absolute;z-index:20;top:14px;right:14px;width:32px;height:32px;display:grid;place-items:center;border:1px solid transparent;border-radius:8px;color:var(--da-text-muted);background:color-mix(in srgb,var(--da-surface-2) 94%,transparent);font-size:17px!important;cursor:pointer;transition:border-color .15s ease,background .15s ease,color .15s ease}.dynamic-workspace-close:hover{color:var(--da-text-emphasis);border-color:var(--da-border);background:var(--da-surface-3)}
-.workspace-reveal-enter-active,.workspace-reveal-leave-active{transition:opacity .18s ease,transform .2s ease}.workspace-reveal-enter-from,.workspace-reveal-leave-to{opacity:0;transform:translateX(12px)}
+.workspace-reveal-enter-active,.workspace-reveal-leave-active{transition:opacity .2s ease,transform .26s cubic-bezier(.22,1,.36,1)}.workspace-reveal-enter-from,.workspace-reveal-leave-to{opacity:0;transform:translateX(32px)}
 
 /* ---------- responsive ---------- */
 @media(max-width:1440px){.dataagent-shell.dataagent-shell--three-zone{grid-template-columns:244px minmax(0,1fr)}.dataagent-shell.dataagent-shell--three-zone.has-dynamic-workspace{grid-template-columns:244px minmax(460px,37vw) minmax(0,1fr)}.app-main-stage--chat{padding:13px}.has-dynamic-workspace .app-main-stage--chat{padding:0}}

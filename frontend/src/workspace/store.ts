@@ -134,9 +134,16 @@ function normalizeDocument(value: unknown, threadId: string): WorkspaceDocument 
   }
 }
 
-const state = reactive<{ activeThreadId: string; document: WorkspaceDocument | null }>({
+const state = reactive<{
+  activeThreadId: string
+  document: WorkspaceDocument | null
+  presentationThreadId: string
+  presentationEpoch: number
+}>({
   activeThreadId: '',
   document: null,
+  presentationThreadId: '',
+  presentationEpoch: 0,
 })
 
 function persist() {
@@ -144,6 +151,12 @@ function persist() {
   const all = readAll()
   all[state.activeThreadId] = clone(state.document)
   writeAll(all)
+}
+
+function requestPresentation() {
+  if (!state.activeThreadId) return
+  state.presentationThreadId = state.activeThreadId
+  state.presentationEpoch += 1
 }
 
 export const workspaceController = {
@@ -178,6 +191,7 @@ export const workspaceController = {
       widgets: normalizeWidgets(payload.widgets),
     }
     persist()
+    if (state.document.widgets.length > 0) requestPresentation()
   },
   upsert(widget: WorkspaceWidget) {
     if (!state.document) return
@@ -189,6 +203,7 @@ export const workspaceController = {
     state.document.widgets = widgets
     state.document.updatedAt = Date.now()
     persist()
+    requestPresentation()
   },
   remove(id: string) {
     if (!state.document) return

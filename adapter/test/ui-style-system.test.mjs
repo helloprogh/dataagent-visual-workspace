@@ -146,3 +146,24 @@ test('workspace header exposes product language instead of demo implementation l
   assert.match(template, /分析结果/)
   assert.doesNotMatch(template, /DYNAMIC RENDER SPACE|Agent driven|RENDER|UPDATED|READY/)
 })
+
+test('workspace presentation is model-driven and scroll surfaces reserve their tracks', async () => {
+  const [app, store, conversation, workspace, shell] = await Promise.all([
+    frontend('App.vue'),
+    frontend('workspace/store.ts'),
+    frontend('components/conversation/ConversationChat.vue'),
+    frontend('visual-workspace.css'),
+    frontend('layout-shell.css'),
+  ])
+
+  assert.match(app, /renderAreaRequested/)
+  assert.match(app, /presentationEpoch/)
+  assert.doesNotMatch(app, /watch\(renderWidgetCount/)
+  assert.match(store, /requestPresentation\(\)/)
+  assert.match(store, /presentationThreadId/)
+  assert.match(conversation, /copilot-input-overlay[^}]*right:8px!important/)
+  assert.match(conversation, /copilot-chat-view-scroll/)
+  assert.match(conversation, /scrollbar-gutter:stable/)
+  assert.match(workspace, /workspace-scroll::\-webkit-scrollbar-thumb/)
+  assert.match(shell, /workspace-reveal-enter-from[^}]*translateX\(32px\)/)
+})

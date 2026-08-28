@@ -300,6 +300,12 @@ onBeforeUnmount(() => {
 .conversation-welcome__capabilities{margin-top:21px;display:flex;justify-content:center;flex-wrap:wrap;gap:7px}
 .conversation-welcome__capabilities span{padding:5px 9px;border:1px solid var(--da-border);border-radius:6px;background:var(--da-surface-deep);color:var(--da-text-secondary);font-size:11px}
 :deep([data-testid="copilot-chat-view"]){height:100%!important;min-height:0!important}
+:deep([data-testid="copilot-input-overlay"]){right:8px!important}
+:deep([data-testid="copilot-chat-view-scroll"]){padding-right:8px!important;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.14) transparent}
+:deep([data-testid="copilot-chat-view-scroll"]::-webkit-scrollbar){width:8px}
+:deep([data-testid="copilot-chat-view-scroll"]::-webkit-scrollbar-track){background:transparent}
+:deep([data-testid="copilot-chat-view-scroll"]::-webkit-scrollbar-thumb){min-height:44px;border:2px solid transparent;border-radius:999px;background:rgba(255,255,255,.14);background-clip:padding-box}
+:deep([data-testid="copilot-chat-view-scroll"]::-webkit-scrollbar-thumb:hover){background:rgba(255,255,255,.26);background-clip:padding-box}
 
 /* CopilotKit attachment queue — this component is the sole visual owner. */
 :deep([data-testid="copilot-chat-attachment-queue"]){gap:8px!important;padding:0 12px 8px!important;margin:0!important;align-items:center}

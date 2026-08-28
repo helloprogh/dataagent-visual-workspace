@@ -24,6 +24,7 @@ const runtime = createAgentRuntime()
 const ACTIVE_CONVERSATION_KEY = 'dataagent.conversations.active.v2.session-thread'
 const conversations = ref<ConversationRecord[]>([])
 const activeId = ref(localStorage.getItem(ACTIVE_CONVERSATION_KEY) ?? '')
+const renderAreaRequested = ref(false)
 const renderAreaDismissed = ref(false)
 const activePage = ref<AppPage>('chat')
 const creatingConversation = ref(false)
@@ -47,6 +48,7 @@ async function ensureConversation() {
 if (!galleryMode) void ensureConversation()
 watch(activeId, id => {
   if (galleryMode) return
+  renderAreaRequested.value = false
   renderAreaDismissed.value = false
   if (!id) {
     localStorage.removeItem(ACTIVE_CONVERSATION_KEY)
@@ -60,12 +62,15 @@ const activeConversation = computed(() => conversationRepository.get(activeId.va
 const renderWidgetCount = computed(() => workspaceController.state.document?.widgets.length ?? 0)
 const renderAreaVisible = computed(() => (
   activePage.value === 'chat'
+  && renderAreaRequested.value
   && renderWidgetCount.value > 0
   && !renderAreaDismissed.value
 ))
 
-watch(renderWidgetCount, (next, previous) => {
-  if (next > previous) renderAreaDismissed.value = false
+watch(() => workspaceController.state.presentationEpoch, () => {
+  if (workspaceController.state.presentationThreadId !== activeId.value) return
+  renderAreaRequested.value = true
+  renderAreaDismissed.value = false
 })
 
 async function createConversation() {
