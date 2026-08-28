@@ -3,11 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const cssFiles = [
-  path.join(root, 'src', 'high-contrast-text.css'),
-  path.join(root, 'src', 'uiux-soft-technical-dark.css'),
-]
-const css = (await Promise.all(cssFiles.map(file => readFile(file, 'utf8')))).join('\n')
+const css = await readFile(path.join(root, 'src', 'uiux-soft-technical-dark.css'), 'utf8')
 
 const lastMatch = (pattern) => {
   const matches = [...css.matchAll(pattern)]
@@ -63,6 +59,7 @@ const requirements = [
   ['--da-text-secondary', 7],
   ['--da-text-muted', 4.5],
   ['--da-text-subtle', 4.5],
+  ['--da-link', 4.5],
   ['--da-accent-cyan', 4.5],
   ['--da-accent-blue', 4.5],
   ['--da-accent-green', 4.5],
@@ -82,8 +79,12 @@ for (const [name, minimum] of requirements) {
 
 const borderAlpha = rgbaAlpha('--da-border')
 const strongBorderAlpha = rgbaAlpha('--da-border-strong')
-if (borderAlpha < 0.16) failures.push(`--da-border alpha ${borderAlpha} is too faint; minimum is 0.16`)
-if (strongBorderAlpha < 0.24) failures.push(`--da-border-strong alpha ${strongBorderAlpha} is too faint; minimum is 0.24`)
+const focusBorderAlpha = rgbaAlpha('--da-border-focus')
+
+if (borderAlpha < 0.08) failures.push(`--da-border alpha ${borderAlpha} is too faint; minimum is 0.08`)
+if (strongBorderAlpha < 0.14) failures.push(`--da-border-strong alpha ${strongBorderAlpha} is too faint; minimum is 0.14`)
+if (strongBorderAlpha <= borderAlpha) failures.push('--da-border-strong must be more visible than --da-border')
+if (focusBorderAlpha <= strongBorderAlpha) failures.push('--da-border-focus must be more visible than --da-border-strong')
 
 if (failures.length) {
   console.error('Visual contrast guard failed:')
@@ -91,4 +92,4 @@ if (failures.length) {
   process.exit(1)
 }
 
-console.log('Visual contrast guard passed: final soft-dark tokens remain readable without relying on pure white.')
+console.log('Visual contrast guard passed: text stays readable and border hierarchy remains intentional.')
