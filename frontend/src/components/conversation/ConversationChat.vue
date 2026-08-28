@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { CopilotChat, CopilotChatInput, useAgent } from '@copilotkit/vue/v2'
+import { CopilotChat, CopilotChatInput, CopilotChatMessageView, useAgent } from '@copilotkit/vue/v2'
 import type { AbstractAgent } from '@ag-ui/client'
 import { ElMessage } from 'element-plus'
 import { conversationRepository, deriveConversationName } from '../../conversations/local-repository'
@@ -243,27 +243,36 @@ onBeforeUnmount(() => {
           </CopilotChatInput>
         </div>
       </template>
-      <template #assistant-message="{ message, messages, isRunning }">
-        <ReasoningAwareAssistantMessage
-          :message="message"
-          :messages="messages"
-          :is-running="isRunning"
-        />
-      </template>
-      <template #reasoning-message="{ message, messages, isRunning }">
-        <ReasoningProcessCard
-          :message="message"
-          :messages="messages"
-          :is-running="isRunning"
-        />
-      </template>
-      <template #interrupt="{ interrupt, interrupts, resolve, cancel }">
-        <AguiInterruptCard
-          :interrupt="interrupt"
-          :interrupts="interrupts"
-          :resolve="resolve"
-          :cancel="cancel"
-        />
+
+      <!-- CopilotChat@1.64.1 types its top-level interrupt slot too narrowly.
+           The public CopilotChatMessageView exposes the complete native
+           InterruptRenderProps, so render messages through that supported
+           extension point instead of weakening local types or lifecycle. -->
+      <template #message-view="{ messages, isRunning }">
+        <CopilotChatMessageView :messages="messages" :is-running="isRunning">
+          <template #assistant-message="{ message, messages: allMessages, isRunning: messageRunning }">
+            <ReasoningAwareAssistantMessage
+              :message="message"
+              :messages="allMessages"
+              :is-running="messageRunning"
+            />
+          </template>
+          <template #reasoning-message="{ message, messages: allMessages, isRunning: messageRunning }">
+            <ReasoningProcessCard
+              :message="message"
+              :messages="allMessages"
+              :is-running="messageRunning"
+            />
+          </template>
+          <template #interrupt="{ interrupt, interrupts, resolve, cancel }">
+            <AguiInterruptCard
+              :interrupt="interrupt"
+              :interrupts="interrupts"
+              :resolve="resolve"
+              :cancel="cancel"
+            />
+          </template>
+        </CopilotChatMessageView>
       </template>
     </CopilotChat>
   </div>
