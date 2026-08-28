@@ -4,6 +4,13 @@ import test from 'node:test'
 
 const frontend = (path) => fs.readFile(new URL(`../../frontend/src/${path}`, import.meta.url), 'utf8')
 
+function vueTemplate(source) {
+  const start = source.indexOf('<template>')
+  const end = source.lastIndexOf('</template>')
+  if (start === -1 || end === -1 || end < start) return source
+  return source.slice(start, end + '</template>'.length)
+}
+
 test('product styles have one owner per major surface', async () => {
   const [main, shell, workspace, pages, management, theme] = await Promise.all([
     frontend('main.ts'),
@@ -85,7 +92,7 @@ test('composer and attachment presentation each have a single owner', async () =
 
 test('sidebar exposes product copy instead of transport terminology', async () => {
   const sidebar = await frontend('components/AppSidebar.vue')
-  const template = sidebar.match(/<template>[\s\S]*?<\/template>/)?.[0] ?? sidebar
+  const template = vueTemplate(sidebar)
 
   assert.match(template, /服务已连接/)
   assert.doesNotMatch(template, /AG-UI|CopilotKit|OpenCode/i)
@@ -107,7 +114,7 @@ test('visible controls keep native icons and centered action labels', async () =
 
 test('approval choice controls are not nested inside label elements', async () => {
   const approval = await frontend('components/conversation/AguiInterruptCard.vue')
-  const template = approval.match(/<template>[\s\S]*?<\/template>/)?.[0] ?? approval
+  const template = vueTemplate(approval)
 
   assert.doesNotMatch(template, /<label[^>]*approval-request__field/)
   assert.match(template, /class="approval-request__field-label"/)
@@ -117,7 +124,7 @@ test('approval choice controls are not nested inside label elements', async () =
 
 test('workspace header exposes product language instead of demo implementation labels', async () => {
   const canvas = await frontend('components/WorkspaceCanvas.vue')
-  const template = canvas.match(/<template>[\s\S]*?<\/template>/)?.[0] ?? canvas
+  const template = vueTemplate(canvas)
 
   assert.match(template, /分析结果/)
   assert.doesNotMatch(template, /DYNAMIC RENDER SPACE|Agent driven|RENDER|UPDATED|READY/)
