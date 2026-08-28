@@ -12,7 +12,7 @@ const maxAbs = computed(() => Math.max(1, ...(props.factors || []).map(f => Math
   <section class="gen-card root-cause-card">
     <div class="gen-title-row">
       <div>
-        <span class="eyebrow">ROOT CAUSE</span>
+        <span class="eyebrow">主要归因</span>
         <span class="gen-title">{{ title || '归因分析' }}</span>
       </div>
       <span v-if="target" class="target-chip">目标：{{ target }}</span>

@@ -90,7 +90,6 @@ async function handleSelect(value: string) {
 
   switching.value = true
   try {
-    // Only a real user selection reaches the model-switch API.
     await selectModel(props.threadId, next)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : String(error))
@@ -110,9 +109,6 @@ async function loadModels() {
     models.value = catalog
     defaultModel.value = fallback
 
-    // Hydration is local-only. Opening a conversation must never switch the
-    // backend model. A session without a saved choice simply displays the
-    // backend default until the user explicitly picks another model.
     const current = getSelectedModel(props.threadId)
     const exists = current && selectableModels.value.some(item => item.providerID === current.providerID && item.id === current.id)
     if (!exists) setSelectedModel(props.threadId, fallback)
@@ -172,17 +168,17 @@ onMounted(loadModels)
 .model-selector--error{border-color:rgba(232,132,146,.28)}
 .model-selector__mark{position:relative;width:13px;height:13px;display:grid;place-items:center;flex:none;border:1px solid rgba(115,203,214,.34);border-radius:4px;background:rgba(115,203,214,.07);transform:rotate(45deg)}
 .model-selector__mark i{width:3px;height:3px;border-radius:50%;background:var(--da-accent-cyan,#73cbd6);box-shadow:0 0 7px rgba(115,203,214,.42)}
-.model-selector__select{width:158px}
-.model-selector__select :deep(.el-select__wrapper){min-height:28px!important;padding:0 3px!important;background:transparent!important;box-shadow:none!important}
-.model-selector__select :deep(.el-select__selected-item){max-width:126px;color:#e4eaf2!important;font-size:11.5px;font-weight:650;letter-spacing:-.01em}
-.model-selector__select :deep(.el-select__placeholder){color:#b8c3d2!important;font-size:11.5px}
+.model-selector__select{width:158px;min-width:0}
+.model-selector__select :deep(.el-select__wrapper){min-height:28px!important;padding:0 3px!important;background:transparent!important;box-shadow:none!important;overflow:hidden!important}
+.model-selector__select :deep(.el-select__selected-item){display:block!important;min-width:0!important;max-width:126px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;color:#e4eaf2!important;font-size:11.5px;font-weight:650;line-height:28px!important;letter-spacing:-.01em}
+.model-selector__select :deep(.el-select__placeholder){overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;color:#b8c3d2!important;font-size:11.5px}
 .model-selector__select :deep(.el-select__caret){color:#aab6c7!important;font-size:12px}
 .model-selector__select :deep(.el-select__wrapper.is-disabled){opacity:1!important;cursor:not-allowed!important}
 .model-selector__select :deep(.el-select__wrapper.is-disabled .el-select__selected-item){color:#b9c5d4!important;opacity:.9!important}
 .model-selector__select :deep(.el-select__wrapper.is-disabled .el-select__caret){color:#98a7ba!important;opacity:.9!important}
 .model-selector__retry{width:22px;height:22px;display:grid;place-items:center;flex:none;border:0;border-radius:6px;background:rgba(232,132,146,.07);color:var(--da-accent-red,#e88492);font-size:12px;cursor:pointer}
 .model-selector__retry:hover{background:rgba(232,132,146,.13)}
-@media(max-width:760px){.model-selector{padding-left:7px}.model-selector__select{width:116px}.model-selector__select :deep(.el-select__selected-item){max-width:84px}}
+@media(max-width:760px){.model-selector{padding-left:7px}.model-selector__select{width:116px}.model-selector__select :deep(.el-select__selected-item){max-width:84px!important}}
 </style>
 
 <style>

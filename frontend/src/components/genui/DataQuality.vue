@@ -8,16 +8,22 @@ const props = defineProps<{
 }>()
 const safeScore = computed(() => Math.min(100, Math.max(0, props.score ?? 0)))
 const ring = computed(() => `conic-gradient(var(--accent-cyan) ${safeScore.value}%, rgba(100,116,139,.16) 0)`)
+const statusLabel = computed(() => ({
+  excellent: '优秀',
+  good: '良好',
+  warning: '需关注',
+  critical: '异常',
+})[props.status || 'good'])
 </script>
 
 <template>
   <section class="gen-card quality-card">
     <div class="gen-title-row">
       <div>
-        <span class="eyebrow">DATA TRUST</span>
+        <span class="eyebrow">数据可信度</span>
         <span class="gen-title">{{ title || '数据质量评分' }}</span>
       </div>
-      <span class="quality-status" :class="status || 'good'">{{ status || 'good' }}</span>
+      <span class="quality-status" :class="status || 'good'">{{ statusLabel }}</span>
     </div>
     <div class="quality-layout">
       <div class="quality-ring" :style="{ background: ring }">
