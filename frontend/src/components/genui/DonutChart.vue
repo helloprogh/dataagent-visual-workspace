@@ -7,7 +7,14 @@ const props = defineProps<{
   centerText?: string
 }>()
 
-const palette = ['#3b82f6', '#14b8a6', '#8b5cf6', '#f59e0b', '#ef4444', '#64748b']
+const palette = [
+  'var(--da-chart-1)',
+  'var(--da-chart-2)',
+  'var(--da-chart-3)',
+  'var(--da-chart-4)',
+  'var(--da-chart-5)',
+  'var(--da-chart-6)',
+]
 const total = computed(() => (props.items || []).reduce((sum, item) => sum + Math.max(0, item.value), 0))
 const gradient = computed(() => {
   let cursor = 0
@@ -18,7 +25,7 @@ const gradient = computed(() => {
     cursor = end
     return `${palette[index % palette.length]} ${start}% ${end}%`
   })
-  return parts.length ? `conic-gradient(${parts.join(',')})` : '#eef2f7'
+  return parts.length ? `conic-gradient(${parts.join(',')})` : 'var(--da-surface-3)'
 })
 </script>
 

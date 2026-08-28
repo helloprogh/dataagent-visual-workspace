@@ -12,7 +12,7 @@ const max = computed(() => Math.max(1, ...(props.stages || []).map(item => item.
   <section class="gen-card">
     <div class="gen-title-row">
       <div>
-        <span class="eyebrow">CONVERSION</span>
+        <span class="eyebrow">转化路径</span>
         <span class="gen-title">{{ title || '转化漏斗' }}</span>
       </div>
       <span v-if="unit" class="muted">单位：{{ unit }}</span>

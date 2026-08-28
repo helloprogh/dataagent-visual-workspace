@@ -207,7 +207,6 @@ onBeforeUnmount(() => {
               :thread-id="threadId"
               :disabled="Boolean(inputProps.isRunning) || hasInterrupts"
             />
-            <span>当前会话模型</span>
           </div>
           <CopilotChatInput
             :model-value="inputProps.modelValue"
@@ -280,36 +279,34 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .conversation-chat{position:relative}
-.conversation-composer{overflow:hidden;border:1px solid var(--da-border-strong);border-radius:14px;background:var(--da-surface-input);box-shadow:0 8px 24px rgba(0,0,0,.17)}
-.conversation-composer__controls{height:36px;display:flex;align-items:center;gap:8px;padding:7px 10px 0;border-bottom:1px solid var(--da-border)}
-.conversation-composer__controls>span{color:var(--da-text-subtle);font-size:10px;letter-spacing:.02em}
-.conversation-composer :deep(.model-selector){height:26px;padding:0 5px;border-color:var(--da-border);background:rgba(255,255,255,.018)}
-.conversation-composer :deep(.model-selector__select){width:176px}
-.conversation-composer :deep([data-testid="copilot-chat-input-shell"]){border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
-.conversation-composer :deep([data-testid="copilot-chat-input-shell"]:focus-within){box-shadow:none!important}
 
-/* CopilotKit attachment queue — component-specific presentation. */
-:deep([data-testid="copilot-chat-attachment-queue"]){gap:8px!important;padding:0 14px 9px!important;margin:0!important;align-items:center}
-:deep([data-testid="copilot-chat-attachment-item"]){position:relative!important;border:1px solid var(--da-border)!important;border-radius:12px!important;background:linear-gradient(145deg,var(--da-surface-2),var(--da-surface-1))!important;box-shadow:0 8px 22px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.035)!important;overflow:hidden!important;transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
-:deep([data-testid="copilot-chat-attachment-item"]:hover){border-color:var(--da-border-strong)!important;box-shadow:0 10px 28px rgba(0,0,0,.28),0 0 0 1px rgba(255,255,255,.025) inset!important;transform:translateY(-1px)}
-:deep([data-testid="copilot-chat-attachment-item"][data-card-type="document"]){min-width:196px!important;max-width:264px!important;min-height:54px!important;padding:8px 34px 8px 9px!important}
-:deep([data-testid="copilot-chat-attachment-item"][data-card-type="audio"]){min-width:230px!important;max-width:290px!important;padding:8px 34px 8px 9px!important}
-:deep([data-testid="copilot-chat-attachment-item"][data-card-type="image"]),:deep([data-testid="copilot-chat-attachment-item"][data-card-type="video"]){width:58px!important;height:58px!important;border-radius:12px!important}
-:deep([data-testid="copilot-chat-attachment-image-thumbnail"]),:deep([data-testid="copilot-chat-attachment-video-thumbnail"]),:deep([data-testid="copilot-chat-attachment-video-fallback"]){border-radius:11px!important}
-:deep([data-testid="copilot-chat-attachment-document-button"]){gap:9px!important;color:var(--da-text-primary)!important;align-items:center!important;cursor:pointer!important}
-:deep([data-testid="copilot-chat-attachment-document-button"]>div:first-child){width:36px!important;height:36px!important;border:1px solid color-mix(in srgb,var(--da-accent-yellow) 24%,transparent)!important;border-radius:10px!important;background:color-mix(in srgb,var(--da-accent-yellow) 12%,var(--da-surface-2))!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)!important;color:#F1D992!important;font-size:9px!important;font-weight:800!important;letter-spacing:.04em!important}
-:deep([data-testid="copilot-chat-attachment-document-filename"]){display:block!important;max-width:170px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;color:var(--da-text-primary)!important;font-size:11px!important;font-weight:650!important;line-height:1.35!important;letter-spacing:.005em!important}
-:deep([data-testid="copilot-chat-attachment-document-button"]>div:last-child>span:last-child){display:flex!important;align-items:center!important;margin-top:3px!important;color:var(--da-text-muted)!important;font-size:10px!important;line-height:1!important;letter-spacing:.03em!important}
-:deep([data-testid="copilot-chat-attachment-document-button"]>div:last-child>span:last-child)::before{content:'';display:inline-block;width:5px;height:5px;margin-right:5px;border-radius:50%;background:var(--da-accent-green);box-shadow:0 0 8px color-mix(in srgb,var(--da-accent-green) 38%,transparent)}
-:deep([data-testid="copilot-chat-attachment-item"]>button[aria-label="Remove attachment"]){top:7px!important;right:7px!important;width:18px!important;height:18px!important;border:1px solid var(--da-border)!important;background:rgba(9,10,13,.58)!important;color:var(--da-text-muted)!important;font-size:9px!important;opacity:.85!important;backdrop-filter:blur(8px);transition:.16s ease}
-:deep([data-testid="copilot-chat-attachment-item"]>button[aria-label="Remove attachment"]:hover){border-color:color-mix(in srgb,var(--da-accent-red) 40%,transparent)!important;background:color-mix(in srgb,var(--da-accent-red) 35%,#0A1119)!important;color:#fff!important;opacity:1!important;transform:scale(1.06)}
-:deep([data-testid="copilot-chat-attachment-uploading-overlay"]){gap:7px!important;background:linear-gradient(135deg,rgba(15,16,20,.90),rgba(29,27,23,.88))!important;backdrop-filter:blur(7px)}
-:deep([data-testid="copilot-chat-attachment-uploading-overlay"]>div){width:15px!important;height:15px!important;border-width:1.5px!important;border-color:var(--da-accent-yellow)!important;border-top-color:transparent!important}
-:deep([data-testid="copilot-chat-attachment-uploading-overlay"])::after{content:'UPLOADING';color:var(--da-text-secondary);font-size:9px;font-weight:750;letter-spacing:.1em}
-:deep([data-testid="copilot-chat-drop-overlay"]){margin:10px!important;border:1px dashed color-mix(in srgb,var(--da-accent-yellow) 55%,transparent)!important;border-radius:16px!important;background:radial-gradient(circle at 50% 44%,color-mix(in srgb,var(--da-accent-yellow) 13%,transparent),rgba(17,18,22,.90) 66%)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.025),0 18px 48px rgba(0,0,0,.32)!important;backdrop-filter:blur(12px)}
-:deep([data-testid="copilot-chat-drop-overlay"] span){color:var(--da-text-primary)!important;font-size:10px!important;font-weight:700!important;letter-spacing:.06em}
+/* CopilotKit attachment queue — this component is the sole visual owner. */
+:deep([data-testid="copilot-chat-attachment-queue"]){gap:8px!important;padding:0 12px 8px!important;margin:0!important;align-items:center}
+:deep([data-testid="copilot-chat-attachment-item"]){position:relative!important;border:1px solid var(--da-border)!important;border-radius:10px!important;background:var(--da-surface-2)!important;box-shadow:none!important;overflow:hidden!important;transition:border-color .15s ease,background .15s ease}
+:deep([data-testid="copilot-chat-attachment-item"]:hover){border-color:var(--da-border-strong)!important;background:var(--da-surface-3)!important}
+:deep([data-testid="copilot-chat-attachment-item"][data-card-type="document"]){min-width:190px!important;max-width:258px!important;min-height:52px!important;padding:7px 32px 7px 8px!important}
+:deep([data-testid="copilot-chat-attachment-item"][data-card-type="audio"]){min-width:224px!important;max-width:286px!important;padding:7px 32px 7px 8px!important}
+:deep([data-testid="copilot-chat-attachment-item"][data-card-type="image"]),:deep([data-testid="copilot-chat-attachment-item"][data-card-type="video"]){width:56px!important;height:56px!important;border-radius:10px!important}
+:deep([data-testid="copilot-chat-attachment-image-thumbnail"]),:deep([data-testid="copilot-chat-attachment-video-thumbnail"]),:deep([data-testid="copilot-chat-attachment-video-fallback"]){border-radius:9px!important}
+:deep([data-testid="copilot-chat-attachment-document-button"]){gap:8px!important;color:var(--da-text-primary)!important;align-items:center!important;cursor:pointer!important}
+:deep([data-testid="copilot-chat-attachment-document-button"]>div:first-child){width:34px!important;height:34px!important;border:1px solid rgba(139,159,210,.15)!important;border-radius:9px!important;background:rgba(139,159,210,.045)!important;box-shadow:none!important;color:var(--da-text-secondary)!important;font-size:9px!important;font-weight:700!important;letter-spacing:.03em!important}
+:deep([data-testid="copilot-chat-attachment-document-filename"]){display:block!important;max-width:170px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;color:var(--da-text-primary)!important;font-size:11px!important;font-weight:600!important;line-height:1.35!important}
+:deep([data-testid="copilot-chat-attachment-document-button"]>div:last-child>span:last-child){display:flex!important;align-items:center!important;margin-top:3px!important;color:var(--da-text-muted)!important;font-size:10px!important;line-height:1!important}
+:deep([data-testid="copilot-chat-attachment-document-button"]>div:last-child>span:last-child)::before{content:'';display:inline-block;width:4px;height:4px;margin-right:5px;border-radius:50%;background:var(--da-accent-green)}
+:deep([data-testid="copilot-chat-attachment-item"]>button[aria-label="Remove attachment"]){top:7px!important;right:7px!important;width:18px!important;height:18px!important;border:1px solid transparent!important;background:transparent!important;color:var(--da-text-subtle)!important;font-size:9px!important;opacity:.8!important;transition:background .15s ease,color .15s ease,border-color .15s ease}
+:deep([data-testid="copilot-chat-attachment-item"]>button[aria-label="Remove attachment"]:hover){border-color:var(--da-border)!important;background:rgba(255,255,255,.03)!important;color:var(--da-text-primary)!important;opacity:1!important}
+:deep([data-testid="copilot-chat-attachment-uploading-overlay"]){gap:7px!important;background:rgba(10,17,24,.88)!important;backdrop-filter:blur(6px)}
+:deep([data-testid="copilot-chat-attachment-uploading-overlay"]>div){width:14px!important;height:14px!important;border-width:1.5px!important;border-color:var(--da-accent-blue)!important;border-top-color:transparent!important}
+:deep([data-testid="copilot-chat-attachment-uploading-overlay"])::after{content:'上传中';color:var(--da-text-secondary);font-size:10px;font-weight:600;letter-spacing:.02em}
+:deep([data-testid="copilot-chat-drop-overlay"]){margin:10px!important;border:1px dashed rgba(139,159,210,.34)!important;border-radius:13px!important;background:rgba(14,23,31,.92)!important;box-shadow:none!important;backdrop-filter:blur(10px)}
+:deep([data-testid="copilot-chat-drop-overlay"] span){color:var(--da-text-secondary)!important;font-size:12px!important;font-weight:580!important;letter-spacing:0!important}
 
 .has-interrupts :deep([data-testid="copilot-chat-input-shell"]){opacity:1;pointer-events:auto}
 .has-interrupts :deep([data-testid="copilot-chat-input-textarea"]),.has-interrupts :deep([data-testid="copilot-chat-input-add"]){opacity:.52;pointer-events:none;cursor:not-allowed}
-@media(max-width:540px){.conversation-composer__controls>span{display:none}.conversation-composer :deep(.model-selector__select){width:132px}:deep([data-testid="copilot-chat-attachment-queue"]){padding-left:8px!important;padding-right:8px!important}:deep([data-testid="copilot-chat-attachment-item"][data-card-type="document"]){min-width:178px!important;max-width:100%!important}:deep([data-testid="copilot-chat-attachment-document-filename"]){max-width:145px!important}}
+
+@media(max-width:540px){
+  :deep([data-testid="copilot-chat-attachment-queue"]){padding-left:8px!important;padding-right:8px!important}
+  :deep([data-testid="copilot-chat-attachment-item"][data-card-type="document"]){min-width:174px!important;max-width:100%!important}
+  :deep([data-testid="copilot-chat-attachment-document-filename"]){max-width:142px!important}
+}
 </style>

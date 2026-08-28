@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { Interrupt } from '@ag-ui/client'
 import { genUIRegistry } from '../genui/registry'
+import AguiInterruptCard from './conversation/AguiInterruptCard.vue'
+import ReasoningProcessCard from './conversation/ReasoningProcessCard.vue'
 import ToolStatus from './genui/ToolStatus.vue'
 import WorkspaceToolStatus from './genui/WorkspaceToolStatus.vue'
 
@@ -105,6 +108,32 @@ const fixtures: Record<string, Record<string, unknown>> = {
   'ui.semanticModel': { title:'销售主题语义模型', model:'Sales Domain', description:'统一销售分析的维度、度量、业务指标与来源映射。', dimensions:['区域','渠道','客户','商品','日期'], measures:['销售额','订单数','销量'], metrics:['客单价','复购率','转化率'], sources:['dwd_sales_order','dim_customer','dim_product'] },
 }
 
+const reasoningMessage = {
+  id: 'gallery-reasoning',
+  role: 'reasoning',
+  content: '正在比较近三个月销售趋势，并进一步拆解渠道、商品与客户结构，以确认异常波动的主要原因。',
+} as any
+
+const approvalInterrupt = {
+  id: 'gallery-approval',
+  reason: 'tool_call',
+  message: '需要继续查询订单明细，以确认华东区销售下滑的具体来源。',
+  responseSchema: {
+    type: 'string',
+    oneOf: [
+      { const: 'once', title: '允许一次' },
+      { const: 'always', title: '始终允许' },
+      { const: 'reject', title: '拒绝' },
+    ],
+  },
+  metadata: {
+    action: '执行进一步明细查询',
+    resources: ['sales_detail'],
+  },
+} as unknown as Interrupt
+
+const resolveFixture = async () => undefined
+const cancelFixture = async () => undefined
 const wideComponents = new Set(['ui.markdown','ui.agentGraph','ui.agentTimeline','ui.table','ui.heatmap','ui.queryTrace','ui.semanticModel'])
 const componentCount = computed(() => genUIRegistry.length)
 </script>
@@ -113,15 +142,15 @@ const componentCount = computed(() => genUIRegistry.length)
   <main class="component-gallery dataagent-shell">
     <header class="component-gallery__header">
       <div>
-        <span>VISUAL REGRESSION / MOCK</span>
-        <h1>All Components Gallery</h1>
-        <p>真实渲染全部 GenUI 组件与关键 Conversation/System 状态，用于深色主题对比度与层级回归检查。</p>
+        <span>视觉回归基准</span>
+        <h1>Data Agent Visual System</h1>
+        <p>真实渲染全部 GenUI 与关键对话、状态和管理元素，用于工业级深色主题的持续视觉检查。</p>
       </div>
-      <div class="component-gallery__stats"><b>{{ componentCount }}</b><span>GenUI components</span></div>
+      <div class="component-gallery__stats"><b>{{ componentCount }}</b><span>GenUI 组件</span></div>
     </header>
 
     <section class="component-gallery__section component-gallery__visual-scope visual-workspace">
-      <div class="component-gallery__section-head"><div><small>GENUI REGISTRY</small><h2>生成式 UI 组件</h2></div><span>{{ componentCount }} / {{ componentCount }} rendered</span></div>
+      <div class="component-gallery__section-head"><div><small>GENERATIVE UI</small><h2>生成式 UI 组件</h2></div><span>{{ componentCount }} / {{ componentCount }} 已渲染</span></div>
       <div class="component-gallery__grid">
         <article v-for="entry in genUIRegistry" :key="entry.name" class="component-gallery__item" :class="{ wide: wideComponents.has(entry.name) }">
           <div class="component-gallery__label"><div><code>{{ entry.name }}</code><b>{{ entry.title }}</b></div><span>{{ entry.description }}</span></div>
@@ -133,10 +162,10 @@ const componentCount = computed(() => genUIRegistry.length)
     </section>
 
     <section class="component-gallery__section component-gallery__conversation conversation-chat visual-chat">
-      <div class="component-gallery__section-head"><div><small>CONVERSATION / SYSTEM</small><h2>聊天与运行状态</h2></div><span>production class fixtures + real status components</span></div>
+      <div class="component-gallery__section-head"><div><small>CONVERSATION</small><h2>对话与运行状态</h2></div><span>真实状态组件 + 产品主题 Markdown</span></div>
       <div class="component-gallery__system-grid">
         <article class="component-gallery__system-card wide">
-          <div class="component-gallery__label"><b>Copilot assistant Markdown</b><span>.copilot-chat-assistant-markdown</span></div>
+          <div class="component-gallery__label"><b>Assistant Markdown</b><span>标题 / 正文 / 链接 / 行内代码 / 列表 / 引用 / 代码块 / 表格</span></div>
           <div data-testid="copilot-chat-assistant-message" class="component-gallery__assistant-message">
             <div class="copilot-chat-assistant-markdown">
               <h2>销售分析结论</h2>
@@ -150,38 +179,84 @@ const componentCount = computed(() => genUIRegistry.length)
         </article>
 
         <article class="component-gallery__system-card">
-          <div class="component-gallery__label"><b>Reasoning</b><span>expanded / streaming fixture</span></div>
-          <div class="reasoning-card is-streaming">
-            <button class="reasoning-card__header can-expand" type="button"><span class="reasoning-card__icon"><i></i><i></i><i></i></span><span class="reasoning-card__heading"><small>AG-UI REASONING</small><b>思考过程</b></span><span class="reasoning-card__status active"><i></i>生成中</span><span class="reasoning-card__chevron open">›</span></button>
-            <div class="component-gallery__reasoning-body">正在比较近三个月销售趋势，并进一步拆解渠道、商品与客户结构，以确认异常波动的主要原因。</div>
-          </div>
+          <div class="component-gallery__label"><b>思考过程</b><span>真实 ReasoningProcessCard · 生成中</span></div>
+          <ReasoningProcessCard :message="reasoningMessage" :messages="[reasoningMessage]" :is-running="true" />
         </article>
 
         <article class="component-gallery__system-card">
-          <div class="component-gallery__label"><b>Tool execution</b><span>real ToolStatus component</span></div>
+          <div class="component-gallery__label"><b>工具执行</b><span>完成 / 执行中</span></div>
           <ToolStatus name="query_sales_data" status="complete" :parameters="{ command:'spark-sql --file analysis.sql', region:'华东', days:90 }" :result="{ rows: 1284, elapsedMs: 842, status: 'success' }" />
           <ToolStatus name="profile_customer_dimension" status="executing" :parameters="{ table:'dim_customer' }" />
         </article>
 
         <article class="component-gallery__system-card">
-          <div class="component-gallery__label"><b>Workspace tool</b><span>real WorkspaceToolStatus component</span></div>
+          <div class="component-gallery__label"><b>工作区更新</b><span>真实 WorkspaceToolStatus</span></div>
           <WorkspaceToolStatus name="workspace.render" status="complete" tool-call-id="gallery-workspace" :parameters="{}" result="ok" />
         </article>
 
-        <article class="component-gallery__system-card">
-          <div class="component-gallery__label"><b>Permission / approval</b><span>production class fixture</span></div>
-          <section class="agui-permission"><header><b>需要你的确认</b><span>HUMAN APPROVAL</span></header><div class="permission-copy"><b>允许执行数据写入操作？</b><p>Agent 将更新目标数据集并触发下游验证任务。</p><code>dataset.sales_summary.write</code></div><div class="permission-list"><article>写入 sales_summary</article><article>触发质量验证</article></div><div class="permission-actions"><button>拒绝</button><button>仅本次允许</button></div><small>该操作会影响共享数据资产。</small></section>
+        <article class="component-gallery__system-card wide">
+          <div class="component-gallery__label"><b>操作确认</b><span>真实 AguiInterruptCard · schema 驱动选项</span></div>
+          <AguiInterruptCard :interrupt="approvalInterrupt" :interrupts="[approvalInterrupt]" :resolve="resolveFixture" :cancel="cancelFixture" />
         </article>
 
         <article class="component-gallery__system-card">
-          <div class="component-gallery__label"><b>Composer / attachment</b><span>production test-id fixture</span></div>
-          <div data-testid="copilot-chat-attachment-item" class="component-gallery__attachment"><button data-testid="copilot-chat-attachment-document-button"><span>PDF</span><b data-testid="copilot-chat-attachment-document-filename">sales-analysis-2026Q3.pdf</b></button><small>2.8 MB · 已上传</small></div>
-          <div data-testid="copilot-chat-input-shell" class="component-gallery__composer"><textarea data-testid="copilot-chat-input-textarea" placeholder="描述你的数据业务目标…">请分析华东区最近三个月销售变化</textarea><button type="button">发送</button></div>
+          <div class="component-gallery__label"><b>附件</b><span>文档附件的正常状态</span></div>
+          <div class="component-gallery__attachment">
+            <span class="component-gallery__file-mark">PDF</span>
+            <div><b>sales-analysis-2026Q3.pdf</b><small>2.8 MB · 已上传</small></div>
+            <button type="button" aria-label="移除附件">×</button>
+          </div>
         </article>
 
         <article class="component-gallery__system-card">
-          <div class="component-gallery__label"><b>User message</b><span>Copilot message surface</span></div>
+          <div class="component-gallery__label"><b>Composer</b><span>输入 / 上传 / 模型 / 发送</span></div>
+          <div class="component-gallery__composer-preview">
+            <textarea readonly>请分析华东区最近三个月销售变化</textarea>
+            <div class="component-gallery__composer-actions"><button type="button">＋</button><span>GPT-5.6 Sol</span><button type="button" class="primary">↑</button></div>
+          </div>
+        </article>
+
+        <article class="component-gallery__system-card">
+          <div class="component-gallery__label"><b>User Message</b><span>用户消息 surface</span></div>
           <div data-testid="copilot-chat-user-message" class="component-gallery__user-message">分析一下华东区最近三个月销售变化，并给出异常原因。</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="component-gallery__section">
+      <div class="component-gallery__section-head"><div><small>MANAGEMENT / SYSTEM</small><h2>管理与系统状态</h2></div><span>按钮 / 状态 / 错误 / 列表 / 空状态 / 浮层</span></div>
+      <div class="component-gallery__system-grid">
+        <article class="component-gallery__system-card">
+          <div class="component-gallery__label"><b>操作与状态</b><span>Primary / Connected / Disconnected</span></div>
+          <div class="component-gallery__primitive-row">
+            <button class="management-page__primary" type="button">新建工作空间</button>
+            <span class="management-page__status-chip connected"><i></i>服务可用</span>
+            <span class="management-page__status-chip disconnected"><i></i>服务不可用</span>
+          </div>
+        </article>
+
+        <article class="component-gallery__system-card">
+          <div class="component-gallery__label"><b>错误提示</b><span>可恢复的系统错误</span></div>
+          <div class="opencode-error-banner component-gallery__error"><b>加载失败</b><span>暂时无法获取工作空间列表，请稍后重试。</span><button type="button">重试</button></div>
+        </article>
+
+        <article class="component-gallery__system-card wide">
+          <div class="component-gallery__label"><b>历史记录</b><span>表头 / 普通行 / 当前行 / 更多操作</span></div>
+          <div class="history-table component-gallery__history">
+            <div class="history-table__head"><span>会话</span><span>消息</span><span>更新时间</span><span></span></div>
+            <div class="history-table__row active"><div class="history-table__title"><span class="history-table__icon">◌</span><div><b>分析本月销售异常原因</b><small>thread-a8d24f...</small></div></div><span>18</span><span>19:22</span><button class="history-table__more">•••</button></div>
+            <div class="history-table__row"><div class="history-table__title"><span class="history-table__icon">◌</span><div><b>用户留存趋势分析</b><small>thread-c2137e...</small></div></div><span>12</span><span>17:08</span><button class="history-table__more">•••</button></div>
+          </div>
+        </article>
+
+        <article class="component-gallery__system-card">
+          <div class="component-gallery__label"><b>空状态</b><span>无匹配数据 / 未安装能力</span></div>
+          <div class="skill-empty-state component-gallery__empty"><span class="skill-empty-state__icon">◇</span><b>暂未安装技能</b><p>安装技能后，可以为数据开发和分析任务扩展更多专业能力。</p></div>
+        </article>
+
+        <article class="component-gallery__system-card">
+          <div class="component-gallery__label"><b>浮层层级</b><span>Dialog / form surface</span></div>
+          <div class="component-gallery__dialog"><header><b>新建工作空间</b><button type="button">×</button></header><div><label>工作空间名称</label><div class="component-gallery__input">sales-analysis-prod</div><label>关联项目</label><div class="component-gallery__input">Data Platform</div></div><footer><button type="button">取消</button><button type="button" class="primary">创建</button></footer></div>
         </article>
       </div>
     </section>
@@ -189,5 +264,24 @@ const componentCount = computed(() => genUIRegistry.length)
 </template>
 
 <style scoped>
-.component-gallery{height:100vh;display:block;overflow:auto;background:#071019;color:#fff;padding:0 28px 64px}.component-gallery__header{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:24px;margin:0 -28px 26px;padding:22px 30px;border-bottom:1px solid rgba(184,205,224,.22);background:rgba(7,16,25,.94);backdrop-filter:blur(18px)}.component-gallery__header span,.component-gallery__section-head small{color:#b7c2d2;font-size:11px;letter-spacing:.14em}.component-gallery__header h1{margin:4px 0 5px;font-size:28px}.component-gallery__header p{margin:0;color:#d9e1ec;font-size:13px}.component-gallery__stats{min-width:132px;padding:10px 14px;border:1px solid rgba(184,205,224,.24);border-radius:10px;background:#111d2a;text-align:right}.component-gallery__stats b{display:block;font-size:24px;color:#fff}.component-gallery__stats span{letter-spacing:0;font-size:10px}.component-gallery__section{height:auto!important;min-height:0!important;display:block!important;overflow:visible!important;border:0!important;background:transparent!important;margin:0 auto 30px;max-width:1680px}.component-gallery__section-head{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;margin:0 0 14px;padding:0 2px}.component-gallery__section-head h2{margin:3px 0 0;color:#fff;font-size:19px}.component-gallery__section-head>span{color:#b7c2d2;font-size:11px}.component-gallery__grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.component-gallery__item{min-width:0;padding:12px;border:1px solid rgba(184,205,224,.18);border-radius:14px;background:#0c1621}.component-gallery__item.wide{grid-column:1/-1}.component-gallery__label{min-height:48px;display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:2px 2px 10px}.component-gallery__label>div{display:flex;align-items:center;gap:9px}.component-gallery__label code{color:#9fc2ff;font-size:10px}.component-gallery__label b{color:#fff;font-size:12px}.component-gallery__label span{max-width:58%;color:#b7c2d2;font-size:10px;line-height:1.45;text-align:right}.component-gallery__frame{min-height:220px}.component-gallery__system-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.component-gallery__system-card{min-width:0;padding:14px;border:1px solid rgba(184,205,224,.20);border-radius:14px;background:#0c1621}.component-gallery__system-card.wide{grid-column:1/-1}.component-gallery__assistant-message{padding:18px;border:1px solid rgba(184,205,224,.18);border-radius:12px;background:#101a26}.component-gallery__reasoning-body{padding:14px 16px 17px;border-top:1px solid rgba(184,205,224,.16);color:#d9e1ec;font-size:14px;line-height:1.7}.component-gallery__attachment{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;padding:10px 12px;border-radius:10px}.component-gallery__attachment button{display:flex;align-items:center;gap:9px;border:0;background:transparent;color:#fff}.component-gallery__attachment small{color:#b7c2d2}.component-gallery__composer{display:flex;align-items:flex-end;gap:10px;padding:10px;border:1px solid rgba(184,205,224,.29);border-radius:12px;background:#111b28}.component-gallery__composer textarea{min-height:62px;flex:1;resize:none;border:0;outline:0;background:transparent;color:#fff;line-height:1.55}.component-gallery__composer button,.permission-actions button{padding:8px 12px;border:1px solid rgba(184,205,224,.24);border-radius:8px;background:#1b2b3d;color:#fff}.component-gallery__user-message{margin-left:auto;max-width:72%;padding:12px 14px;border:1px solid rgba(151,175,255,.26);border-radius:12px;background:#1b2940;color:#fff;line-height:1.6}.component-gallery :deep(.copilot-chat-assistant-markdown table){width:100%;border-collapse:collapse;margin-top:12px}.component-gallery :deep(.copilot-chat-assistant-markdown th),.component-gallery :deep(.copilot-chat-assistant-markdown td){padding:8px 10px;border-style:solid;border-width:1px}.component-gallery :deep(.copilot-chat-assistant-markdown pre){padding:12px;overflow:auto}.component-gallery :deep(.copilot-chat-assistant-markdown blockquote){margin:12px 0;padding:9px 12px}.component-gallery :deep(.agui-permission){padding:14px;border-style:solid;border-width:1px;border-radius:12px}.component-gallery :deep(.agui-permission header){display:flex;justify-content:space-between;gap:12px;margin-bottom:12px}.component-gallery :deep(.permission-copy){display:flex;flex-direction:column;gap:6px}.component-gallery :deep(.permission-list){display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.component-gallery :deep(.permission-list article){padding:9px;border-style:solid;border-width:1px;border-radius:8px}.component-gallery :deep(.permission-actions){display:flex;gap:8px;margin-bottom:9px}@media(max-width:1000px){.component-gallery__grid,.component-gallery__system-grid{grid-template-columns:1fr}.component-gallery__item.wide,.component-gallery__system-card.wide{grid-column:auto}.component-gallery__header{align-items:flex-start}.component-gallery__stats{display:none}}@media(max-width:640px){.component-gallery{padding:0 12px 40px}.component-gallery__header{margin:0 -12px 20px;padding:16px}.component-gallery__label{display:block}.component-gallery__label span{display:block;max-width:none;margin-top:6px;text-align:left}}
+.component-gallery{height:100vh;display:block;overflow:auto;padding:0 28px 64px;background:var(--da-surface-0);color:var(--da-text-primary)}
+.component-gallery__header{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:24px;margin:0 -28px 26px;padding:20px 30px;border-bottom:1px solid var(--da-border);background:color-mix(in srgb,var(--da-surface-0) 94%,transparent);backdrop-filter:blur(18px)}
+.component-gallery__header>div:first-child>span,.component-gallery__section-head small{color:var(--da-text-subtle);font-size:11px;font-weight:620;letter-spacing:.06em}
+.component-gallery__header h1{margin:4px 0 5px;color:var(--da-text-emphasis);font-size:27px;line-height:1.2;font-weight:650;letter-spacing:-.025em}
+.component-gallery__header p{margin:0;color:var(--da-text-muted);font-size:13px;line-height:1.6}
+.component-gallery__stats{min-width:128px;padding:9px 13px;border:1px solid var(--da-border);border-radius:10px;background:var(--da-surface-1);text-align:right}
+.component-gallery__stats b{display:block;color:var(--da-text-emphasis);font-size:23px;font-weight:650}.component-gallery__stats span{color:var(--da-text-muted);font-size:11px}
+.component-gallery__section{height:auto!important;min-height:0!important;display:block!important;overflow:visible!important;border:0!important;background:transparent!important;margin:0 auto 32px;max-width:1680px}
+.component-gallery__section-head{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;margin:0 0 14px;padding:0 2px}.component-gallery__section-head h2{margin:3px 0 0;color:var(--da-text-emphasis);font-size:19px;font-weight:640}.component-gallery__section-head>span{color:var(--da-text-muted);font-size:11px}
+.component-gallery__grid,.component-gallery__system-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.component-gallery__item,.component-gallery__system-card{min-width:0;padding:11px;border:1px solid rgba(183,196,210,.09);border-radius:13px;background:rgba(255,255,255,.006)}
+.component-gallery__item.wide,.component-gallery__system-card.wide{grid-column:1/-1}
+.component-gallery__label{min-height:46px;display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:2px 2px 9px}.component-gallery__label>div{display:flex;align-items:center;gap:9px}.component-gallery__label code{color:var(--da-link);font-size:11px}.component-gallery__label b{color:var(--da-text-primary);font-size:12px;font-weight:620}.component-gallery__label span{max-width:58%;color:var(--da-text-muted);font-size:11px;line-height:1.45;text-align:right}.component-gallery__frame{min-height:220px}
+.component-gallery__assistant-message{max-width:900px;padding:3px 2px 6px;background:transparent}
+.component-gallery__attachment{min-height:58px;display:grid;grid-template-columns:36px minmax(0,1fr) 26px;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--da-border);border-radius:10px;background:var(--da-surface-2)}.component-gallery__file-mark{width:34px;height:34px;display:grid;place-items:center;border:1px solid rgba(139,159,210,.14);border-radius:9px;color:var(--da-text-secondary);background:rgba(139,159,210,.035);font-size:10px;font-weight:700}.component-gallery__attachment>div{min-width:0}.component-gallery__attachment b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--da-text-primary);font-size:12px}.component-gallery__attachment small{display:block;margin-top:3px;color:var(--da-text-muted);font-size:11px}.component-gallery__attachment button{width:26px;height:26px;border:0;border-radius:7px;background:transparent;color:var(--da-text-muted)}
+.component-gallery__composer-preview{min-height:108px;padding:11px;border:1px solid var(--da-border);border-radius:13px;background:var(--da-surface-input)}.component-gallery__composer-preview textarea{width:100%;min-height:48px;padding:0;border:0;resize:none;outline:0;background:transparent;color:var(--da-text-primary);font:14px/1.58 inherit}.component-gallery__composer-actions{display:flex;align-items:center;gap:8px;margin-top:8px}.component-gallery__composer-actions span{margin-left:auto;padding:7px 9px;border:1px solid rgba(183,196,210,.10);border-radius:8px;color:var(--da-text-secondary);font-size:11px}.component-gallery__composer-actions button{width:32px;height:32px;border:1px solid rgba(183,196,210,.10);border-radius:8px;background:transparent;color:var(--da-text-secondary)}.component-gallery__composer-actions button.primary{border-color:transparent;border-radius:50%;background:#788DBB;color:#0A1118}
+.component-gallery__user-message{margin-left:auto;max-width:72%;padding:11px 13px;line-height:1.6}
+.component-gallery__primitive-row{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:4px 0 8px}.component-gallery__error{margin:0;max-width:none}.component-gallery__history{margin:0;max-width:none}.component-gallery__empty{min-height:230px;padding:28px}.component-gallery__dialog{overflow:hidden;border:1px solid var(--da-border-strong);border-radius:14px;background:var(--da-surface-2);box-shadow:var(--da-shadow-raised)}.component-gallery__dialog header,.component-gallery__dialog footer{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid var(--da-border)}.component-gallery__dialog header b{color:var(--da-text-emphasis);font-size:15px}.component-gallery__dialog header button{border:0;background:transparent;color:var(--da-text-muted)}.component-gallery__dialog>div{display:flex;flex-direction:column;gap:7px;padding:15px}.component-gallery__dialog label{margin-top:4px;color:var(--da-text-secondary);font-size:12px}.component-gallery__input{min-height:38px;padding:0 10px;display:flex;align-items:center;border:1px solid var(--da-border);border-radius:9px;background:var(--da-surface-input);color:var(--da-text-primary);font-size:12px}.component-gallery__dialog footer{justify-content:flex-end;gap:8px;border-top:1px solid var(--da-border);border-bottom:0}.component-gallery__dialog footer button{min-height:34px;padding:0 11px;border:1px solid var(--da-border);border-radius:8px;background:transparent;color:var(--da-text-secondary)}.component-gallery__dialog footer button.primary{border-color:#788DBB;background:#788DBB;color:#0A1118}
+@media(max-width:1000px){.component-gallery__grid,.component-gallery__system-grid{grid-template-columns:1fr}.component-gallery__item.wide,.component-gallery__system-card.wide{grid-column:auto}.component-gallery__header{align-items:flex-start}.component-gallery__stats{display:none}}
+@media(max-width:640px){.component-gallery{padding:0 12px 40px}.component-gallery__header{margin:0 -12px 20px;padding:16px}.component-gallery__label{display:block}.component-gallery__label span{display:block;max-width:none;margin-top:6px;text-align:left}}
 </style>

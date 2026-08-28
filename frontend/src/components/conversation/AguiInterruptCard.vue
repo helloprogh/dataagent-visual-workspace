@@ -30,10 +30,7 @@ const requestTitle = computed(() => {
   if (reason === 'input_required') return '需要补充信息'
   return '需要你的处理'
 })
-const requestStatus = computed(() => {
-  const reason = primaryInterrupt.value?.reason
-  return reason === 'input_required' ? '等待填写' : '等待确认'
-})
+const requestStatus = computed(() => primaryInterrupt.value?.reason === 'input_required' ? '等待填写' : '等待确认')
 
 watch(activeInterrupts, interrupts => {
   const ids = new Set(interrupts.map(item => item.id))
@@ -91,10 +88,7 @@ function choicesFor(schema: JsonSchema): Choice[] {
     : Array.isArray(schema.enumNames)
       ? schema.enumNames
       : []
-  return schema.enum.map((value: any, index: number) => ({
-    value,
-    label: String(labels[index] ?? fallbackChoiceLabel(value)),
-  }))
+  return schema.enum.map((value: any, index: number) => ({ value, label: String(labels[index] ?? fallbackChoiceLabel(value)) }))
 }
 
 function titleFor(interrupt: Interrupt) {
@@ -115,25 +109,16 @@ function messageFor(interrupt: Interrupt) {
 }
 
 function resourceFor(interrupt: Interrupt) {
-  const metadata = interrupt.metadata as { resources?: unknown } | undefined
-  const resources = metadata?.resources
+  const resources = (interrupt.metadata as { resources?: unknown } | undefined)?.resources
   if (Array.isArray(resources)) return resources.map(String).join(' · ')
   if (resources != null) return String(resources)
   return ''
 }
 
-function isBusy(id: string) {
-  return busyIds.value.includes(id)
-}
-
-function isSubmitted(id: string) {
-  return submittedIds.value.includes(id)
-}
-
+function isBusy(id: string) { return busyIds.value.includes(id) }
+function isSubmitted(id: string) { return submittedIds.value.includes(id) }
 function setBusy(id: string, busy: boolean) {
-  busyIds.value = busy
-    ? [...new Set([...busyIds.value, id])]
-    : busyIds.value.filter(item => item !== id)
+  busyIds.value = busy ? [...new Set([...busyIds.value, id])] : busyIds.value.filter(item => item !== id)
 }
 
 function payloadFor(interrupt: Interrupt) {
@@ -150,8 +135,7 @@ function isComplete(interrupt: Interrupt) {
     return true
   }
   return fields.every(field => !field.required || (
-    answers[interrupt.id]?.[field.name] !== undefined
-    && answers[interrupt.id]?.[field.name] !== ''
+    answers[interrupt.id]?.[field.name] !== undefined && answers[interrupt.id]?.[field.name] !== ''
   ))
 }
 
@@ -176,13 +160,11 @@ function normalizeInputValue(schema: JsonSchema, value: string) {
 }
 
 function setFieldInput(interrupt: Interrupt, field: Field, event: Event) {
-  const value = (event.target as HTMLInputElement).value
-  answers[interrupt.id][field.name] = normalizeInputValue(field.schema, value)
+  answers[interrupt.id][field.name] = normalizeInputValue(field.schema, (event.target as HTMLInputElement).value)
 }
 
 function setRootInput(interrupt: Interrupt, event: Event) {
-  const value = (event.target as HTMLInputElement).value
-  rootAnswers[interrupt.id] = normalizeInputValue(schemaFor(interrupt), value)
+  rootAnswers[interrupt.id] = normalizeInputValue(schemaFor(interrupt), (event.target as HTMLInputElement).value)
 }
 
 async function submit(interrupt: Interrupt) {
@@ -227,7 +209,7 @@ async function chooseRoot(interrupt: Interrupt, value: any) {
 <template>
   <section v-if="activeInterrupts.length" class="approval-request" role="alert" aria-live="polite">
     <header class="approval-request__header">
-      <span class="approval-request__icon" aria-hidden="true">!</span>
+      <span class="approval-request__icon" aria-hidden="true">?</span>
       <div class="approval-request__heading">
         <b>{{ requestTitle }}</b>
         <span v-if="activeInterrupts.length > 1">{{ activeInterrupts.length }} 项待处理</span>
@@ -236,7 +218,7 @@ async function chooseRoot(interrupt: Interrupt, value: any) {
     </header>
 
     <div class="approval-request__list">
-      <article v-for="item in activeInterrupts" :key="item.id" :class="{ submitted: isSubmitted(item.id) }">
+      <article v-for="item in activeInterrupts" :key="item.id" class="approval-request__item" :class="{ submitted: isSubmitted(item.id) }">
         <div class="approval-request__copy">
           <b>{{ titleFor(item) }}</b>
           <p>{{ messageFor(item) }}</p>
@@ -245,10 +227,12 @@ async function chooseRoot(interrupt: Interrupt, value: any) {
 
         <div v-if="!isSubmitted(item.id)" class="approval-request__response">
           <template v-if="fieldsFor(item).length">
-            <label v-for="field in fieldsFor(item)" :key="field.name" class="approval-request__field">
-              <span>{{ field.schema.title || field.name }}<em v-if="field.required">*</em></span>
+            <div v-for="field in fieldsFor(item)" :key="field.name" class="approval-request__field">
+              <div class="approval-request__field-label">
+                {{ field.schema.title || field.name }}<em v-if="field.required">*</em>
+              </div>
 
-              <div v-if="choicesFor(field.schema).length" class="approval-request__choices">
+              <div v-if="choicesFor(field.schema).length" class="approval-request__choices" role="group" :aria-label="field.schema.title || field.name">
                 <button
                   v-for="choice in choicesFor(field.schema)"
                   :key="JSON.stringify(choice.value)"
@@ -259,7 +243,7 @@ async function chooseRoot(interrupt: Interrupt, value: any) {
                 >{{ choice.label }}</button>
               </div>
 
-              <div v-else-if="field.schema.type === 'boolean'" class="approval-request__choices">
+              <div v-else-if="field.schema.type === 'boolean'" class="approval-request__choices" role="group" :aria-label="field.schema.title || field.name">
                 <button type="button" :disabled="isBusy(item.id)" :class="{ selected: answers[item.id]?.[field.name] === true }" @click="chooseField(item, field, true)">是</button>
                 <button type="button" :disabled="isBusy(item.id)" :class="{ selected: answers[item.id]?.[field.name] === false }" @click="chooseField(item, field, false)">否</button>
               </div>
@@ -269,14 +253,16 @@ async function chooseRoot(interrupt: Interrupt, value: any) {
                 :value="answers[item.id]?.[field.name] ?? ''"
                 :type="field.schema.type === 'number' || field.schema.type === 'integer' ? 'number' : 'text'"
                 :placeholder="field.schema.description || field.schema.title || field.name"
+                :aria-label="field.schema.title || field.name"
                 :disabled="isBusy(item.id)"
                 @input="setFieldInput(item, field, $event)"
               />
-            </label>
+            </div>
           </template>
 
           <template v-else-if="choicesFor(schemaFor(item)).length">
-            <div class="approval-request__choices">
+            <div class="approval-request__field-label">请选择操作</div>
+            <div class="approval-request__choices" role="group" :aria-label="schemaFor(item).title || requestTitle">
               <button
                 v-for="choice in choicesFor(schemaFor(item))"
                 :key="JSON.stringify(choice.value)"
@@ -289,7 +275,8 @@ async function chooseRoot(interrupt: Interrupt, value: any) {
           </template>
 
           <template v-else-if="schemaFor(item).type === 'boolean'">
-            <div class="approval-request__choices">
+            <div class="approval-request__field-label">请选择操作</div>
+            <div class="approval-request__choices" role="group" :aria-label="schemaFor(item).title || requestTitle">
               <button type="button" :disabled="isBusy(item.id)" :class="{ selected: rootAnswers[item.id] === true }" @click="chooseRoot(item, true)">是</button>
               <button type="button" :disabled="isBusy(item.id)" :class="{ selected: rootAnswers[item.id] === false }" @click="chooseRoot(item, false)">否</button>
             </div>
@@ -300,18 +287,13 @@ async function chooseRoot(interrupt: Interrupt, value: any) {
             :value="rootAnswers[item.id] ?? ''"
             :type="schemaFor(item).type === 'number' || schemaFor(item).type === 'integer' ? 'number' : 'text'"
             :placeholder="schemaFor(item).description || schemaFor(item).title || '请输入内容'"
+            :aria-label="schemaFor(item).title || '补充信息'"
             :disabled="isBusy(item.id)"
             @input="setRootInput(item, $event)"
           />
 
           <div class="approval-request__footer">
-            <button
-              v-if="needsSubmit(item)"
-              type="button"
-              class="primary"
-              :disabled="isBusy(item.id) || !isComplete(item)"
-              @click="submit(item)"
-            >确认</button>
+            <button v-if="needsSubmit(item)" type="button" class="primary" :disabled="isBusy(item.id) || !isComplete(item)" @click="submit(item)">确认</button>
             <button type="button" class="cancel" :disabled="isBusy(item.id)" @click="cancel(item)">取消</button>
           </div>
         </div>
@@ -325,15 +307,179 @@ async function chooseRoot(interrupt: Interrupt, value: any) {
 </template>
 
 <style scoped>
-.approval-request{margin:9px 0;padding:10px 11px;border:1px solid var(--da-border);border-radius:10px;background:linear-gradient(145deg,var(--da-surface-2),var(--da-surface-1));color:var(--da-text-primary)}
-.approval-request__header{display:flex;align-items:center;gap:9px}.approval-request__icon{display:grid;place-items:center;width:25px;height:25px;flex:none;border:1px solid color-mix(in srgb,var(--da-accent-yellow) 30%,transparent);border-radius:7px;background:color-mix(in srgb,var(--da-accent-yellow) 9%,transparent);color:#E7D7A2;font:750 12px/1 ui-sans-serif,system-ui,sans-serif}.approval-request__heading{min-width:0;flex:1;display:flex;align-items:baseline;gap:8px}.approval-request__heading b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--da-text-primary);font-size:12.5px;font-weight:650}.approval-request__heading>span{color:var(--da-text-muted);font-size:10.5px}.approval-request__state{display:inline-flex;align-items:center;gap:5px;flex:none;color:var(--da-text-muted);font-size:11px}.approval-request__state i{width:6px;height:6px;border-radius:50%;background:var(--da-accent-yellow);box-shadow:0 0 8px color-mix(in srgb,var(--da-accent-yellow) 55%,transparent);animation:approval-pulse 1.2s ease-in-out infinite}
-.approval-request__list{display:flex;flex-direction:column;margin-top:9px;border-top:1px solid var(--da-border)}.approval-request__list article{padding:9px 0 1px}.approval-request__list article+article{margin-top:8px;border-top:1px solid var(--da-border);padding-top:9px}.approval-request__list article.submitted{opacity:.68}
-.approval-request__copy{display:flex;flex-direction:column;gap:4px}.approval-request__copy b{color:var(--da-text-primary);font-size:12px;font-weight:620}.approval-request__copy p{margin:0;color:var(--da-text-secondary);font-size:11.5px;line-height:1.55}.approval-request__copy code{display:block;margin-top:3px;padding:7px 8px;overflow:auto;border:1px solid var(--da-border);border-radius:7px;background:var(--da-surface-code);color:var(--da-text-secondary);font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;word-break:break-word}
-.approval-request__response{display:flex;flex-direction:column;gap:9px;margin-top:9px}.approval-request__field{display:flex;flex-direction:column;gap:6px}.approval-request__field>span{color:var(--da-text-muted);font-size:11px}.approval-request__field em{margin-left:3px;color:var(--da-accent-red);font-style:normal}
-.approval-request__choices{display:flex;flex-wrap:wrap;gap:7px}.approval-request__choices button,.approval-request__footer button{min-height:30px;padding:6px 10px;border:1px solid var(--da-border-strong);border-radius:7px;background:rgba(255,255,255,.025);color:var(--da-text-primary);font-size:11px;cursor:pointer;transition:border-color .16s ease,background .16s ease,color .16s ease}.approval-request__choices button:hover,.approval-request__choices button.selected,.approval-request__footer button.primary:hover{border-color:color-mix(in srgb,var(--da-accent-yellow) 70%,var(--da-border));background:color-mix(in srgb,var(--da-accent-yellow) 14%,transparent);color:var(--da-text-emphasis)}
-.approval-request__response input{height:32px;padding:0 9px;border:1px solid var(--da-border);border-radius:7px;outline:none;background:var(--da-surface-input);color:var(--da-text-primary);font:inherit;font-size:11.5px}.approval-request__response input:focus{border-color:color-mix(in srgb,var(--da-accent-yellow) 68%,var(--da-border))}
-.approval-request__footer{display:flex;justify-content:flex-end;gap:7px}.approval-request__footer button.primary{border-color:color-mix(in srgb,var(--da-accent-yellow) 42%,var(--da-border));background:color-mix(in srgb,var(--da-accent-yellow) 8%,transparent)}.approval-request__footer button.cancel{border-color:var(--da-border);background:transparent;color:var(--da-text-muted)}.approval-request__footer button.cancel:hover{border-color:var(--da-border-strong);color:var(--da-text-primary)}
-.approval-request__choices button:disabled,.approval-request__footer button:disabled,.approval-request__response input:disabled{opacity:.5;cursor:wait}.approval-request__list small{display:block;margin-top:7px;color:var(--da-text-muted);font-size:10.5px}.approval-request__error{margin:8px 0 0;color:#FFB0BC;font-size:10.5px}
-@keyframes approval-pulse{0%,100%{opacity:.45;transform:scale(.82)}50%{opacity:1;transform:scale(1)}}
-@media(max-width:540px){.approval-request__heading>span{display:none}.approval-request__footer{justify-content:flex-start;flex-wrap:wrap}}
+.approval-request{
+  position:relative;
+  width:100%;
+  min-width:0;
+  margin:10px 0 14px;
+  overflow:hidden;
+  box-sizing:border-box;
+  border:1px solid var(--da-border-strong);
+  border-radius:12px;
+  background:linear-gradient(145deg,color-mix(in srgb,var(--da-surface-2) 97%,transparent),var(--da-surface-1));
+  box-shadow:inset 3px 0 color-mix(in srgb,var(--da-accent-yellow) 52%,transparent),0 10px 28px rgba(0,0,0,.12);
+  color:var(--da-text-primary);
+}
+.approval-request__header{
+  min-width:0;
+  min-height:48px;
+  padding:0 12px;
+  display:flex;
+  align-items:center;
+  gap:9px;
+  border-bottom:1px solid var(--da-border);
+  background:linear-gradient(90deg,color-mix(in srgb,var(--da-accent-yellow) 4%,transparent),transparent 58%);
+}
+.approval-request__icon{
+  width:28px;
+  height:28px;
+  flex:0 0 28px;
+  display:grid;
+  place-items:center;
+  border:1px solid color-mix(in srgb,var(--da-accent-yellow) 28%,transparent);
+  border-radius:8px;
+  background:color-mix(in srgb,var(--da-accent-yellow) 6%,transparent);
+  color:#E6D49A;
+  font:700 12px/1 ui-sans-serif,system-ui,sans-serif;
+}
+.approval-request__heading{min-width:0;flex:1;display:flex;align-items:baseline;gap:8px}
+.approval-request__heading b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--da-text-primary);font-size:14px!important;font-weight:640}
+.approval-request__heading>span{flex:none;color:var(--da-text-muted);font-size:12px!important}
+.approval-request__state{display:inline-flex;align-items:center;gap:6px;flex:none;color:var(--da-text-muted);font-size:12px!important;white-space:nowrap}
+.approval-request__state i{width:5px;height:5px;border-radius:50%;background:var(--da-accent-yellow);animation:approval-pulse 1.2s ease-in-out infinite}
+
+.approval-request__list{min-width:0;display:flex;flex-direction:column;margin:0}
+.approval-request__item{min-width:0;padding:12px 13px 13px}
+.approval-request__item+.approval-request__item{border-top:1px solid var(--da-border)}
+.approval-request__item.submitted{opacity:.66}
+.approval-request__copy{min-width:0;display:flex;flex-direction:column;gap:4px}
+.approval-request__copy b{color:var(--da-text-primary);font-size:14px!important;font-weight:620}
+.approval-request__copy p{margin:0;color:var(--da-text-secondary);font-size:14px!important;line-height:1.55}
+.approval-request__copy code{
+  display:block;
+  max-width:100%;
+  margin-top:6px;
+  padding:8px 9px;
+  overflow:auto;
+  box-sizing:border-box;
+  border:1px solid var(--da-border);
+  border-radius:8px;
+  background:var(--da-surface-code);
+  color:var(--da-text-secondary);
+  font:13px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+
+.approval-request__response{width:100%;min-width:0;display:flex;flex-direction:column;gap:9px;margin-top:12px}
+.approval-request__field{width:100%;min-width:0;display:flex;flex-direction:column;gap:7px}
+.approval-request__field-label{color:var(--da-text-muted);font-size:12px!important;font-weight:580;line-height:1.35}
+.approval-request__field-label em{margin-left:3px;color:var(--da-accent-red);font-style:normal}
+
+.approval-request__choices{
+  width:100%;
+  min-width:0;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+}
+.approval-request__choices button,
+.approval-request__footer button{
+  position:relative;
+  flex:0 0 auto;
+  width:auto;
+  min-width:92px;
+  max-width:100%;
+  min-height:38px;
+  margin:0;
+  padding:0 15px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  box-sizing:border-box;
+  appearance:none;
+  border:1px solid var(--da-border);
+  border-radius:9px;
+  background:var(--da-surface-3);
+  color:var(--da-text-primary);
+  font-family:inherit;
+  font-size:13px!important;
+  font-weight:580;
+  line-height:1!important;
+  text-align:center;
+  white-space:nowrap;
+  cursor:pointer;
+  transition:border-color .15s ease,background .15s ease,color .15s ease,transform .15s ease;
+}
+.approval-request__choices button:hover:not(:disabled){
+  border-color:var(--da-border-strong);
+  background:var(--da-surface-4);
+  color:var(--da-text-emphasis);
+}
+.approval-request__choices button.selected{
+  border-color:color-mix(in srgb,var(--da-accent-yellow) 50%,var(--da-border));
+  background:color-mix(in srgb,var(--da-accent-yellow) 10%,var(--da-surface-3));
+  color:var(--da-text-emphasis);
+}
+.approval-request__choices button:focus-visible,
+.approval-request__footer button:focus-visible{outline:2px solid color-mix(in srgb,var(--da-accent-yellow) 48%,transparent);outline-offset:2px}
+.approval-request__choices button:active:not(:disabled),
+.approval-request__footer button:active:not(:disabled){transform:scale(.98)}
+
+.approval-request__response input{
+  width:100%;
+  height:40px;
+  min-width:0;
+  padding:0 11px;
+  box-sizing:border-box;
+  border:1px solid var(--da-border);
+  border-radius:9px;
+  outline:none;
+  background:var(--da-surface-input);
+  color:var(--da-text-primary);
+  font-size:14px!important;
+  font-family:inherit;
+  line-height:normal;
+  transition:border-color .15s ease,box-shadow .15s ease;
+}
+.approval-request__response input:hover{border-color:var(--da-border-strong)}
+.approval-request__response input:focus{border-color:color-mix(in srgb,var(--da-accent-yellow) 42%,var(--da-border));box-shadow:0 0 0 3px color-mix(in srgb,var(--da-accent-yellow) 6%,transparent)}
+
+.approval-request__footer{
+  width:100%;
+  min-width:0;
+  margin-top:2px;
+  padding-top:9px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  gap:8px;
+  border-top:1px solid color-mix(in srgb,var(--da-border) 78%,transparent);
+}
+.approval-request__footer:not(:has(.primary)){justify-content:flex-start}
+.approval-request__footer button{min-width:76px;min-height:34px;background:transparent}
+.approval-request__footer button.primary{border-color:color-mix(in srgb,var(--da-accent-yellow) 38%,var(--da-border));background:color-mix(in srgb,var(--da-accent-yellow) 8%,var(--da-surface-3))}
+.approval-request__footer button.primary:hover:not(:disabled){border-color:color-mix(in srgb,var(--da-accent-yellow) 56%,var(--da-border));background:color-mix(in srgb,var(--da-accent-yellow) 12%,var(--da-surface-3))}
+.approval-request__footer button.cancel{min-width:auto;padding:0 8px;border-color:transparent;background:transparent;color:var(--da-text-muted)}
+.approval-request__footer button.cancel:hover:not(:disabled){border-color:transparent;background:rgba(255,255,255,.025);color:var(--da-text-primary)}
+.approval-request__choices button:disabled,.approval-request__footer button:disabled,.approval-request__response input:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.approval-request__list small{display:block;margin-top:8px;color:var(--da-text-muted);font-size:12px!important}
+.approval-request__error{margin:0;padding:0 13px 12px;color:#F1A1AE;font-size:13px!important}
+
+@keyframes approval-pulse{0%,100%{opacity:.46;transform:scale(.84)}50%{opacity:1;transform:scale(1)}}
+@media(max-width:540px){
+  .approval-request__header{padding:0 10px}
+  .approval-request__item{padding:11px}
+  .approval-request__heading>span,.approval-request__state{display:none}
+  .approval-request__choices{align-items:stretch}
+  .approval-request__choices button{flex:1 1 calc(50% - 4px);min-width:0}
+  .approval-request__footer{justify-content:flex-start!important}
+  .approval-request__footer button{flex:0 0 auto}
+}
+@media(prefers-reduced-motion:reduce){
+  .approval-request__state i{animation:none}
+  .approval-request__choices button,.approval-request__footer button,.approval-request__response input{transition:none}
+}
 </style>

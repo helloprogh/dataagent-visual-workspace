@@ -33,9 +33,9 @@ function fullTime(timestamp: number) {
   <section class="management-page history-page">
     <header class="management-page__header">
       <div>
-        <span class="management-page__eyebrow">CONVERSATION ARCHIVE</span>
+        <span class="management-page__eyebrow">历史记录</span>
         <h1>历史对话</h1>
-        <p>查看和管理全部 Data Agent 会话记录。</p>
+        <p>查看、搜索和管理全部 Data Agent 会话记录。</p>
       </div>
       <button class="management-page__primary" type="button" @click="emit('create')">
         <svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" /></svg>
@@ -55,9 +55,14 @@ function fullTime(timestamp: number) {
       <article
         v-for="item in filtered"
         :key="item.id"
+        role="button"
+        tabindex="0"
+        :aria-current="item.id === activeId ? 'page' : undefined"
         class="history-table__row"
         :class="{ active: item.id === activeId }"
         @click="emit('select', item.id)"
+        @keydown.enter.prevent="emit('select', item.id)"
+        @keydown.space.prevent="emit('select', item.id)"
       >
         <div class="history-table__title">
           <span class="history-table__icon"><svg viewBox="0 0 20 20"><path d="M4 5.5h12v8H9l-3.8 2.4V13.5H4z" /></svg></span>

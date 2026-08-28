@@ -35,18 +35,18 @@ function timeLabel(timestamp: number) {
       <div class="app-sidebar__mark"><span></span><i></i></div>
       <div>
         <b>Data Agent</b>
-        <small>VISUAL WORKSPACE</small>
+        <small>数据智能工作台</small>
       </div>
     </header>
 
-    <button class="app-sidebar__new" type="button" @click="emit('create')">
+    <button class="app-sidebar__new" type="button" title="新建会话" aria-label="新建会话" @click="emit('create')">
       <span class="app-sidebar__new-icon" aria-hidden="true">
         <svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" /></svg>
       </span>
-      <div><b>新建会话</b><small>Start a new task</small></div>
+      <div><b>新建会话</b><small>开始新的分析任务</small></div>
     </button>
 
-    <section class="app-sidebar__recent">
+    <section class="app-sidebar__recent" aria-label="最近会话">
       <div class="app-sidebar__section-head app-sidebar__section-head--recent">
         <span>最近会话</span>
         <b>{{ conversations.length }}</b>
@@ -56,8 +56,13 @@ function timeLabel(timestamp: number) {
         <article
           v-for="item in recentConversations"
           :key="item.id"
+          role="button"
+          tabindex="0"
+          :aria-current="item.id === activeId && activePage === 'chat' ? 'page' : undefined"
           :class="{ active: item.id === activeId && activePage === 'chat' }"
           @click="emit('select', item.id)"
+          @keydown.enter.prevent="emit('select', item.id)"
+          @keydown.space.prevent="emit('select', item.id)"
         >
           <span class="app-sidebar__thread-icon" aria-hidden="true">
             <svg viewBox="0 0 20 20"><path d="M4 5.5h12v8H9l-3.8 2.4V13.5H4z" /></svg>
@@ -82,14 +87,17 @@ function timeLabel(timestamp: number) {
       </div>
 
       <button class="app-sidebar__view-all" type="button" @click="emit('openHistory')">
-        <span>查看更多</span>
+        <span>查看全部会话</span>
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6" /></svg>
       </button>
     </section>
 
-    <nav class="app-sidebar__nav app-sidebar__nav--management" aria-label="Data Agent management navigation">
+    <nav class="app-sidebar__nav app-sidebar__nav--management" aria-label="管理功能">
       <button
         type="button"
+        title="Skill 管理"
+        aria-label="Skill 管理"
+        :aria-current="activePage === 'skills' ? 'page' : undefined"
         :class="{ active: activePage === 'skills' }"
         @click="emit('openSkills')"
       >
@@ -101,12 +109,15 @@ function timeLabel(timestamp: number) {
         </span>
         <span class="app-sidebar__nav-copy">
           <b>Skill 管理</b>
-          <small>Agent skills</small>
+          <small>管理技能与扩展能力</small>
         </span>
       </button>
 
       <button
         type="button"
+        title="工作空间管理"
+        aria-label="工作空间管理"
+        :aria-current="activePage === 'workspace' ? 'page' : undefined"
         :class="{ active: activePage === 'workspace' }"
         @click="emit('openWorkspace')"
       >
@@ -118,14 +129,14 @@ function timeLabel(timestamp: number) {
         </span>
         <span class="app-sidebar__nav-copy">
           <b>工作空间管理</b>
-          <small>Agent workspaces</small>
+          <small>配置任务运行空间</small>
         </span>
       </button>
     </nav>
 
     <footer class="app-sidebar__footer">
-      <span><i></i> AG-UI CONNECTED</span>
-      <small>v5.2</small>
+      <span><i></i>服务已连接</span>
+      <small>就绪</small>
     </footer>
   </aside>
 </template>
