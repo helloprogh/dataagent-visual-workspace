@@ -189,7 +189,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="conversation-chat visual-chat dark" :class="{ 'has-interrupts': hasInterrupts }">
+  <div
+    class="conversation-chat visual-chat dark"
+    :class="{
+      'has-interrupts': hasInterrupts,
+      'is-empty': hydrated && !hasMessages,
+    }"
+  >
     <section v-if="hydrated && !hasMessages" class="conversation-welcome">
       <span class="conversation-welcome__eyebrow"><i></i>DATA AGENT</span>
       <h2>从一个清晰的数据目标开始</h2>
@@ -293,6 +299,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .conversation-chat{position:relative;width:100%;height:100%;min-height:0}
 .conversation-welcome{position:absolute;z-index:1;left:50%;top:42%;width:min(520px,calc(100% - 48px));padding:0 20px;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
+.conversation-chat.is-empty .conversation-welcome{top:calc(50% - 55px)}
 .conversation-welcome__eyebrow{display:inline-flex;align-items:center;gap:8px;color:var(--da-text-muted);font-size:11px;font-weight:600;letter-spacing:.12em}
 .conversation-welcome__eyebrow i{width:20px;height:1px;background:var(--da-accent-orange);box-shadow:0 0 12px var(--da-accent-orange-glow)}
 .conversation-welcome h2{margin:16px 0 10px;color:var(--da-text-emphasis);font-family:Georgia,"Times New Roman","Songti SC",serif;font-size:34px;line-height:1.18;font-weight:400;letter-spacing:-.04em}
@@ -300,7 +307,8 @@ onBeforeUnmount(() => {
 .conversation-welcome__capabilities{margin-top:21px;display:flex;justify-content:center;flex-wrap:wrap;gap:7px}
 .conversation-welcome__capabilities span{padding:5px 9px;border:1px solid var(--da-border);border-radius:6px;background:var(--da-surface-deep);color:var(--da-text-secondary);font-size:11px}
 :deep([data-testid="copilot-chat-view"]){height:100%!important;min-height:0!important}
-:deep([data-testid="copilot-input-overlay"]){right:8px!important}
+:deep([data-testid="copilot-input-overlay"]){left:14px!important;right:14px!important;bottom:14px!important}
+.conversation-chat.is-empty :deep([data-testid="copilot-input-overlay"]){left:50%!important;right:auto!important;top:calc(50% + 60px)!important;bottom:auto!important;width:min(720px,calc(100% - 80px))!important;transform:translateX(-50%)}
 :deep([data-testid="copilot-chat-view-scroll"]){padding-right:8px!important;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.14) transparent}
 :deep([data-testid="copilot-chat-view-scroll"]::-webkit-scrollbar){width:8px}
 :deep([data-testid="copilot-chat-view-scroll"]::-webkit-scrollbar-track){background:transparent}
@@ -332,7 +340,9 @@ onBeforeUnmount(() => {
 .has-interrupts :deep([data-testid="copilot-chat-input-textarea"]),.has-interrupts :deep([data-testid="copilot-chat-input-add"]){opacity:.52;pointer-events:none;cursor:not-allowed}
 
 @media(max-width:540px){
-  .conversation-welcome{top:38%;width:calc(100% - 28px);padding:0 8px}
+  .conversation-welcome{width:calc(100% - 28px);padding:0 8px}
+  .conversation-chat.is-empty .conversation-welcome{top:calc(50% - 64px)}
+  .conversation-chat.is-empty :deep([data-testid="copilot-input-overlay"]){top:calc(50% + 68px)!important;width:calc(100% - 28px)!important}
   .conversation-welcome h2{font-size:28px}
   :deep([data-testid="copilot-chat-attachment-queue"]){padding-left:8px!important;padding-right:8px!important}
   :deep([data-testid="copilot-chat-attachment-item"][data-card-type="document"]){min-width:174px!important;max-width:100%!important}
