@@ -3,7 +3,6 @@ import { computed, reactive, ref, watch } from 'vue'
 import type { Interrupt } from '@ag-ui/client'
 
 type ResolveInterrupt = (payload?: unknown, interruptId?: string) => Promise<unknown>
-type CancelInterrupt = (interruptId?: string) => Promise<unknown>
 type JsonSchema = Record<string, any>
 type Field = { name: string; schema: JsonSchema; required: boolean }
 type Choice = { value: any; label: string }
@@ -12,7 +11,6 @@ const props = defineProps<{
   interrupt: Interrupt | null
   interrupts: Interrupt[]
   resolve: ResolveInterrupt
-  cancel: CancelInterrupt
 }>()
 
 const answers = reactive<Record<string, Record<string, any>>>({})
@@ -181,20 +179,6 @@ async function submit(interrupt: Interrupt) {
   }
 }
 
-async function cancel(interrupt: Interrupt) {
-  if (isBusy(interrupt.id) || isSubmitted(interrupt.id)) return
-  error.value = ''
-  setBusy(interrupt.id, true)
-  try {
-    await props.cancel(interrupt.id)
-    submittedIds.value = [...new Set([...submittedIds.value, interrupt.id])]
-  } catch (reason) {
-    error.value = reason instanceof Error ? reason.message : String(reason)
-  } finally {
-    setBusy(interrupt.id, false)
-  }
-}
-
 async function chooseField(interrupt: Interrupt, field: Field, value: any) {
   answers[interrupt.id][field.name] = value
   if (fieldsFor(interrupt).length === 1) await submit(interrupt)
@@ -292,9 +276,8 @@ async function chooseRoot(interrupt: Interrupt, value: any) {
             @input="setRootInput(item, $event)"
           />
 
-          <div class="approval-request__footer">
-            <button v-if="needsSubmit(item)" type="button" class="primary" :disabled="isBusy(item.id) || !isComplete(item)" @click="submit(item)">确认</button>
-            <button type="button" class="cancel" :disabled="isBusy(item.id)" @click="cancel(item)">取消</button>
+          <div v-if="needsSubmit(item)" class="approval-request__footer">
+            <button type="button" class="primary" :disabled="isBusy(item.id) || !isComplete(item)" @click="submit(item)">确认</button>
           </div>
         </div>
 
@@ -458,12 +441,9 @@ async function chooseRoot(interrupt: Interrupt, value: any) {
   gap:8px;
   border-top:1px solid color-mix(in srgb,var(--da-border) 78%,transparent);
 }
-.approval-request__footer:not(:has(.primary)){justify-content:flex-start}
 .approval-request__footer button{min-width:76px;min-height:34px;background:transparent}
 .approval-request__footer button.primary{border-color:color-mix(in srgb,var(--da-accent-yellow) 38%,var(--da-border));background:color-mix(in srgb,var(--da-accent-yellow) 8%,var(--da-surface-3))}
 .approval-request__footer button.primary:hover:not(:disabled){border-color:color-mix(in srgb,var(--da-accent-yellow) 56%,var(--da-border));background:color-mix(in srgb,var(--da-accent-yellow) 12%,var(--da-surface-3))}
-.approval-request__footer button.cancel{min-width:auto;padding:0 8px;border-color:transparent;background:transparent;color:var(--da-text-muted)}
-.approval-request__footer button.cancel:hover:not(:disabled){border-color:transparent;background:rgba(255,255,255,.025);color:var(--da-text-primary)}
 .approval-request__choices button:disabled,.approval-request__footer button:disabled,.approval-request__response input:disabled{opacity:.45;cursor:not-allowed;transform:none}
 .approval-request__list small{display:block;margin-top:8px;color:var(--da-text-muted);font-size:12px!important}
 .approval-request__error{margin:0;padding:0 13px 12px;color:#F1A1AE;font-size:13px!important}

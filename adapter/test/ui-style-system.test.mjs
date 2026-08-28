@@ -136,7 +136,7 @@ test('approval choice controls are not nested inside label elements', async () =
   assert.doesNotMatch(template, /<label[^>]*approval-request__field/)
   assert.match(template, /class="approval-request__field-label"/)
   assert.match(template, /class="approval-request__choices" role="group"/)
-  assert.match(approval, /approval-request__footer:not\(:has\(\.primary\)\)\{justify-content:flex-start\}/)
+  assert.doesNotMatch(approval, /approval-request__footer button\.cancel/)
 })
 
 test('workspace header exposes product language instead of demo implementation labels', async () => {

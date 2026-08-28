@@ -133,7 +133,6 @@ const approvalInterrupt = {
 } as unknown as Interrupt
 
 const resolveFixture = async () => undefined
-const cancelFixture = async () => undefined
 const wideComponents = new Set(['ui.markdown','ui.agentGraph','ui.agentTimeline','ui.table','ui.heatmap','ui.queryTrace','ui.semanticModel'])
 const componentCount = computed(() => genUIRegistry.length)
 </script>
@@ -196,7 +195,7 @@ const componentCount = computed(() => genUIRegistry.length)
 
         <article class="component-gallery__system-card wide">
           <div class="component-gallery__label"><b>操作确认</b><span>真实 AguiInterruptCard · schema 驱动选项</span></div>
-          <AguiInterruptCard :interrupt="approvalInterrupt" :interrupts="[approvalInterrupt]" :resolve="resolveFixture" :cancel="cancelFixture" />
+          <AguiInterruptCard :interrupt="approvalInterrupt" :interrupts="[approvalInterrupt]" :resolve="resolveFixture" />
         </article>
 
         <article class="component-gallery__system-card">

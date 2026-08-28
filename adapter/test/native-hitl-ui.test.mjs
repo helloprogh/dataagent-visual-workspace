@@ -17,7 +17,8 @@ test('conversation HITL uses CopilotKit native interrupt lifecycle through the f
   assert.match(chat, /CopilotChatMessageView/)
   assert.match(chat, /#message-view=/)
   assert.match(chat, /<CopilotChatMessageView[\s\S]*?#interrupt=/)
-  assert.match(chat, /:interrupt="interrupt"[\s\S]*:interrupts="interrupts"[\s\S]*:resolve="resolve"[\s\S]*:cancel="cancel"/)
+  assert.match(chat, /:interrupt="interrupt"[\s\S]*:interrupts="interrupts"[\s\S]*:resolve="resolve"/)
+  assert.doesNotMatch(chat, /:cancel="cancel"/)
 })
 
 test('interrupt choices are rendered from responseSchema instead of a fixed option list', async () => {
@@ -27,6 +28,8 @@ test('interrupt choices are rendered from responseSchema instead of a fixed opti
   assert.match(card, /schema\.enum/)
   assert.match(card, /schema\.oneOf/)
   assert.doesNotMatch(card, /['"]once['"]|['"]always['"]|['"]reject['"]/)
+  assert.doesNotMatch(templateOf(card), />取消</)
+  assert.doesNotMatch(card, /props\.cancel|async function cancel/)
 })
 
 test('user-facing interface does not expose protocol or framework terminology', async () => {
