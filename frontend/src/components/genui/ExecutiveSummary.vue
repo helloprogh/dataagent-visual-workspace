@@ -13,7 +13,7 @@ defineProps<{
     <div class="executive-orbit" aria-hidden="true"></div>
     <div class="gen-title-row executive-head">
       <div>
-        <span class="eyebrow">AI SYNTHESIS</span>
+        <span class="eyebrow">智能摘要</span>
         <div class="gen-title">{{ title || '分析结论' }}</div>
       </div>
       <div v-if="confidence !== undefined" class="confidence-chip">

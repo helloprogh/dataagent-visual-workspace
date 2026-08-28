@@ -15,22 +15,22 @@ defineProps<{
     <div class="semantic-head">
       <div class="semantic-icon">◇</div>
       <div>
-        <span class="eyebrow">SEMANTIC LAYER</span>
+        <span class="eyebrow">语义层</span>
         <div class="gen-title">{{ title || model || '语义模型' }}</div>
         <p v-if="description">{{ description }}</p>
       </div>
     </div>
     <div class="semantic-columns">
       <div>
-        <span class="semantic-label">DIMENSIONS</span>
+        <span class="semantic-label">维度</span>
         <div class="semantic-pills"><span v-for="item in dimensions || []" :key="item">{{ item }}</span></div>
       </div>
       <div>
-        <span class="semantic-label">MEASURES</span>
+        <span class="semantic-label">度量</span>
         <div class="semantic-pills measures"><span v-for="item in measures || []" :key="item">{{ item }}</span></div>
       </div>
       <div>
-        <span class="semantic-label">METRICS</span>
+        <span class="semantic-label">指标</span>
         <div class="semantic-pills metrics"><span v-for="item in metrics || []" :key="item">{{ item }}</span></div>
       </div>
     </div>

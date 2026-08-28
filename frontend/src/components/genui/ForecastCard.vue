@@ -34,7 +34,7 @@ const forecastPoints = computed(() => toPoints('forecast'))
   <section class="gen-card forecast-card">
     <div class="gen-title-row">
       <div>
-        <span class="eyebrow">FORECAST</span>
+        <span class="eyebrow">趋势预测</span>
         <span class="gen-title">{{ title || '趋势预测' }}</span>
       </div>
       <span v-if="horizon" class="forecast-horizon">{{ horizon }}</span>
@@ -44,13 +44,7 @@ const forecastPoints = computed(() => toPoints('forecast'))
       <span v-if="change !== undefined" :class="change >= 0 ? 'up' : 'down'">{{ change >= 0 ? '↗' : '↘' }} {{ Math.abs(change) }}%</span>
       <span v-if="confidence !== undefined" class="confidence-chip">置信度 {{ confidence }}%</span>
     </div>
-    <svg class="forecast-svg" :viewBox="`0 0 ${width} ${height}`">
-      <defs>
-        <linearGradient id="forecastGlow" x1="0" x2="1">
-          <stop offset="0%" stop-color="#60a5fa" />
-          <stop offset="100%" stop-color="#22d3ee" />
-        </linearGradient>
-      </defs>
+    <svg class="forecast-svg" :viewBox="`0 0 ${width} ${height}`" role="img" :aria-label="title || '趋势预测'">
       <line v-for="i in 3" :key="i" x1="0" :x2="width" :y1="i * 38" :y2="i * 38" class="chart-grid" />
       <polyline v-if="actualPoints" :points="actualPoints" class="forecast-actual" fill="none" />
       <polyline v-if="forecastPoints" :points="forecastPoints" class="forecast-predicted" fill="none" />

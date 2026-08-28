@@ -11,13 +11,16 @@ const flat = computed(() => (props.values || []).flat())
 const min = computed(() => Math.min(...flat.value, 0))
 const max = computed(() => Math.max(...flat.value, 1))
 const range = computed(() => Math.max(1, max.value - min.value))
-function alpha(value: number) { return 0.14 + ((value - min.value) / range.value) * 0.76 }
+function intensity(value: number) {
+  const ratio = (value - min.value) / range.value
+  return Number((0.12 + Math.min(1, Math.max(0, ratio)) * 0.56).toFixed(3))
+}
 </script>
 
 <template>
   <section class="gen-card heatmap-card">
     <div class="gen-title-row">
-      <div><span class="eyebrow">DENSITY</span><span class="gen-title">{{ title || '热力分析' }}</span></div>
+      <div><span class="eyebrow">密度分布</span><span class="gen-title">{{ title || '热力分析' }}</span></div>
       <span v-if="unit" class="muted">{{ unit }}</span>
     </div>
     <div class="heatmap-grid" :style="{ gridTemplateColumns: `90px repeat(${xLabels?.length || 0}, minmax(42px, 1fr))` }">
@@ -28,7 +31,7 @@ function alpha(value: number) { return 0.14 + ((value - min.value) / range.value
           v-for="(value, columnIndex) in row"
           :key="`${rowIndex}-${columnIndex}`"
           class="heat-cell"
-          :style="{ background: `rgba(34, 211, 238, ${alpha(value)})` }"
+          :style="{ '--heat-alpha': intensity(value) }"
           :title="`${yLabels?.[rowIndex] || ''} / ${xLabels?.[columnIndex] || ''}: ${value}`"
         >{{ value }}</span>
       </template>

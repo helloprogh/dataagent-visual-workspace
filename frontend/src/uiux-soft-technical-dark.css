@@ -1,40 +1,53 @@
 /* =========================================================
-   Data Agent — UI/UX Pro Max / Soft Technical Dark
+   Product theme — Soft Technical Dark
 
-   Theme responsibilities:
-   - component files own layout and component-specific decoration
-   - this file owns shared application / GenUI theme colors
-   - no end-of-file contrast patches; fix each section in place
+   Single responsibility:
+   - shared product tokens
+   - global reset and focus language
+   - Element Plus theme mapping
+   - CopilotKit third-party message / Markdown theming
+
+   Component geometry must not be defined here.
    ========================================================= */
 
 :root{
-  --da-text-emphasis:#F4F7FA;
-  --da-text-primary:#E7EDF4;
-  --da-text-secondary:#CDD7E2;
-  --da-text-muted:#B7C4D2;
-  --da-text-subtle:#9CAABC;
+  font-family:Inter,"PingFang SC","Microsoft YaHei",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-synthesis:none;
+  color-scheme:dark;
 
-  --da-surface-0:#0A1119;
-  --da-surface-1:#0E1721;
-  --da-surface-2:#121C28;
-  --da-surface-3:#172332;
-  --da-surface-4:#1C2A39;
-  --da-surface-input:#111B27;
-  --da-surface-code:#0A1119;
+  --da-text-emphasis:#F1F4F7;
+  --da-text-primary:#DFE5EB;
+  --da-text-secondary:#BDC7D1;
+  --da-text-muted:#98A4B1;
+  --da-text-subtle:#7B8795;
 
-  --da-border:rgba(183,196,210,.18);
-  --da-border-strong:rgba(183,196,210,.28);
-  --da-border-focus:rgba(143,166,232,.52);
+  --da-surface-0:#091118;
+  --da-surface-1:#0D161E;
+  --da-surface-2:#121C25;
+  --da-surface-3:#17222D;
+  --da-surface-4:#1C2935;
+  --da-surface-input:#101A23;
+  --da-surface-code:#080F15;
 
-  --da-accent-cyan:#73CBD6;
-  --da-accent-blue:#8FA6E8;
-  --da-accent-violet:#A894EA;
-  --da-accent-green:#72C99E;
-  --da-accent-yellow:#DDBB6A;
-  --da-accent-red:#E88492;
-  --da-link:#AFCBFF;
+  --da-border:rgba(183,196,210,.095);
+  --da-border-strong:rgba(183,196,210,.17);
+  --da-border-focus:rgba(139,159,210,.44);
 
-  /* aliases still consumed by the visual-workspace base layout */
+  --da-accent-cyan:#78BBC4;
+  --da-accent-blue:#8B9DCC;
+  --da-accent-violet:#9889BD;
+  --da-accent-green:#72B18D;
+  --da-accent-yellow:#C4A668;
+  --da-accent-red:#C97986;
+  --da-link:#A8BAE2;
+
+  --da-chart-1:#8498C5;
+  --da-chart-2:#72ABB4;
+  --da-chart-3:#9185B7;
+  --da-chart-4:#72A687;
+  --da-chart-5:#B39A66;
+  --da-chart-6:#B87781;
+
   --da-cyan:var(--da-accent-cyan);
   --da-blue:var(--da-accent-blue);
   --da-violet:var(--da-accent-violet);
@@ -43,11 +56,16 @@
   --da-red:var(--da-accent-red);
   --accent-cyan:var(--da-accent-cyan);
 
-  --da-shadow-soft:0 10px 30px rgba(0,0,0,.18);
-  --da-shadow-raised:0 16px 42px rgba(0,0,0,.22);
+  --da-shadow-soft:0 12px 32px rgba(0,0,0,.10);
+  --da-shadow-raised:0 22px 58px rgba(0,0,0,.24);
 }
 
-/* ---------- application tokens ---------- */
+*{box-sizing:border-box}
+html,body,#app{width:100%;height:100%;min-height:100%;margin:0}
+body{overflow:hidden;background:var(--da-surface-0);color:var(--da-text-primary)}
+button,input,textarea,select{font:inherit}
+button{color:inherit}
+
 .dataagent-shell{
   --el-text-color-primary:var(--da-text-primary);
   --el-text-color-regular:var(--da-text-secondary);
@@ -58,95 +76,60 @@
   --el-fill-color-blank:var(--da-surface-1);
   --el-fill-color-light:var(--da-surface-2);
   --el-fill-color-lighter:var(--da-surface-3);
+  --el-border-color:var(--da-border);
+  --el-border-color-light:var(--da-border);
+  --el-border-color-lighter:rgba(183,196,210,.065);
+  --el-mask-color:rgba(0,0,0,.48);
   color:var(--da-text-primary);
+  font-size:14px;
 }
 
-/* ---------- app chrome ---------- */
-.app-sidebar__brand b,
-.app-sidebar__thread-copy b,
-.assistant-name b,
-.management-surface__head b{
-  color:var(--da-text-primary)!important;
+.dataagent-shell :where(button,input,textarea,[role="button"]):focus-visible{
+  outline:2px solid var(--da-border-focus);
+  outline-offset:2px;
 }
 
-.app-sidebar__brand small,
-.app-sidebar__new small,
-.app-sidebar__nav-copy small,
-.app-sidebar__section-head,
-.app-sidebar__thread-copy small,
-.app-sidebar__management-card p,
-.app-sidebar__footer,
-.assistant-identity small,
-.assistant-context span,
-.assistant-context small,
-.assistant-footer{
-  color:var(--da-text-muted)!important;
-}
-
-.app-sidebar__new,
-.app-sidebar__history>article.active,
-.app-sidebar__nav>button.active{
-  border-color:var(--da-border)!important;
-  box-shadow:none!important;
-}
-
-.app-sidebar__history>article:hover,
-.app-sidebar__nav>button:hover,
-.app-sidebar__new:hover{
-  border-color:var(--da-border-strong)!important;
-  background:rgba(255,255,255,.026)!important;
-}
-
-/* ---------- inputs / buttons / menus ---------- */
+/* ---------- Element Plus ---------- */
 .dataagent-shell .el-input__wrapper,
 .dataagent-shell .el-select__wrapper,
-.dataagent-shell .el-textarea__inner,
-.visual-chat [data-testid="copilot-chat-input-shell"],
-.component-gallery__composer{
+.dataagent-shell .el-textarea__inner{
   background:var(--da-surface-input)!important;
-  border-color:var(--da-border-strong)!important;
   box-shadow:0 0 0 1px var(--da-border) inset!important;
 }
+.dataagent-shell .el-input__wrapper:hover,
+.dataagent-shell .el-select__wrapper:hover,
+.dataagent-shell .el-textarea__inner:hover{box-shadow:0 0 0 1px var(--da-border-strong) inset!important}
+.dataagent-shell .el-input__wrapper.is-focus,
+.dataagent-shell .el-select__wrapper.is-focused,
+.dataagent-shell .el-textarea__inner:focus{box-shadow:0 0 0 1px var(--da-border-focus) inset!important}
+.dataagent-shell :is(.el-input__inner,.el-textarea__inner){color:var(--da-text-primary)!important}
+.dataagent-shell :is(.el-input__inner,.el-textarea__inner)::placeholder{color:var(--da-text-subtle)!important}
 
-.dataagent-shell .el-input__inner,
-.dataagent-shell .el-textarea__inner,
-.visual-chat textarea,
-.visual-chat input,
-.component-gallery__composer textarea{
+.dataagent-shell .el-button:not(.el-button--primary):not(.is-text){
   color:var(--da-text-primary)!important;
-}
-
-.dataagent-shell .el-input__inner::placeholder,
-.dataagent-shell .el-textarea__inner::placeholder,
-.visual-chat textarea::placeholder,
-.visual-chat input::placeholder{
-  color:var(--da-text-subtle)!important;
-}
-
-.dataagent-shell .el-button:not(.el-button--primary):not(.is-text),
-.management-surface__actions button,
-.opencode-dialog-button,
-.component-gallery__composer button{
-  color:var(--da-text-primary)!important;
-  background:var(--da-surface-3)!important;
   border-color:var(--da-border)!important;
+  background:var(--da-surface-3)!important;
   box-shadow:none!important;
 }
-
-.dataagent-shell .el-button:not(.el-button--primary):not(.is-text):hover,
-.management-surface__actions button:hover,
-.opencode-dialog-button:hover,
-.component-gallery__composer button:hover{
+.dataagent-shell .el-button:not(.el-button--primary):not(.is-text):hover{
   color:var(--da-text-emphasis)!important;
-  background:var(--da-surface-4)!important;
   border-color:var(--da-border-strong)!important;
+  background:var(--da-surface-4)!important;
+}
+.dataagent-shell .el-button--primary{
+  --el-button-bg-color:#788BB5;
+  --el-button-border-color:#788BB5;
+  --el-button-hover-bg-color:#8295BF;
+  --el-button-hover-border-color:#8295BF;
+  --el-button-active-bg-color:#7082AA;
+  --el-button-active-border-color:#7082AA;
+  color:#091118!important;
 }
 
 .dataagent-shell .el-tag{
-  --el-tag-bg-color:rgba(143,166,232,.10);
-  --el-tag-border-color:rgba(143,166,232,.28);
-  --el-tag-text-color:#D8E1F2;
-  color:#D8E1F2!important;
+  --el-tag-bg-color:rgba(139,157,204,.055);
+  --el-tag-border-color:rgba(139,157,204,.14);
+  --el-tag-text-color:#BCC7DF;
 }
 
 .el-popper,
@@ -154,540 +137,140 @@
 .el-dropdown__popper,
 .el-popover.el-popper{
   color:var(--da-text-secondary)!important;
-  background:var(--da-surface-2)!important;
   border-color:var(--da-border)!important;
+  background:var(--da-surface-2)!important;
+  box-shadow:var(--da-shadow-raised)!important;
+}
+.el-popper .el-popper__arrow::before{border-color:var(--da-border)!important;background:var(--da-surface-2)!important}
+.el-select-dropdown__item,.el-dropdown-menu__item{color:var(--da-text-secondary)!important}
+.el-select-dropdown__item.hover,.el-select-dropdown__item:hover,.el-dropdown-menu__item:hover{color:var(--da-text-emphasis)!important;background:rgba(255,255,255,.028)!important}
+.el-dropdown-menu{background:transparent!important}
+
+.el-message-box{
+  --el-messagebox-title-color:var(--da-text-emphasis);
+  --el-messagebox-content-color:var(--da-text-secondary);
+  border-color:var(--da-border)!important;
+  background:var(--da-surface-2)!important;
   box-shadow:var(--da-shadow-raised)!important;
 }
 
-.el-select-dropdown__item,
-.el-dropdown-menu__item{
-  color:var(--da-text-secondary)!important;
-}
-.el-select-dropdown__item.hover,
-.el-select-dropdown__item:hover,
-.el-dropdown-menu__item:hover{
-  color:var(--da-text-emphasis)!important;
-  background:var(--da-surface-4)!important;
-}
-
-/* ---------- management surfaces ---------- */
-.management-page__header h1{
-  color:var(--da-text-emphasis)!important;
-}
-
-.skill-summary-card,
-.workspace-summary-grid>article,
-.management-surface,
-.history-table{
-  background:linear-gradient(145deg,#121C28,#0E1721)!important;
-  border-color:var(--da-border)!important;
-  box-shadow:var(--da-shadow-soft)!important;
-}
-
-.management-page__eyebrow,
-.management-page__header p,
-.management-page__count,
-.management-page__empty,
-.history-table__head,
-.history-table__title small,
-.skill-summary-card>span,
-.skill-summary-card small,
-.workspace-summary-grid>article>span,
-.workspace-summary-grid>article small,
-.management-surface__head span,
-.opencode-row-primary small,
-.opencode-skill-row code,
-.opencode-workspace-row code{
-  color:var(--da-text-muted)!important;
-}
-
-.history-table__row,
-.opencode-skill-row,
-.opencode-workspace-row,
-.workspace-module-row{
-  color:var(--da-text-secondary)!important;
-}
-
-.history-table__row:hover,
-.opencode-skill-row:hover,
-.opencode-workspace-row:hover,
-.workspace-module-row:hover{
-  background:#172332!important;
-}
-
-/* =========================================================
-   Conversation / CopilotKit
-   Third-party CopilotKit DOM is themed here. Conversation-specific custom
-   surfaces (reasoning, approval, attachment presentation, tool cards) own
-   their colors in their component styles and consume these theme tokens.
-   ========================================================= */
-.visual-chat{
-  color:var(--da-text-primary)!important;
-}
-
+/* ---------- CopilotKit conversation surfaces ---------- */
+.visual-chat{color:var(--da-text-primary)}
 .visual-chat [data-testid="copilot-chat-assistant-message"],
-.visual-chat [data-testid="copilot-chat-message"]{
-  color:var(--da-text-primary)!important;
-}
+.visual-chat [data-testid="copilot-chat-message"]{color:var(--da-text-primary)!important}
 
 .visual-chat [data-testid="copilot-chat-user-message"]{
   color:var(--da-text-emphasis)!important;
-  background:#1A2738!important;
-  border-color:rgba(175,203,255,.28)!important;
+  border:1px solid rgba(139,157,204,.10)!important;
+  border-radius:14px 14px 5px 14px!important;
+  background:rgba(139,157,204,.06)!important;
+  box-shadow:none!important;
 }
+.visual-chat [data-testid="copilot-chat-user-message"] :where(p,span,strong,b,em,i,code){color:inherit!important}
+.visual-chat [data-testid="copilot-chat-input-textarea"]{color:var(--da-text-primary)!important}
+.visual-chat [data-testid="copilot-chat-input-textarea"]::placeholder{color:var(--da-text-subtle)!important}
 
-.visual-chat [data-testid="copilot-chat-user-message"] :where(p,span,strong,b,em,i,code){
-  color:inherit!important;
-}
-
-.visual-chat [data-testid="copilot-chat-input-shell"]{
-  box-shadow:0 8px 24px rgba(0,0,0,.17)!important;
-}
-
-.visual-chat [data-testid="copilot-chat-input-textarea"]{
-  color:var(--da-text-primary)!important;
-}
-.visual-chat [data-testid="copilot-chat-input-textarea"]::placeholder{
-  color:var(--da-text-subtle)!important;
-}
-
-/* Copilot assistant Markdown */
+/* ---------- assistant Markdown ---------- */
 .copilot-chat-assistant-markdown{
+  max-width:100%;
   color:var(--da-text-primary)!important;
   background:transparent!important;
+  font-size:14px;
+  line-height:1.76;
+  overflow-wrap:anywhere;
 }
-
-.copilot-chat-assistant-markdown :where(
-  div,p,li,span,strong,b,em,i,del,
-  h1,h2,h3,h4,h5,h6,dt,dd,figcaption,summary
-){
-  color:var(--da-text-primary)!important;
+.copilot-chat-assistant-markdown :where(div,p,li,span,em,i,del,dt,dd,figcaption,summary){color:var(--da-text-primary)!important}
+.copilot-chat-assistant-markdown :where(strong,b){color:var(--da-text-emphasis)!important;font-weight:650}
+.copilot-chat-assistant-markdown :where(h1,h2,h3,h4,h5,h6){
+  margin:1.28em 0 .52em;
+  color:var(--da-text-emphasis)!important;
+  line-height:1.32;
+  font-weight:650;
+  letter-spacing:-.018em;
 }
-
-.copilot-chat-assistant-markdown :where(ul,ol){color:var(--da-text-primary)!important}
-.copilot-chat-assistant-markdown :where(li)::marker{color:var(--da-text-secondary)!important}
-
-.copilot-chat-assistant-markdown :where(a){
-  color:var(--da-link)!important;
-  text-decoration-color:rgba(175,203,255,.72)!important;
-}
-.copilot-chat-assistant-markdown :where(a:hover){
-  color:#D4E3FF!important;
-  text-decoration-color:currentColor!important;
-}
+.copilot-chat-assistant-markdown :where(h1){font-size:22px}
+.copilot-chat-assistant-markdown :where(h2){font-size:19px}
+.copilot-chat-assistant-markdown :where(h3){font-size:16px}
+.copilot-chat-assistant-markdown :where(h4,h5,h6){font-size:14px}
+.copilot-chat-assistant-markdown :where(h1,h2,h3,h4,h5,h6):first-child{margin-top:0}
+.copilot-chat-assistant-markdown :where(p){margin:0 0 11px;line-height:1.76}
+.copilot-chat-assistant-markdown :where(p:last-child){margin-bottom:0}
+.copilot-chat-assistant-markdown :where(ul,ol){margin:8px 0 13px;padding-left:1.42em;color:var(--da-text-primary)!important}
+.copilot-chat-assistant-markdown :where(li){margin:4px 0;line-height:1.7}
+.copilot-chat-assistant-markdown :where(li)::marker{color:var(--da-text-muted)!important}
+.copilot-chat-assistant-markdown :where(a){color:var(--da-link)!important;text-decoration-thickness:1px;text-underline-offset:3px;text-decoration-color:rgba(168,186,226,.40)!important}
+.copilot-chat-assistant-markdown :where(a:hover){color:#CAD4EB!important;text-decoration-color:currentColor!important}
 
 .copilot-chat-assistant-markdown :where(code):not(pre code),
 .copilot-chat-assistant-markdown :where(kbd){
-  color:#F2F5F9!important;
-  background:#1A2838!important;
-  border:1px solid var(--da-border-strong)!important;
+  padding:.12em .34em;
+  border:1px solid var(--da-border)!important;
+  border-radius:5px;
+  color:#E4E9EE!important;
+  background:var(--da-surface-3)!important;
+  font-size:.92em;
 }
-
 .copilot-chat-assistant-markdown :where(pre){
-  color:#F2F5F9!important;
+  max-width:100%;
+  margin:13px 0 15px;
+  padding:13px 14px;
+  overflow:auto;
+  border:1px solid var(--da-border)!important;
+  border-radius:10px;
+  color:#D8E0E8!important;
   background:var(--da-surface-code)!important;
-  border-color:var(--da-border-strong)!important;
-  box-shadow:inset 0 1px 8px rgba(0,0,0,.22)!important;
+  box-shadow:none!important;
+  font-size:12.5px;
+  line-height:1.66;
 }
 .copilot-chat-assistant-markdown :where(pre code),
-.copilot-chat-assistant-markdown :where(pre code *){
-  color:#F2F5F9!important;
-  background:transparent!important;
-}
+.copilot-chat-assistant-markdown :where(pre code *){color:inherit!important;background:transparent!important}
 
 .copilot-chat-assistant-markdown :where(blockquote){
+  margin:14px 0 15px;
+  padding:4px 0 4px 13px;
+  border-left:2px solid rgba(139,157,204,.34)!important;
   color:var(--da-text-secondary)!important;
-  background:#121D2A!important;
-  border-left-color:rgba(175,203,255,.72)!important;
+  background:transparent!important;
 }
-.copilot-chat-assistant-markdown :where(blockquote p,blockquote span,blockquote strong,blockquote em){
-  color:var(--da-text-secondary)!important;
-}
+.copilot-chat-assistant-markdown :where(blockquote p,blockquote span,blockquote strong,blockquote em){color:var(--da-text-secondary)!important}
+.copilot-chat-assistant-markdown :where(blockquote p:last-child){margin-bottom:0}
 
 .copilot-chat-assistant-markdown :where(table){
+  display:block;
+  width:100%;
+  max-width:100%;
+  margin:14px 0 16px;
+  overflow-x:auto;
+  border-collapse:collapse;
   color:var(--da-text-primary)!important;
-  background:#0E1823!important;
-  border-color:var(--da-border-strong)!important;
+  background:transparent!important;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(145,158,177,.18) transparent;
 }
 .copilot-chat-assistant-markdown :where(th){
+  padding:9px 12px;
+  border:0!important;
+  border-bottom:1px solid var(--da-border-strong)!important;
   color:var(--da-text-primary)!important;
-  background:#1B2A3A!important;
-  border-color:var(--da-border-strong)!important;
+  background:transparent!important;
+  text-align:left;
+  font-weight:620;
+  white-space:nowrap;
 }
 .copilot-chat-assistant-markdown :where(td){
+  padding:9px 12px;
+  border:0!important;
+  border-bottom:1px solid var(--da-border)!important;
   color:var(--da-text-secondary)!important;
-  background:#111C28!important;
-  border-color:var(--da-border)!important;
+  background:transparent!important;
 }
-.copilot-chat-assistant-markdown :where(tr:nth-child(even) td){background:#162331!important}
-.copilot-chat-assistant-markdown :where(mark){color:#17130A!important;background:#F4D58A!important}
-.copilot-chat-assistant-markdown :where(hr){border-color:var(--da-border-strong)!important}
+.copilot-chat-assistant-markdown :where(tr:last-child td){border-bottom-color:transparent!important}
+.copilot-chat-assistant-markdown :where(tr:nth-child(even) td){background:rgba(255,255,255,.004)!important}
+.copilot-chat-assistant-markdown :where(img){display:block;max-width:100%;height:auto;margin:14px 0;border:1px solid var(--da-border);border-radius:11px;background:var(--da-surface-1)}
+.copilot-chat-assistant-markdown :where(mark){padding:0 .16em;border-radius:3px;color:#1B160A!important;background:#CFB975!important}
+.copilot-chat-assistant-markdown :where(hr){margin:18px 0;border:0;border-top:1px solid var(--da-border)!important}
 
-/* Workspace command messages have no component-local stylesheet. */
-.workspace-command-status{
-  color:var(--da-text-primary)!important;
-  background:#131F2B!important;
-  border-color:var(--da-border)!important;
-}
-.workspace-command-status b{color:var(--da-text-primary)!important}
-.workspace-command-status small{color:var(--da-text-muted)!important}
-
-/* =========================================================
-   Generative UI shared theme
-   Registry coverage:
-   metric/kpis/table/bar/line/area/donut/funnel/heatmap/rootCause/forecast/
-   insights/analysisPlan/queryTrace/sql/dataQuality/fieldProfile/semanticModel/
-   executiveSummary/agentGraph/agentTimeline/agentActivity/markdown.
-   MarkdownPanel and ToolStatus consume tokens directly in component styles.
-   ========================================================= */
-.visual-workspace{
-  color:var(--da-text-primary)!important;
-}
-
-.visual-workspace .visual-toolbar{
-  background:linear-gradient(180deg,rgba(16,26,37,.96),rgba(11,19,28,.94))!important;
-  border-color:var(--da-border)!important;
-}
-
-/* Shared generated component hierarchy — explicit semantic classes only. */
-.visual-workspace .visual-title-row h1,
-.visual-workspace .metric-value,
-.visual-workspace .donut-center,
-.visual-workspace .quality-ring-inner b{
-  color:var(--da-text-emphasis)!important;
-}
-
-.visual-workspace .workspace-title,
-.visual-workspace .widget-title,
-.visual-workspace .gen-title,
-.visual-workspace .kpi-cell strong,
-.visual-workspace .bar-label,
-.visual-workspace .bar-row b,
-.visual-workspace .insight-title-row b,
-.visual-workspace .plan-step b,
-.visual-workspace .field-main b,
-.visual-workspace .quality-label b,
-.visual-workspace .quality-label span,
-.visual-workspace .cause-title b,
-.visual-workspace .funnel-meta span,
-.visual-workspace .funnel-meta strong,
-.visual-workspace .trace-copy b,
-.visual-workspace .forecast-summary strong,
-.visual-workspace .legend-row b{
-  color:var(--da-text-primary)!important;
-}
-
-.visual-workspace .visual-title-block p,
-.visual-workspace .executive-summary,
-.visual-workspace .insight-body p,
-.visual-workspace .plan-step p,
-.visual-workspace .cause-main p,
-.visual-workspace .trace-copy p,
-.visual-workspace .activity-copy p,
-.visual-workspace .semantic-head p{
-  color:var(--da-text-secondary)!important;
-}
-
-.visual-workspace .visual-kicker,
-.visual-workspace .eyebrow,
-.visual-workspace .workspace-subtitle,
-.visual-workspace .widget-subtitle,
-.visual-workspace .widget-meta,
-.visual-workspace .muted,
-.visual-workspace .context-chip span,
-.visual-workspace .metric-foot,
-.visual-workspace .field-stats,
-.visual-workspace .highlight-item span,
-.visual-workspace .tag-cloud span,
-.visual-workspace .funnel-conversion,
-.visual-workspace .quality-ring-inner span,
-.visual-workspace .quality-row small,
-.visual-workspace .trace-copy span,
-.visual-workspace .trace-step time,
-.visual-workspace .forecast-summary>div>span,
-.visual-workspace .forecast-horizon,
-.visual-workspace .confidence-chip,
-.visual-workspace .target-chip,
-.visual-workspace .trace-duration,
-.visual-workspace .semantic-label,
-.visual-workspace .semantic-sources{
-  color:var(--da-text-muted)!important;
-}
-
-.visual-workspace .metric-value small,
-.visual-workspace .kpi-cell strong small{
-  color:var(--da-text-muted)!important;
-}
-
-/* Shared nested surfaces */
-.visual-workspace .widget-frame,
-.visual-workspace .gen-card{
-  color:var(--da-text-primary)!important;
-  background:linear-gradient(145deg,#111C28,#0D1721)!important;
-  border-color:var(--da-border)!important;
-  box-shadow:0 8px 24px rgba(0,0,0,.15)!important;
-}
-
-.visual-workspace .widget-frame:hover{
-  border-color:var(--da-border-strong)!important;
-  box-shadow:0 12px 32px rgba(0,0,0,.18)!important;
-}
-
-.visual-workspace .context-chip,
-.visual-workspace .kpi-cell,
-.visual-workspace .insight-item,
-.visual-workspace .highlight-item,
-.visual-workspace .trace-step,
-.visual-workspace .agent-inspector,
-.visual-workspace .semantic-columns>div{
-  background:#15212E!important;
-  border-color:var(--da-border)!important;
-}
-
-/* Semantic state colors never replace neutral content colors. */
-.visual-workspace .tone-neutral{color:var(--da-text-secondary)!important}
-.visual-workspace .tone-positive,
-.visual-workspace .up{color:var(--da-accent-green)!important}
-.visual-workspace .tone-negative,
-.visual-workspace .down{color:var(--da-accent-red)!important}
-
-/* Data table */
-.visual-workspace .el-table{
-  --el-table-bg-color:#101923;
-  --el-table-tr-bg-color:#101923;
-  --el-table-header-bg-color:#172331;
-  --el-table-row-hover-bg-color:#1A2736;
-  --el-table-text-color:var(--da-text-secondary);
-  --el-table-header-text-color:var(--da-text-primary);
-  --el-table-border-color:var(--da-border);
-  --el-fill-color-lighter:#141F2B;
-  color:var(--da-text-secondary)!important;
-  background:#101923!important;
-}
-.visual-workspace .el-table th.el-table__cell{
-  color:var(--da-text-primary)!important;
-  background:#172331!important;
-}
-.visual-workspace .el-table td.el-table__cell{color:var(--da-text-secondary)!important}
-.visual-workspace .el-table__body tr.el-table__row--striped td.el-table__cell{background:#141F2B!important}
-
-/* Charts: line / area / bar / donut / funnel / forecast / heatmap */
-.visual-workspace .chart-grid,
-.visual-workspace .timeline-gridline{
-  stroke:rgba(183,196,210,.18)!important;
-}
-
-.visual-workspace .chart-label{
-  fill:var(--da-text-muted)!important;
-  font-weight:550!important;
-}
-
-.visual-workspace .chart-dot{
-  fill:var(--da-surface-input)!important;
-  stroke:var(--da-accent-blue)!important;
-}
-.visual-workspace .chart-line{stroke:var(--da-accent-blue)!important}
-
-.visual-workspace .bar-row,
-.visual-workspace .legend-row,
-.visual-workspace .forecast-legend,
-.visual-workspace .timeline-axis,
-.visual-workspace .timeline-agent-name{
-  color:var(--da-text-secondary)!important;
-}
-
-.visual-workspace .donut-center,
-.visual-workspace .quality-ring-inner{
-  background:var(--da-surface-input)!important;
-  border-color:var(--da-border)!important;
-  box-shadow:0 0 0 5px rgba(10,17,25,.24)!important;
-  text-shadow:none!important;
-}
-
-.visual-workspace .funnel-meta i{color:var(--da-text-subtle)!important}
-.visual-workspace .heat-x,
-.visual-workspace .heat-y{color:var(--da-text-secondary)!important}
-.visual-workspace .heat-cell{
-  color:#F4F7FA!important;
-  border-color:rgba(220,230,239,.24)!important;
-  text-shadow:0 1px 2px rgba(0,0,0,.82)!important;
-}
-
-/* Analysis / status */
-.visual-workspace .insight-index,
-.visual-workspace .plan-node,
-.visual-workspace .cause-rank,
-.visual-workspace .trace-index{
-  color:var(--da-text-primary)!important;
-  background:#223247!important;
-  border-color:rgba(143,166,232,.28)!important;
-}
-
-.visual-workspace .quality-status{
-  color:var(--da-text-primary)!important;
-  background:#192634!important;
-  border-color:var(--da-border)!important;
-}
-
-.visual-workspace .plan-node.done{color:var(--da-accent-green)!important}
-.visual-workspace .plan-node.running{color:var(--da-accent-cyan)!important}
-.visual-workspace .plan-node.error{color:var(--da-accent-red)!important}
-
-/* Multi-agent: status lives on decoration, information remains neutral. */
-.visual-workspace .agent-root-node,
-.visual-workspace .agent-child-node{
-  color:var(--da-text-primary)!important;
-  background:linear-gradient(145deg,#172432,#111C28)!important;
-  border-color:var(--da-border)!important;
-  box-shadow:0 6px 18px rgba(0,0,0,.15)!important;
-}
-
-.visual-workspace .agent-root-node:hover,
-.visual-workspace .agent-child-node:hover,
-.visual-workspace .agent-child-node.selected{
-  background:linear-gradient(145deg,#1A2938,#14212E)!important;
-  border-color:rgba(115,203,214,.34)!important;
-}
-
-.visual-workspace .agent-node-copy b,
-.visual-workspace .agent-child-node b,
-.visual-workspace .agent-inspector-title b,
-.visual-workspace .agent-inspector-grid strong,
-.visual-workspace .activity-copy b{
-  color:var(--da-text-primary)!important;
-}
-
-.visual-workspace .agent-node-copy small,
-.visual-workspace .agent-node-copy em,
-.visual-workspace .agent-child-node small,
-.visual-workspace .agent-child-node p,
-.visual-workspace .agent-child-foot,
-.visual-workspace .agent-inspector-title small,
-.visual-workspace .agent-inspector-title>span,
-.visual-workspace .agent-inspector-grid small,
-.visual-workspace .agent-activity-item time,
-.visual-workspace .activity-copy small,
-.visual-workspace .agent-network-status,
-.visual-workspace .timeline-total{
-  color:var(--da-text-muted)!important;
-}
-
-.visual-workspace .timeline-track{
-  background:#0E1721!important;
-  border-color:var(--da-border)!important;
-}
-
-.visual-workspace .timeline-segment{
-  color:var(--da-text-primary)!important;
-  background:#253548!important;
-  border-color:rgba(143,166,232,.28)!important;
-}
-.visual-workspace .timeline-segment.running{
-  background:rgba(72,157,170,.20)!important;
-  border-color:rgba(115,203,214,.34)!important;
-}
-.visual-workspace .timeline-segment.done{
-  background:rgba(70,145,108,.19)!important;
-  border-color:rgba(114,201,158,.32)!important;
-}
-.visual-workspace .timeline-segment.error{
-  background:rgba(154,65,78,.20)!important;
-  border-color:rgba(232,132,146,.34)!important;
-}
-.visual-workspace .timeline-segment.waiting{
-  background:rgba(142,112,52,.19)!important;
-  border-color:rgba(221,187,106,.32)!important;
-}
-.visual-workspace .timeline-segment span,
-.visual-workspace .timeline-segment time{
-  color:var(--da-text-primary)!important;
-  text-shadow:none!important;
-}
-
-/* Semantic model / SQL */
-.visual-workspace .semantic-icon{
-  color:var(--da-accent-cyan)!important;
-  background:#17303A!important;
-  border-color:rgba(115,203,214,.28)!important;
-}
-
-.visual-workspace .semantic-pills span,
-.visual-workspace .semantic-sources code{
-  color:var(--da-text-secondary)!important;
-  background:#172433!important;
-  border-color:var(--da-border)!important;
-}
-
-.visual-workspace .semantic-pills.measures span{
-  background:rgba(143,166,232,.10)!important;
-  border-color:rgba(143,166,232,.22)!important;
-}
-.visual-workspace .semantic-pills.metrics span{
-  background:rgba(168,148,234,.10)!important;
-  border-color:rgba(168,148,234,.22)!important;
-}
-
-.visual-workspace .sql{
-  color:#E7F1F7!important;
-  background:var(--da-surface-code)!important;
-  border-color:var(--da-border)!important;
-  box-shadow:inset 0 1px 8px rgba(0,0,0,.22)!important;
-}
-
-/* Generic renderer states */
-.visual-workspace .skeleton{color:var(--da-text-muted)!important}
-.visual-workspace .error-card{color:var(--da-accent-red)!important}
-
-/* ---------- component gallery ---------- */
-.component-gallery{
-  background:var(--da-surface-0)!important;
-  color:var(--da-text-primary)!important;
-}
-.component-gallery__header{
-  background:rgba(10,17,25,.94)!important;
-  border-bottom-color:var(--da-border)!important;
-}
-.component-gallery__header h1,
-.component-gallery__section-head h2,
-.component-gallery__stats b{color:var(--da-text-emphasis)!important}
-.component-gallery__header p{color:var(--da-text-secondary)!important}
-.component-gallery__header span,
-.component-gallery__section-head small,
-.component-gallery__section-head>span,
-.component-gallery__label span{color:var(--da-text-muted)!important}
-.component-gallery__stats,
-.component-gallery__item,
-.component-gallery__system-card{
-  background:var(--da-surface-1)!important;
-  border-color:var(--da-border)!important;
-  box-shadow:none!important;
-}
-.component-gallery__label b{color:var(--da-text-primary)!important}
-.component-gallery__label code{color:var(--da-link)!important}
-.component-gallery__assistant-message{
-  background:#101A25!important;
-  border-color:var(--da-border)!important;
-}
-.component-gallery__attachment button,
-.component-gallery__composer textarea{color:var(--da-text-primary)!important}
-.component-gallery__attachment small{color:var(--da-text-muted)!important}
-
-/* ---------- focus / reduced motion ---------- */
-.dataagent-shell button:focus-visible,
-.dataagent-shell [role="button"]:focus-visible,
-.dataagent-shell input:focus-visible,
-.dataagent-shell textarea:focus-visible{
-  outline:2px solid rgba(143,166,232,.68)!important;
-  outline-offset:2px!important;
-}
-
-@media (prefers-reduced-motion:reduce){
-  .dataagent-shell *,
-  .dataagent-shell *::before,
-  .dataagent-shell *::after{
-    animation-duration:.01ms!important;
-    animation-iteration-count:1!important;
-    transition-duration:.01ms!important;
-    scroll-behavior:auto!important;
-  }
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important}
 }

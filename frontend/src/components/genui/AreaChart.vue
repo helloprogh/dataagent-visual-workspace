@@ -39,8 +39,8 @@ const area = computed(() => coordinates.value.length
     <svg class="line-chart" :viewBox="`0 0 ${width} ${height}`" role="img" :aria-label="title || '区域趋势图'">
       <defs>
         <linearGradient id="area-chart-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#8b9cff" stop-opacity="0.42" />
-          <stop offset="100%" stop-color="#8b9cff" stop-opacity="0.03" />
+          <stop class="area-fill-start" offset="0%" />
+          <stop class="area-fill-end" offset="100%" />
         </linearGradient>
       </defs>
       <line v-for="i in 4" :key="i" :x1="padX" :x2="width - padX" :y1="padY + (i - 1) * 52" :y2="padY + (i - 1) * 52" class="chart-grid" />
