@@ -98,6 +98,23 @@ test('sidebar exposes product copy instead of transport terminology', async () =
   assert.doesNotMatch(template, /AG-UI|CopilotKit|OpenCode/i)
 })
 
+test('sidebar exposes tools and removes workspace management navigation', async () => {
+  const [app, sidebar, tools] = await Promise.all([
+    frontend('App.vue'),
+    frontend('components/AppSidebar.vue'),
+    frontend('components/ToolManagementView.vue'),
+  ])
+  const sidebarTemplate = vueTemplate(sidebar)
+  const toolsTemplate = vueTemplate(tools)
+
+  assert.match(sidebarTemplate, />工具</)
+  assert.doesNotMatch(sidebarTemplate, /工作空间管理|openWorkspace|open-workspace/)
+  assert.match(app, /ToolManagementView/)
+  assert.match(toolsTemplate, /搜索工具或能力/)
+  assert.match(tools, /数据库查询/)
+  assert.match(tools, /<style scoped>/)
+})
+
 test('visible controls keep native icons and centered action labels', async () => {
   const [composer, shell, approval] = await Promise.all([
     frontend('composer-model-placement.css'),

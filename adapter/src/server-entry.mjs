@@ -20,6 +20,14 @@ const isDirectUpstreamApi = (req, url) => {
 }
 
 const proxyDirectApi = async (client, req, res, url) => {
+  if (req.method === 'POST' && url.pathname === `${API_BASE}/session`) {
+    req.resume()
+    const session = await client.createSession()
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
+    res.end(JSON.stringify({ data: session }))
+    return
+  }
+
   const headers = new Headers()
   for (const [key, value] of Object.entries(req.headers)) {
     if (key === 'host' || value == null) continue

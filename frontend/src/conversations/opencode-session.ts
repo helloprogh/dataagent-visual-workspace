@@ -14,7 +14,11 @@ async function responseError(response: Response, action: string) {
 export async function createOpenCodeConversation(): Promise<string> {
   const response = await fetch(dataAgentWebApi('/session'), {
     method: 'POST',
-    headers: { Accept: 'application/json' },
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({}),
     credentials: 'same-origin',
     cache: 'no-store',
   })

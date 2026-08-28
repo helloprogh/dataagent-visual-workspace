@@ -13,10 +13,10 @@ import AssistantPanel from './components/AssistantPanel.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import HistoryView from './components/HistoryView.vue'
 import SkillManagementView from './components/SkillManagementView.vue'
-import WorkspaceManagementView from './components/WorkspaceManagementView.vue'
+import ToolManagementView from './components/ToolManagementView.vue'
 import ComponentGallery from './components/ComponentGallery.vue'
 
-type AppPage = 'chat' | 'history' | 'skills' | 'workspace'
+type AppPage = 'chat' | 'history' | 'skills' | 'tools'
 
 const galleryMode = import.meta.env.VITE_COMPONENT_GALLERY === 'true'
   || new URLSearchParams(window.location.search).get('gallery') === 'components'
@@ -149,7 +149,7 @@ function autoRename(name: string) {
           @remove="removeConversation"
           @open-history="activePage = 'history'"
           @open-skills="activePage = 'skills'"
-          @open-workspace="activePage = 'workspace'"
+          @open-tools="activePage = 'tools'"
         />
 
         <section class="app-main-stage" :class="{ 'app-main-stage--chat': activePage === 'chat' }">
@@ -175,7 +175,7 @@ function autoRename(name: string) {
           />
 
           <SkillManagementView v-else-if="activePage === 'skills'" />
-          <WorkspaceManagementView v-else />
+          <ToolManagementView v-else />
         </section>
 
         <transition name="workspace-reveal">

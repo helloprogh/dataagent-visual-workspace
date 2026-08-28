@@ -50,6 +50,7 @@ export class OpenCodeClient {
     this.explicitBaseUrl = trimUrl(options.baseUrl || process.env.OPENCODE_BASE_URL)
     this.username = options.username || process.env.OPENCODE_USERNAME || 'opencode'
     this.explicitPassword = options.password || process.env.OPENCODE_PASSWORD
+    this.workspaceDirectory = options.workspaceDirectory || process.env.OPENCODE_WORKSPACE_DIRECTORY || process.cwd()
     this.fetch = options.fetchImpl || fetch
   }
 
@@ -97,7 +98,10 @@ export class OpenCodeClient {
     return this.json('/api/session', {
       method: 'POST',
       headers: jsonHeaders,
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({
+        title,
+        location: { directory: this.workspaceDirectory },
+      }),
     }, 'Unable to create OpenCode session')
   }
 
@@ -156,8 +160,14 @@ export class OpenCodeClient {
     }, 'OpenCode prompt failed')
   }
 
+  locationUrl(pathname) {
+    const query = new URLSearchParams()
+    query.set('location[directory]', this.workspaceDirectory)
+    return `${pathname}?${query}`
+  }
+
   async addMcp(server, url) {
-    return this.json(`/api/mcp/${encodeURIComponent(server)}`, {
+    return this.json(this.locationUrl(`/api/mcp/${encodeURIComponent(server)}`), {
       method: 'PUT',
       headers: jsonHeaders,
       body: JSON.stringify({
@@ -173,19 +183,19 @@ export class OpenCodeClient {
   }
 
   async connectMcp(server) {
-    return this.json(`/api/mcp/${encodeURIComponent(server)}/connect`, {
+    return this.json(this.locationUrl(`/api/mcp/${encodeURIComponent(server)}/connect`), {
       method: 'POST',
     }, 'Unable to connect AG-UI frontend MCP server')
   }
 
   async disconnectMcp(server) {
-    return this.json(`/api/mcp/${encodeURIComponent(server)}/disconnect`, {
+    return this.json(this.locationUrl(`/api/mcp/${encodeURIComponent(server)}/disconnect`), {
       method: 'POST',
     }, 'Unable to disconnect AG-UI frontend MCP server')
   }
 
   async listMcp() {
-    return this.json('/api/mcp', {}, 'Unable to list OpenCode MCP servers')
+    return this.json(this.locationUrl('/api/mcp'), {}, 'Unable to list OpenCode MCP servers')
   }
 
   async replyPermission(sessionId, requestId, reply, message) {

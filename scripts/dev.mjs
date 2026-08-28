@@ -5,8 +5,12 @@ const scenario = process.argv.includes('--scenario')
 const isWindows = process.platform === 'win32'
 const npmCommand = isWindows ? (process.env.ComSpec || 'cmd.exe') : 'npm'
 const npmArgs = (args) => isWindows ? ['/d', '/s', '/c', 'npm', ...args] : args
+const adapterEnv = {
+  ...process.env,
+  OPENCODE_WORKSPACE_DIRECTORY: process.env.OPENCODE_WORKSPACE_DIRECTORY || process.cwd(),
+}
 const children = [
-  spawn(npmCommand, npmArgs(['run', 'dev', '-w', 'adapter']), { stdio: 'inherit' }),
+  spawn(npmCommand, npmArgs(['run', 'dev', '-w', 'adapter']), { stdio: 'inherit', env: adapterEnv }),
   spawn(npmCommand, npmArgs(['run', scenario ? 'dev:scenario' : demo ? 'dev:demo' : 'dev', '-w', 'frontend']), {
     stdio: 'inherit',
   }),

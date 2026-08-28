@@ -5,7 +5,7 @@ import type { ConversationRecord } from '../conversations/types'
 const props = defineProps<{
   conversations: ConversationRecord[]
   activeId: string
-  activePage: 'chat' | 'history' | 'skills' | 'workspace'
+  activePage: 'chat' | 'history' | 'skills' | 'tools'
 }>()
 
 const emit = defineEmits<{
@@ -15,7 +15,7 @@ const emit = defineEmits<{
   remove: [id: string]
   openHistory: []
   openSkills: []
-  openWorkspace: []
+  openTools: []
 }>()
 
 const recentConversations = computed(() => props.conversations.slice(0, 4))
@@ -115,21 +115,20 @@ function timeLabel(timestamp: number) {
 
       <button
         type="button"
-        title="工作空间管理"
-        aria-label="工作空间管理"
-        :aria-current="activePage === 'workspace' ? 'page' : undefined"
-        :class="{ active: activePage === 'workspace' }"
-        @click="emit('openWorkspace')"
+        title="工具"
+        aria-label="工具"
+        :aria-current="activePage === 'tools' ? 'page' : undefined"
+        :class="{ active: activePage === 'tools' }"
+        @click="emit('openTools')"
       >
         <span class="app-sidebar__nav-icon" aria-hidden="true">
           <svg viewBox="0 0 20 20">
-            <rect x="3" y="4" width="14" height="12" rx="2" />
-            <path d="M6 8h8M6 12h3M12.5 11l2 2-2 2" />
+            <path d="M12.7 4.1a4 4 0 0 0-4.9 4.8L3.5 13.2a2 2 0 0 0 2.8 2.8l4.3-4.3a4 4 0 0 0 4.8-4.9l-2.5 2.5-2.2-.5-.5-2.2z" />
           </svg>
         </span>
         <span class="app-sidebar__nav-copy">
-          <b>工作空间管理</b>
-          <small>配置任务运行空间</small>
+          <b>工具</b>
+          <small>查看可用执行能力</small>
         </span>
       </button>
     </nav>

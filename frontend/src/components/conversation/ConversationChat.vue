@@ -21,6 +21,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ changed: []; rename: [name: string] }>()
 const hydrated = ref(false)
+const hasMessages = ref(false)
 // This hook is used only to resolve the per-thread agent instance. CopilotChat
 // owns reactive rendering. Disabling hook update notifications prevents the
 // same shallowRef from being re-triggered for every streamed message and then
@@ -132,6 +133,7 @@ watch([agent, () => props.threadId], ([nextAgent, nextThreadId]) => {
   currentAgent = nextAgent
   currentThreadId = threadId
   const conversation = conversationRepository.get(threadId)
+  hasMessages.value = Boolean(conversation?.messages.length)
   if (conversation) {
     nextAgent.setMessages(conversation.messages)
     nextAgent.setState(conversation.state)
@@ -153,6 +155,7 @@ watch([agent, () => props.threadId], ([nextAgent, nextThreadId]) => {
 }, { immediate: true })
 
 function onSubmitMessage(value: string) {
+  hasMessages.value = true
   if (props.displayName === '新需求' || props.displayName === '新对话' || props.displayName === '新分析') emit('rename', deriveConversationName(value))
 }
 
@@ -187,6 +190,16 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="conversation-chat visual-chat dark" :class="{ 'has-interrupts': hasInterrupts }">
+    <section v-if="hydrated && !hasMessages" class="conversation-welcome">
+      <span class="conversation-welcome__eyebrow"><i></i>DATA AGENT</span>
+      <h2>从一个清晰的数据目标开始</h2>
+      <p>描述业务问题、上传数据，或直接让 Data Agent 构建一份可交互的分析工作区。</p>
+      <div class="conversation-welcome__capabilities" aria-label="可用能力">
+        <span>经营分析</span>
+        <span>SQL 与治理</span>
+        <span>生成式工作区</span>
+      </div>
+    </section>
     <div v-if="!hydrated" class="chat-loading"><el-skeleton :rows="5" animated /></div>
     <CopilotChat
       v-else
@@ -278,7 +291,15 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.conversation-chat{position:relative}
+.conversation-chat{position:relative;width:100%;height:100%;min-height:0}
+.conversation-welcome{position:absolute;z-index:1;left:50%;top:42%;width:min(520px,calc(100% - 48px));padding:0 20px;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
+.conversation-welcome__eyebrow{display:inline-flex;align-items:center;gap:8px;color:var(--da-text-muted);font-size:11px;font-weight:600;letter-spacing:.12em}
+.conversation-welcome__eyebrow i{width:20px;height:1px;background:var(--da-accent-orange);box-shadow:0 0 12px var(--da-accent-orange-glow)}
+.conversation-welcome h2{margin:16px 0 10px;color:var(--da-text-emphasis);font-family:Georgia,"Times New Roman","Songti SC",serif;font-size:34px;line-height:1.18;font-weight:400;letter-spacing:-.04em}
+.conversation-welcome p{max-width:460px;margin:0 auto;color:var(--da-text-muted);font-size:13px;line-height:1.7}
+.conversation-welcome__capabilities{margin-top:21px;display:flex;justify-content:center;flex-wrap:wrap;gap:7px}
+.conversation-welcome__capabilities span{padding:5px 9px;border:1px solid var(--da-border);border-radius:6px;background:var(--da-surface-deep);color:var(--da-text-secondary);font-size:11px}
+:deep([data-testid="copilot-chat-view"]){height:100%!important;min-height:0!important}
 
 /* CopilotKit attachment queue — this component is the sole visual owner. */
 :deep([data-testid="copilot-chat-attachment-queue"]){gap:8px!important;padding:0 12px 8px!important;margin:0!important;align-items:center}
@@ -305,6 +326,8 @@ onBeforeUnmount(() => {
 .has-interrupts :deep([data-testid="copilot-chat-input-textarea"]),.has-interrupts :deep([data-testid="copilot-chat-input-add"]){opacity:.52;pointer-events:none;cursor:not-allowed}
 
 @media(max-width:540px){
+  .conversation-welcome{top:38%;width:calc(100% - 28px);padding:0 8px}
+  .conversation-welcome h2{font-size:28px}
   :deep([data-testid="copilot-chat-attachment-queue"]){padding-left:8px!important;padding-right:8px!important}
   :deep([data-testid="copilot-chat-attachment-item"][data-card-type="document"]){min-width:174px!important;max-width:100%!important}
   :deep([data-testid="copilot-chat-attachment-document-filename"]){max-width:142px!important}
