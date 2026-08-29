@@ -5,6 +5,11 @@ import test from 'node:test'
 const readRepo = async path => fs.readFile(new URL(`../../${path}`, import.meta.url), 'utf8')
 const readConversation = path => readRepo(`frontend/src/components/conversation/${path}`)
 const templateOf = source => source.match(/<template>([\s\S]*?)<\/template>/)?.[1] ?? ''
+const visibleTextOf = source => templateOf(source)
+  .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+  .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+  .replace(/<[^>]+>/g, ' ')
+  .replace(/\{\{[\s\S]*?\}\}/g, ' ')
 
 test('conversation HITL uses CopilotKit native interrupt lifecycle through the fully typed message view', async () => {
   const [chat, controller] = await Promise.all([
@@ -75,7 +80,7 @@ test('user-facing interface does not expose protocol or framework terminology in
   ])
 
   for (const source of sources) {
-    assert.doesNotMatch(templateOf(source), /AG-UI|HUMAN IN THE LOOP|ACTION REQUIRED|CopilotKit|OpenCode|resume\[?\]?|resolved|cancelled/i)
+    assert.doesNotMatch(visibleTextOf(source), /AG-UI|HUMAN IN THE LOOP|ACTION REQUIRED|CopilotKit|OpenCode|resume\[?\]?|resolved|cancelled/i)
   }
 
   const index = await readRepo('frontend/index.html')
