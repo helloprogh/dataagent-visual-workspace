@@ -27,9 +27,13 @@ type NormalizedTool = {
 }
 
 const SESSION_PAGE_LIMIT = 200
-const MESSAGE_PAGE_LIMIT = 200
+const MESSAGE_PAGE_LIMIT = 100
 
 export type RemoteConversationSession = ConversationSessionSummary
+export type ConversationMessagePage = {
+  messages: Message[]
+  nextCursor?: string
+}
 
 function isRecord(value: unknown): value is UnknownRecord {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -322,15 +326,43 @@ export async function fetchConversationSessions(signal?: AbortSignal): Promise<R
     .sort((left, right) => right.updatedAt - left.updatedAt || right.createdAt - left.createdAt)
 }
 
-export async function fetchConversationMessages(sessionId: string, signal?: AbortSignal): Promise<Message[]> {
+export async function fetchConversationMessagePage(
+  sessionId: string,
+  cursor?: string,
+  signal?: AbortSignal,
+): Promise<ConversationMessagePage> {
   const id = sessionId.trim()
   if (!id) throw new Error('查询历史消息失败：sessionId 为空')
 
-  const messages = await fetchAllV2Pages(
-    `/session/${encodeURIComponent(id)}/message`,
-    '查询历史消息失败',
-    { order: 'asc', limit: MESSAGE_PAGE_LIMIT },
-    signal,
-  )
-  return messages.flatMap(normalizeMessage)
+  const path = `/session/${encodeURIComponent(id)}/message`
+  const action = '查询历史消息失败'
+  const seenCursors = new Set<string>()
+  let pageCursor = optionalString(cursor)
+
+  // A V2 message page can consist entirely of session-timeline records that are
+  // intentionally not rendered as chat messages. Keep advancing only until a
+  // visible chat page is found; do not eagerly walk the complete history.
+  for (;;) {
+    if (pageCursor) {
+      if (seenCursors.has(pageCursor)) throw new Error(`${action}：OpenCode V2 返回了重复 cursor`)
+      seenCursors.add(pageCursor)
+    }
+
+    const url = appendQuery(dataAgentWebApi(path), pageCursor
+      ? { limit: MESSAGE_PAGE_LIMIT, cursor: pageCursor }
+      : { limit: MESSAGE_PAGE_LIMIT, order: 'desc' })
+    const page = parseV2Page(await requestJson(url, action, signal), action)
+    const messages = [...page.data].reverse().flatMap(normalizeMessage)
+    const nextCursor = page.data.length === MESSAGE_PAGE_LIMIT
+      ? optionalString(page.cursor.next)
+      : undefined
+
+    if (messages.length || !nextCursor) {
+      return {
+        messages,
+        ...(nextCursor ? { nextCursor } : {}),
+      }
+    }
+    pageCursor = nextCursor
+  }
 }
