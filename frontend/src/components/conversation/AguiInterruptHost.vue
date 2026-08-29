@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { CopilotChatConfigurationProvider } from '@copilotkit/vue/v2'
 import AguiInterruptLifecycle from './AguiInterruptLifecycle.vue'
 
 defineProps<{
@@ -10,9 +11,11 @@ const emit = defineEmits<{ 'active-change': [active: boolean] }>()
 </script>
 
 <template>
-  <AguiInterruptLifecycle
+  <CopilotChatConfigurationProvider
     :agent-id="agentId"
     :thread-id="threadId"
-    @active-change="emit('active-change', $event)"
-  />
+    :has-explicit-thread-id="true"
+  >
+    <AguiInterruptLifecycle @active-change="emit('active-change', $event)" />
+  </CopilotChatConfigurationProvider>
 </template>
