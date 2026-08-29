@@ -40,9 +40,9 @@ const dispatchResumeEntry = async ({ client, sessionId, interrupt, entry }) => {
   const kind = interrupt.metadata?.kind ?? 'permission'
 
   if (kind === 'question') {
-    if (entry.status === 'cancelled') return client.rejectQuestion(interrupt.id)
+    if (entry.status === 'cancelled') return client.rejectQuestion(sessionId, interrupt.id)
     if (entry.status !== 'resolved') throw new Error(`Interrupt ${interrupt.id} has unsupported resume status ${entry.status}`)
-    return client.replyQuestion(interrupt.id, normalizeQuestionAnswers(interrupt, entry.payload))
+    return client.replyQuestion(sessionId, interrupt.id, normalizeQuestionAnswers(interrupt, entry.payload))
   }
 
   if (kind === 'permission') {
