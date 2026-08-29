@@ -47,6 +47,12 @@ const tupleSchemas = computed<JsonSchema[]>(() => {
 })
 const itemSchema = computed(() => normalizeSchema(schema.value.items && !Array.isArray(schema.value.items) ? schema.value.items : {}))
 const itemChoices = computed(() => choicesFor(itemSchema.value))
+const itemVariants = computed(() => variantsFor(itemSchema.value))
+const arrayChoiceOptions = computed(() => {
+  if (itemChoices.value.length) return itemChoices.value
+  return itemVariants.value.flatMap(variant => choicesFor(variant))
+})
+const arrayAllowsCustomString = computed(() => itemVariants.value.some(variant => inferSchemaType(variant) === 'string' && choicesFor(variant).length === 0))
 const arrayValue = computed<any[]>(() => Array.isArray(props.modelValue) ? props.modelValue : [])
 const objectValue = computed<Record<string, any>>(() => props.modelValue && typeof props.modelValue === 'object' && !Array.isArray(props.modelValue) ? props.modelValue : {})
 const extraEntries = computed(() => Object.entries(objectValue.value).filter(([key]) => !definedPropertyNames.value.has(key)))
@@ -56,11 +62,13 @@ const additionalSchema = computed<JsonSchema>(() => normalizeSchema(
     ? schema.value.additionalProperties
     : {},
 ))
+const customArrayValues = computed(() => arrayValue.value.filter(item => !arrayChoiceOptions.value.some(choice => jsonEqual(choice.value, item))))
 const variantIndex = ref(-1)
 const rawJson = ref('')
 const rawError = ref('')
 const newPropertyName = ref('')
 const propertyError = ref('')
+const customArrayInput = ref('')
 
 const selectedVariant = computed<JsonSchema | null>(() => {
   if (variantIndex.value < 0) return null
@@ -112,13 +120,41 @@ function selectChoice(value: any) {
 function toggleArrayChoice(value: any) {
   const current = [...arrayValue.value]
   const index = current.findIndex(item => jsonEqual(item, value))
-  if (index >= 0) current.splice(index, 1)
-  else {
-    const max = typeof schema.value.maxItems === 'number' ? schema.value.maxItems : Number.POSITIVE_INFINITY
-    if (current.length >= max) return
-    current.push(value)
+  if (index >= 0) {
+    current.splice(index, 1)
+    setValue(current)
+    return
   }
+
+  const max = typeof schema.value.maxItems === 'number' ? schema.value.maxItems : Number.POSITIVE_INFINITY
+  if (max === 1) {
+    setValue([value])
+    return
+  }
+  if (current.length >= max) return
+  current.push(value)
   setValue(current)
+}
+
+function addCustomArrayValue() {
+  const value = customArrayInput.value.trim()
+  if (!value) return
+  const current = [...arrayValue.value]
+  const max = typeof schema.value.maxItems === 'number' ? schema.value.maxItems : Number.POSITIVE_INFINITY
+  if (max === 1) {
+    setValue([value])
+    customArrayInput.value = ''
+    return
+  }
+  if (current.length >= max) return
+  if (schema.value.uniqueItems && current.some(item => jsonEqual(item, value))) return
+  current.push(value)
+  setValue(current)
+  customArrayInput.value = ''
+}
+
+function removeCustomArrayValue(value: any) {
+  setValue(arrayValue.value.filter(item => !jsonEqual(item, value)))
 }
 
 function setArrayItem(index: number, value: any) {
@@ -305,10 +341,10 @@ function variantLabel(variant: JsonSchema, index: number) {
       </div>
     </template>
 
-    <template v-else-if="type === 'array' && itemChoices.length">
-      <div class="schema-field__choices schema-field__choices--multi" role="group" :aria-label="label || schema.title || '请选择多项'">
+    <template v-else-if="type === 'array' && (arrayChoiceOptions.length || arrayAllowsCustomString)">
+      <div v-if="arrayChoiceOptions.length" class="schema-field__choices schema-field__choices--multi" role="group" :aria-label="label || schema.title || '请选择多项'">
         <button
-          v-for="choice in itemChoices"
+          v-for="choice in arrayChoiceOptions"
           :key="JSON.stringify(choice.value)"
           type="button"
           :disabled="disabled"
@@ -320,6 +356,22 @@ function variantLabel(variant: JsonSchema, index: number) {
           {{ choice.label }}
         </button>
       </div>
+
+      <div v-if="arrayAllowsCustomString" class="schema-field__custom-answer">
+        <input
+          v-model="customArrayInput"
+          type="text"
+          :disabled="disabled"
+          :aria-label="`${label || schema.title || '回答'} 自定义回答`"
+          placeholder="输入自定义回答"
+          @keydown.enter.prevent="addCustomArrayValue"
+        />
+        <button type="button" :disabled="disabled" @click="addCustomArrayValue">添加</button>
+      </div>
+      <div v-if="customArrayValues.length" class="schema-field__custom-values">
+        <span v-for="value in customArrayValues" :key="JSON.stringify(value)">{{ value }}<button type="button" :disabled="disabled" :aria-label="`移除 ${value}`" @click="removeCustomArrayValue(value)">×</button></span>
+      </div>
+
       <small v-if="schema.minItems || schema.maxItems" class="schema-field__hint">
         <template v-if="schema.minItems">至少 {{ schema.minItems }} 项</template>
         <template v-if="schema.minItems && schema.maxItems"> · </template>
@@ -382,19 +434,20 @@ function variantLabel(variant: JsonSchema, index: number) {
 .schema-field__label em{color:var(--da-accent-red);font-style:normal}
 .schema-field__description{margin:0;color:var(--da-text-muted);font-size:12px;line-height:1.5}
 .schema-field__choices{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-.schema-field__choices button,.schema-field__nullable button,.schema-field__array-head button,.schema-field__add,.schema-field__raw-actions button,.schema-field__additional button,.schema-field__extra-head button{min-height:36px;padding:0 13px;border:1px solid var(--da-border);border-radius:8px;background:var(--da-surface-3);color:var(--da-text-primary);font-family:inherit;font-size:13px;font-weight:580;line-height:1;cursor:pointer;transition:border-color .15s ease,background .15s ease,color .15s ease}
-.schema-field__choices button:hover:not(:disabled),.schema-field__nullable button:hover:not(:disabled),.schema-field__array-head button:hover:not(:disabled),.schema-field__add:hover:not(:disabled),.schema-field__raw-actions button:hover:not(:disabled),.schema-field__additional button:hover:not(:disabled),.schema-field__extra-head button:hover:not(:disabled){border-color:var(--da-border-strong);background:var(--da-surface-4)}
+.schema-field__choices button,.schema-field__nullable button,.schema-field__array-head button,.schema-field__add,.schema-field__raw-actions button,.schema-field__additional button,.schema-field__extra-head button,.schema-field__custom-answer button{min-height:36px;padding:0 13px;border:1px solid var(--da-border);border-radius:8px;background:var(--da-surface-3);color:var(--da-text-primary);font-family:inherit;font-size:13px;font-weight:580;line-height:1;cursor:pointer;transition:border-color .15s ease,background .15s ease,color .15s ease}
+.schema-field__choices button:hover:not(:disabled),.schema-field__nullable button:hover:not(:disabled),.schema-field__array-head button:hover:not(:disabled),.schema-field__add:hover:not(:disabled),.schema-field__raw-actions button:hover:not(:disabled),.schema-field__additional button:hover:not(:disabled),.schema-field__extra-head button:hover:not(:disabled),.schema-field__custom-answer button:hover:not(:disabled){border-color:var(--da-border-strong);background:var(--da-surface-4)}
 .schema-field__choices button.selected{border-color:color-mix(in srgb,var(--da-accent-yellow) 52%,var(--da-border));background:color-mix(in srgb,var(--da-accent-yellow) 10%,var(--da-surface-3));color:var(--da-text-emphasis)}
 .schema-field__choices--multi button{display:inline-flex;align-items:center;gap:7px}
 .schema-field__check{width:14px;height:14px;display:grid;place-items:center;border:1px solid var(--da-border-strong);border-radius:4px;font-size:10px}
 .schema-field__choices--multi button.selected .schema-field__check{border-color:color-mix(in srgb,var(--da-accent-yellow) 58%,var(--da-border));background:color-mix(in srgb,var(--da-accent-yellow) 12%,transparent)}
-.schema-field__input,.schema-field__select,.schema-field__raw textarea,.schema-field__additional input{width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--da-border);border-radius:8px;outline:none;background:var(--da-surface-input);color:var(--da-text-primary);font-family:inherit;font-size:14px;line-height:1.4;transition:border-color .15s ease,box-shadow .15s ease}
-.schema-field__input,.schema-field__select,.schema-field__additional input{height:40px;padding:0 10px}
+.schema-field__input,.schema-field__select,.schema-field__raw textarea,.schema-field__additional input,.schema-field__custom-answer input{width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--da-border);border-radius:8px;outline:none;background:var(--da-surface-input);color:var(--da-text-primary);font-family:inherit;font-size:14px;line-height:1.4;transition:border-color .15s ease,box-shadow .15s ease}
+.schema-field__input,.schema-field__select,.schema-field__additional input,.schema-field__custom-answer input{height:40px;padding:0 10px}
 .schema-field__raw textarea{padding:9px 10px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
-.schema-field__input:focus,.schema-field__select:focus,.schema-field__raw textarea:focus,.schema-field__additional input:focus{border-color:color-mix(in srgb,var(--da-accent-yellow) 42%,var(--da-border));box-shadow:0 0 0 3px color-mix(in srgb,var(--da-accent-yellow) 6%,transparent)}
+.schema-field__input:focus,.schema-field__select:focus,.schema-field__raw textarea:focus,.schema-field__additional input:focus,.schema-field__custom-answer input:focus{border-color:color-mix(in srgb,var(--da-accent-yellow) 42%,var(--da-border));box-shadow:0 0 0 3px color-mix(in srgb,var(--da-accent-yellow) 6%,transparent)}
 .schema-field__object{display:flex;flex-direction:column;gap:13px;padding:10px;border:1px solid color-mix(in srgb,var(--da-border) 82%,transparent);border-radius:9px;background:color-mix(in srgb,var(--da-surface-deep) 55%,transparent)}
 .schema-field__extra{padding:9px;border:1px dashed var(--da-border);border-radius:8px}.schema-field__extra-head{margin-bottom:7px;display:flex;align-items:center;justify-content:space-between;color:var(--da-text-secondary);font-size:12px}.schema-field__extra-head button{min-height:28px;padding:0 8px;font-size:11px}
-.schema-field__additional{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}.schema-field__additional button{min-width:86px}
+.schema-field__additional,.schema-field__custom-answer{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}.schema-field__additional button,.schema-field__custom-answer button{min-width:74px}
+.schema-field__custom-values{display:flex;flex-wrap:wrap;gap:6px}.schema-field__custom-values>span{display:inline-flex;align-items:center;gap:5px;padding:5px 7px;border:1px solid var(--da-border);border-radius:7px;background:var(--da-surface-deep);color:var(--da-text-secondary);font-size:12px}.schema-field__custom-values button{width:16px;height:16px;padding:0;border:0;background:transparent;color:var(--da-text-muted);cursor:pointer}
 .schema-field__array{display:flex;flex-direction:column;gap:9px}
 .schema-field__array-item{padding:10px;border:1px solid var(--da-border);border-radius:9px;background:color-mix(in srgb,var(--da-surface-deep) 45%,transparent)}
 .schema-field__array-head{margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;color:var(--da-text-muted);font-size:12px}
@@ -409,5 +462,5 @@ function variantLabel(variant: JsonSchema, index: number) {
 .schema-field__raw-actions button{min-height:30px;font-size:12px}
 .schema-field__error{color:#F1A1AE;font-size:12px;line-height:1.4}
 button:disabled,input:disabled,select:disabled,textarea:disabled{opacity:.46;cursor:not-allowed}
-@media(max-width:540px){.schema-field__choices button{flex:1 1 calc(50% - 4px);min-width:0}.schema-field__object{padding:8px}.schema-field__additional{grid-template-columns:1fr}.schema-field__additional button{width:100%}}
+@media(max-width:540px){.schema-field__choices button{flex:1 1 calc(50% - 4px);min-width:0}.schema-field__object{padding:8px}.schema-field__additional,.schema-field__custom-answer{grid-template-columns:1fr}.schema-field__additional button,.schema-field__custom-answer button{width:100%}}
 </style>
