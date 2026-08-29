@@ -31,10 +31,11 @@ export function normalizeSchema(schema: JsonSchema | undefined | null): JsonSche
 
   for (const part of schema.allOf) {
     const normalized = normalizeSchema(part)
-    Object.assign(merged, normalized)
-    if (normalized.properties && typeof normalized.properties === 'object') {
-      Object.assign(properties, normalized.properties)
+    for (const [key, value] of Object.entries(normalized)) {
+      if (key === 'properties' || key === 'required') continue
+      merged[key] = value
     }
+    if (normalized.properties && typeof normalized.properties === 'object') Object.assign(properties, normalized.properties)
     if (Array.isArray(normalized.required)) normalized.required.forEach((item: unknown) => required.add(String(item)))
   }
 
@@ -79,7 +80,8 @@ export function schemaAllowsNull(schema: JsonSchema | undefined | null) {
   const normalized = normalizeSchema(schema)
   if (normalized.nullable === true) return true
   if (Array.isArray(normalized.type) && normalized.type.includes('null')) return true
-  return Array.isArray(normalized.anyOf) && normalized.anyOf.some((item: JsonSchema) => item?.type === 'null')
+  return [...(Array.isArray(normalized.anyOf) ? normalized.anyOf : []), ...(Array.isArray(normalized.oneOf) ? normalized.oneOf : [])]
+    .some((item: JsonSchema) => item?.type === 'null')
 }
 
 export function inferSchemaType(schema: JsonSchema | undefined | null): string {
@@ -87,7 +89,7 @@ export function inferSchemaType(schema: JsonSchema | undefined | null): string {
   if (typeof normalized.type === 'string') return normalized.type
   if (Array.isArray(normalized.type)) return normalized.type.find((item: unknown) => item !== 'null') ?? 'null'
   if (normalized.properties && typeof normalized.properties === 'object') return 'object'
-  if (normalized.items) return 'array'
+  if (normalized.items !== undefined || normalized.prefixItems) return 'array'
   if (Object.prototype.hasOwnProperty.call(normalized, 'const')) {
     if (normalized.const === null) return 'null'
     if (Array.isArray(normalized.const)) return 'array'
@@ -131,11 +133,13 @@ function structuredCloneSafe<T>(value: T): T {
 
 export function schemaInputType(schema: JsonSchema | undefined | null) {
   const normalized = normalizeSchema(schema)
-  if (inferSchemaType(normalized) === 'number' || inferSchemaType(normalized) === 'integer') return 'number'
+  const type = inferSchemaType(normalized)
+  if (type === 'number' || type === 'integer') return 'number'
   if (normalized.format === 'email') return 'email'
-  if (normalized.format === 'uri' || normalized.format === 'url') return 'url'
+  if (normalized.format === 'uri' || normalized.format === 'url' || normalized.format === 'uri-reference') return 'url'
   if (normalized.format === 'date') return 'date'
   if (normalized.format === 'time') return 'time'
+  if (normalized.format === 'date-time') return 'datetime-local'
   if (normalized.format === 'password') return 'password'
   return 'text'
 }
@@ -147,6 +151,20 @@ function typeMatches(type: string, value: any) {
   if (type === 'integer') return typeof value === 'number' && Number.isInteger(value)
   if (type === 'number') return typeof value === 'number' && Number.isFinite(value)
   return typeof value === type
+}
+
+function validateVariants(normalized: JsonSchema, value: any, path: string) {
+  const errors: string[] = []
+  if (Array.isArray(normalized.oneOf) && normalized.oneOf.length) {
+    const count = normalized.oneOf.filter((variant: JsonSchema) => validateSchemaValue(variant, value, path).length === 0).length
+    if (count !== 1) errors.push(`${path}必须匹配且仅匹配一个可选结构`)
+  }
+  if (Array.isArray(normalized.anyOf) && normalized.anyOf.length) {
+    const count = normalized.anyOf.filter((variant: JsonSchema) => validateSchemaValue(variant, value, path).length === 0).length
+    if (count < 1) errors.push(`${path}不匹配任何允许的结构`)
+  }
+  if (normalized.not && validateSchemaValue(normalized.not, value, path).length === 0) errors.push(`${path}命中了禁止的结构`)
+  return errors
 }
 
 export function validateSchemaValue(schema: JsonSchema | undefined | null, value: any, path = '响应'): string[] {
@@ -162,24 +180,14 @@ export function validateSchemaValue(schema: JsonSchema | undefined | null, value
     return errors
   }
 
-  if (Object.prototype.hasOwnProperty.call(normalized, 'const') && !jsonEqual(value, normalized.const)) {
-    errors.push(`${path}必须为指定值`)
-  }
-  if (Array.isArray(normalized.enum) && !normalized.enum.some((item: any) => jsonEqual(item, value))) {
-    errors.push(`${path}不是允许的选项`)
-  }
-
-  const variants = variantsFor(normalized)
-  if (variants.length) {
-    const validCount = variants.filter(variant => validateSchemaValue(variant, value, path).length === 0).length
-    if (Array.isArray(normalized.oneOf) && validCount !== 1) errors.push(`${path}必须匹配且仅匹配一个可选结构`)
-    if (Array.isArray(normalized.anyOf) && validCount < 1) errors.push(`${path}不匹配任何允许的结构`)
-  }
+  if (Object.prototype.hasOwnProperty.call(normalized, 'const') && !jsonEqual(value, normalized.const)) errors.push(`${path}必须为指定值`)
+  if (Array.isArray(normalized.enum) && !normalized.enum.some((item: any) => jsonEqual(item, value))) errors.push(`${path}不是允许的选项`)
+  errors.push(...validateVariants(normalized, value, path))
 
   const type = inferSchemaType(normalized)
   if (type !== 'json' && !typeMatches(type, value)) {
     errors.push(`${path}类型应为 ${type}`)
-    return errors
+    return [...new Set(errors)]
   }
 
   if (type === 'string') {
@@ -199,30 +207,56 @@ export function validateSchemaValue(schema: JsonSchema | undefined | null, value
     if (typeof normalized.maximum === 'number' && value > normalized.maximum) errors.push(`${path}不能大于 ${normalized.maximum}`)
     if (typeof normalized.exclusiveMinimum === 'number' && value <= normalized.exclusiveMinimum) errors.push(`${path}必须大于 ${normalized.exclusiveMinimum}`)
     if (typeof normalized.exclusiveMaximum === 'number' && value >= normalized.exclusiveMaximum) errors.push(`${path}必须小于 ${normalized.exclusiveMaximum}`)
+    if (typeof normalized.multipleOf === 'number' && normalized.multipleOf !== 0) {
+      const quotient = value / normalized.multipleOf
+      if (Math.abs(quotient - Math.round(quotient)) > Number.EPSILON * 100) errors.push(`${path}必须是 ${normalized.multipleOf} 的倍数`)
+    }
   }
 
   if (type === 'array') {
     if (typeof normalized.minItems === 'number' && value.length < normalized.minItems) errors.push(`${path}至少选择/填写 ${normalized.minItems} 项`)
     if (typeof normalized.maxItems === 'number' && value.length > normalized.maxItems) errors.push(`${path}最多选择/填写 ${normalized.maxItems} 项`)
     if (normalized.uniqueItems && new Set(value.map((item: any) => JSON.stringify(item))).size !== value.length) errors.push(`${path}不能包含重复项`)
-    if (normalized.items && !Array.isArray(normalized.items)) {
-      value.forEach((item: any, index: number) => errors.push(...validateSchemaValue(normalized.items, item, `${path}[${index + 1}]`)))
+
+    const tuple = Array.isArray(normalized.prefixItems)
+      ? normalized.prefixItems
+      : Array.isArray(normalized.items)
+        ? normalized.items
+        : []
+    tuple.forEach((itemSchema: JsonSchema, index: number) => {
+      if (index < value.length) errors.push(...validateSchemaValue(itemSchema, value[index], `${path}[${index + 1}]`))
+    })
+
+    if (normalized.items === false && value.length > tuple.length) errors.push(`${path}包含超出定义的数组项`)
+    if (normalized.items && normalized.items !== false && !Array.isArray(normalized.items)) {
+      const start = tuple.length
+      for (let index = start; index < value.length; index += 1) {
+        errors.push(...validateSchemaValue(normalized.items, value[index], `${path}[${index + 1}]`))
+      }
     }
   }
 
   if (type === 'object') {
+    const keys = Object.keys(value)
+    if (typeof normalized.minProperties === 'number' && keys.length < normalized.minProperties) errors.push(`${path}至少需要 ${normalized.minProperties} 个字段`)
+    if (typeof normalized.maxProperties === 'number' && keys.length > normalized.maxProperties) errors.push(`${path}最多允许 ${normalized.maxProperties} 个字段`)
+
     const required = new Set(Array.isArray(normalized.required) ? normalized.required.map(String) : [])
     for (const key of required) {
-      if (!Object.prototype.hasOwnProperty.call(value, key) || value[key] === undefined || value[key] === '') {
-        errors.push(`${path}.${key} 为必填项`)
-      }
+      if (!Object.prototype.hasOwnProperty.call(value, key) || value[key] === undefined || value[key] === '') errors.push(`${path}.${key} 为必填项`)
     }
-    for (const [key, childSchema] of Object.entries(normalized.properties ?? {})) {
+
+    const properties = normalized.properties ?? {}
+    for (const [key, childSchema] of Object.entries(properties)) {
       if (value[key] !== undefined) errors.push(...validateSchemaValue(childSchema as JsonSchema, value[key], `${path}.${key}`))
     }
+
+    const allowed = new Set(Object.keys(properties))
+    const extras = keys.filter(key => !allowed.has(key))
     if (normalized.additionalProperties === false) {
-      const allowed = new Set(Object.keys(normalized.properties ?? {}))
-      for (const key of Object.keys(value)) if (!allowed.has(key)) errors.push(`${path}.${key} 不是允许的字段`)
+      extras.forEach(key => errors.push(`${path}.${key} 不是允许的字段`))
+    } else if (normalized.additionalProperties && typeof normalized.additionalProperties === 'object') {
+      extras.forEach(key => errors.push(...validateSchemaValue(normalized.additionalProperties, value[key], `${path}.${key}`)))
     }
   }
 
