@@ -34,6 +34,7 @@ test('new conversation uses the concise welcome and has no duplicate header acti
 
   const welcome = page.locator('.conversation-welcome')
   await expect(welcome).toBeVisible()
+  await expect(page.getByText('我是 Data Agent，你的 SA 数据需求开发与交付助手。', { exact: true })).toHaveCount(0)
   await expect(welcome.getByText('DATA AGENT', { exact: true })).toBeVisible()
   await expect(welcome.getByText('描述你的数据业务目标，我将与你逐步澄清需求，并自主完成Specification、数据方案、数据集成、ETL开发、治理验证与交付。', { exact: true })).toBeVisible()
   await expect(welcome.getByText('从一个清晰的数据目标开始', { exact: true })).toHaveCount(0)
