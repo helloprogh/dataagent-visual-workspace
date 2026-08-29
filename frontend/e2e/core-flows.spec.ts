@@ -35,6 +35,28 @@ async function seed(page: Page, options?: { active?: string; twoConversations?: 
 async function mockBaseApi(page: Page, handler?: (route: Route, url: URL) => Promise<boolean> | boolean) {
   await page.route('**/dataagent/web/api/**', async route => {
     const url = new URL(route.request().url())
+
+    // Existing explicit threads perform a CopilotChat connect/bootstrap run on
+    // mount. That is not the user run under test. Keep bootstrap successful so
+    // HITL cases only interrupt the request that actually carries a user
+    // message; resume requests are still delegated to the test handler.
+    if (route.request().method() === 'POST' && url.pathname.endsWith('/agui')) {
+      const body = route.request().postDataJSON() as any
+      const hasResume = Array.isArray(body.resume) && body.resume.length > 0
+      const hasUserMessage = Array.isArray(body.messages)
+        && body.messages.some((message: any) => message?.role === 'user')
+      if (!hasResume && !hasUserMessage) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'text/event-stream',
+          body: sse([
+            { type: 'RUN_STARTED', threadId: body.threadId, runId: body.runId },
+            { type: 'RUN_FINISHED', threadId: body.threadId, runId: body.runId, outcome: { type: 'success' } },
+          ]),
+        })
+      }
+    }
+
     if (handler && await handler(route, url)) return
     if (route.request().method() === 'GET' && url.pathname.endsWith('/model')) {
       return json(route, { data: [
