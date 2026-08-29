@@ -60,6 +60,30 @@ watch(hasInterrupt, active => {
   }
 }, { immediate: true })
 
+async function runResume(interrupts: Interrupt[]) {
+  const currentAgent = agent.value
+  if (!currentAgent) throw new Error('当前会话运行时不可用，请重试。')
+
+  const resume = buildResumeArray(interrupts, responses)
+  let runError: Error | null = null
+  const subscription = copilotkit.value.subscribe({
+    onError: event => {
+      const eventAgentId = event.context?.agentId
+      if (!eventAgentId || eventAgentId === currentAgent.agentId) {
+        runError = event.error instanceof Error ? event.error : new Error(String(event.error))
+      }
+    },
+  })
+
+  try {
+    const result = await copilotkit.value.runAgent({ agent: currentAgent, resume })
+    if (runError) throw runError
+    return result
+  } finally {
+    subscription.unsubscribe()
+  }
+}
+
 async function submitIfComplete() {
   const interrupts = openInterrupts()
   if (!interrupts.length || !interrupts.every(item => responses[item.id])) return
@@ -70,12 +94,11 @@ async function submitIfComplete() {
     throw new Error(`该请求已过期（${expired.expiresAt ?? '未知时间'}），请重新发起。`)
   }
 
-  const currentAgent = agent.value
-  if (!currentAgent) throw new Error('当前会话运行时不可用，请重试。')
-
-  const resume = buildResumeArray(interrupts, responses)
-  clearResponses()
-  return copilotkit.value.runAgent({ agent: currentAgent, resume })
+  try {
+    return await runResume(interrupts)
+  } finally {
+    clearResponses()
+  }
 }
 
 async function resolve(payload?: unknown, interruptId?: string) {
