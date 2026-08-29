@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { CopilotChat, CopilotChatInput, CopilotChatMessageView, useAgent } from '@copilotkit/vue/v2'
 import type { AbstractAgent, Message } from '@ag-ui/client'
 import { ElMessage } from 'element-plus'
-import { fetchConversationMessages } from '../../conversations/history-api'
+import { fetchConversationMessagePage } from '../../conversations/history-api'
 import { conversationRepository, deriveConversationName } from '../../conversations/local-repository'
 import { createOpenCodeConversation, interruptOpenCodeConversation } from '../../conversations/opencode-session'
 import { setSelectedModel, type ModelSelection } from '../../model/model-selection'
@@ -31,6 +31,7 @@ const emit = defineEmits<{
 
 const hydrated = ref(false)
 const hasMessages = ref(false)
+const chatRoot = ref<HTMLElement | null>(null)
 // CopilotChat resolves a dedicated agent clone for every thread. Resolve that
 // same clone here; hydrating the shared registry agent leaves the chat's clone
 // empty and makes persisted history appear to be lost.
@@ -51,8 +52,13 @@ let currentThreadId = ''
 let currentAgentDirty = false
 let agentSubscription: { unsubscribe: () => void } | null = null
 let historyAbort: AbortController | undefined
+let historyNextCursor: string | undefined
+let historyScroller: HTMLElement | null = null
+let loadingOlderHistory = false
+let historyMutation = false
 let hydrationGeneration = 0
 
+const HISTORY_TOP_THRESHOLD = 96
 const pendingDraftFiles = new Map<string, { file: File; previewUrl: string }>()
 const chatLabels = computed(() => ({
   chatInputPlaceholder: '描述你的数据需求或业务目标',
@@ -199,9 +205,106 @@ function persistSnapshot(threadId: string, target: AbstractAgent, immediate = fa
   persistTimer = window.setTimeout(save, 100)
 }
 
+function detachHistoryScroller() {
+  historyScroller?.removeEventListener('scroll', handleHistoryScroll)
+  historyScroller = null
+}
+
+function resetHistoryPaging() {
+  detachHistoryScroller()
+  historyNextCursor = undefined
+  loadingOlderHistory = false
+  historyMutation = false
+}
+
+function bindHistoryScroller() {
+  detachHistoryScroller()
+  const scroller = chatRoot.value?.querySelector<HTMLElement>('[data-testid="copilot-chat-view-scroll"]') ?? null
+  if (!scroller) return
+  historyScroller = scroller
+  scroller.addEventListener('scroll', handleHistoryScroll, { passive: true })
+}
+
+function scheduleHistoryScrollerBinding() {
+  void nextTick().then(() => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        if (!hydrated.value) return
+        bindHistoryScroller()
+        const scroller = historyScroller
+        if (scroller && historyNextCursor && scroller.scrollHeight <= scroller.clientHeight + 2) {
+          void loadOlderHistory()
+        }
+      })
+    })
+  })
+}
+
+function handleHistoryScroll() {
+  if (!historyScroller || !historyNextCursor || loadingOlderHistory || historyMutation) return
+  if (historyScroller.scrollTop <= HISTORY_TOP_THRESHOLD) void loadOlderHistory()
+}
+
+async function loadOlderHistory() {
+  const cursor = historyNextCursor
+  const target = currentAgent
+  const threadId = currentThreadId
+  if (!cursor || !target || !threadId || loadingOlderHistory) return
+
+  const generation = hydrationGeneration
+  const scroller = historyScroller
+  const beforeHeight = scroller?.scrollHeight ?? 0
+  const beforeTop = scroller?.scrollTop ?? 0
+  const controller = new AbortController()
+  historyAbort = controller
+  loadingOlderHistory = true
+  let continueLoading = false
+
+  try {
+    const page = await fetchConversationMessagePage(threadId, cursor, controller.signal)
+    if (generation !== hydrationGeneration || currentAgent !== target || currentThreadId !== threadId) return
+
+    historyNextCursor = page.nextCursor
+    const knownIds = new Set(target.messages.map(message => message.id))
+    const olderMessages = page.messages.filter(message => !knownIds.has(message.id))
+
+    if (olderMessages.length) {
+      const merged = [...olderMessages, ...target.messages]
+      historyMutation = true
+      target.setMessages(merged)
+      conversationRepository.saveHydratedMessages(threadId, merged)
+      hasMessages.value = true
+      emit('changed')
+      await nextTick()
+
+      if (generation !== hydrationGeneration || currentAgent !== target || currentThreadId !== threadId) return
+      if (scroller && historyScroller === scroller) {
+        window.requestAnimationFrame(() => {
+          if (historyScroller !== scroller) return
+          const heightDelta = Math.max(0, scroller.scrollHeight - beforeHeight)
+          scroller.scrollTop = beforeTop + heightDelta
+        })
+      }
+    } else {
+      continueLoading = Boolean(historyNextCursor)
+    }
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') return
+    if (generation !== hydrationGeneration || currentAgent !== target || currentThreadId !== threadId) return
+    ElMessage.warning(error instanceof Error ? error.message : String(error))
+  } finally {
+    historyMutation = false
+    loadingOlderHistory = false
+    if (historyAbort === controller) historyAbort = undefined
+  }
+
+  if (continueLoading) void loadOlderHistory()
+}
+
 function releaseCurrentAgent() {
   historyAbort?.abort()
   historyAbort = undefined
+  resetHistoryPaging()
   const threadId = currentThreadId || materializedSessionId.value
   if (currentAgent && threadId && currentAgentDirty) persistSnapshot(threadId, currentAgent, true)
   agentSubscription?.unsubscribe()
@@ -225,6 +328,7 @@ function subscribeToAgent(target: AbstractAgent) {
       }
     },
     onMessagesChanged: ({ agent: changedAgent }) => {
+      if (historyMutation) return
       const targetId = effectiveSessionId()
       currentAgentDirty = true
       if (targetId) persistSnapshot(targetId, changedAgent)
@@ -251,12 +355,15 @@ async function hydrateConversation(
   if (workspace) target.setState({ ...(target.state ?? {}), workspace })
 
   let messages = conversation?.messages ?? []
+  historyNextCursor = undefined
   const shouldFetchHistory = Boolean(threadId && threadId !== materializedSessionId.value)
   if (shouldFetchHistory) {
     const controller = new AbortController()
     historyAbort = controller
     try {
-      messages = await fetchConversationMessages(threadId, controller.signal)
+      const page = await fetchConversationMessagePage(threadId, undefined, controller.signal)
+      messages = page.messages
+      historyNextCursor = page.nextCursor
       if (generation !== hydrationGeneration || currentAgent !== target || currentThreadId !== threadId) return
       conversationRepository.saveHydratedMessages(threadId, messages)
       emit('changed')
@@ -265,7 +372,7 @@ async function hydrateConversation(
       if (generation !== hydrationGeneration || currentAgent !== target || currentThreadId !== threadId) return
       ElMessage.warning(
         messages.length
-          ? '历史消息加载失败，已显示本地缓存'
+          ? '历史消息加载失败，已显示当前页面内存中的消息'
           : (error instanceof Error ? error.message : String(error)),
       )
     } finally {
@@ -281,6 +388,7 @@ async function hydrateConversation(
   currentAgentDirty = false
   subscribeToAgent(target)
   hydrated.value = true
+  scheduleHistoryScrollerBinding()
 }
 
 watch([agent, () => props.threadId, () => props.draft], ([nextAgent, nextThreadId, isDraft]) => {
@@ -384,6 +492,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div
+    ref="chatRoot"
     class="conversation-chat visual-chat dark"
     :class="{
       'has-interrupts': hasInterrupts,
