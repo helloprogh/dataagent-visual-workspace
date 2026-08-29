@@ -32,3 +32,31 @@ test('OpenCode2 permissions become schema-valid AG-UI interrupt outcomes', () =>
     data: { sessionID: 'ses-schema', id: 'permission-1', action: 'shell' },
   }))
 })
+
+test('OpenCode2 questions become schema-valid AG-UI interrupt outcomes', () => {
+  const converter = new OpenCodeAguiConverter({ threadId: 'thread-schema', runId: 'run-schema', sessionId: 'ses-schema' })
+  validate(converter.start())
+  validate(converter.convert({
+    type: 'question.asked',
+    data: {
+      sessionID: 'ses-schema',
+      id: 'question-1',
+      questions: [
+        {
+          header: '环境',
+          question: '请选择环境',
+          options: [{ label: '测试' }, { label: '生产' }],
+          multiple: false,
+          custom: false,
+        },
+        {
+          header: '范围',
+          question: '请选择范围',
+          options: [{ label: '表' }, { label: '视图' }],
+          multiple: true,
+          custom: true,
+        },
+      ],
+    },
+  }))
+})
