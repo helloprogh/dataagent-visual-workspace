@@ -228,18 +228,16 @@ export class OpenCodeClient {
     }, 'Unable to reply to OpenCode permission')
   }
 
-  async replyQuestion(requestId, answers) {
-    const suffix = querySuffix({ directory: this.workspaceDirectory })
-    return this.json(`/api/question/${encodeURIComponent(requestId)}/reply${suffix}`, {
+  async replyQuestion(sessionId, requestId, answers) {
+    return this.json(`/api/session/${encodeURIComponent(sessionId)}/question/${encodeURIComponent(requestId)}/reply`, {
       method: 'POST',
       headers: jsonHeaders,
       body: JSON.stringify({ answers }),
     }, 'Unable to reply to OpenCode question')
   }
 
-  async rejectQuestion(requestId) {
-    const suffix = querySuffix({ directory: this.workspaceDirectory })
-    return this.json(`/api/question/${encodeURIComponent(requestId)}/reject${suffix}`, {
+  async rejectQuestion(sessionId, requestId) {
+    return this.json(`/api/session/${encodeURIComponent(sessionId)}/question/${encodeURIComponent(requestId)}/reject`, {
       method: 'POST',
     }, 'Unable to reject OpenCode question')
   }
