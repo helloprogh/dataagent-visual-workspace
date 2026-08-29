@@ -4,7 +4,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { CopilotKitProvider } from '@copilotkit/vue/v2'
 import { createAgentRuntime } from './copilot/agent'
 import { conversationRepository } from './conversations/local-repository'
-import { createOpenCodeConversation } from './conversations/opencode-session'
 import type { ConversationRecord } from './conversations/types'
 import { workspaceController } from './workspace/store'
 import GenUIBridge from './components/GenUIBridge.vue'
@@ -27,17 +26,22 @@ const activeId = ref(localStorage.getItem(ACTIVE_CONVERSATION_KEY) ?? '')
 const renderAreaRequested = ref(false)
 const renderAreaDismissed = ref(false)
 const activePage = ref<AppPage>('chat')
-const creatingConversation = ref(false)
 
 function refreshConversations() {
   conversations.value = conversationRepository.list()
 }
 
-async function ensureConversation() {
+function startNewConversation() {
+  activeId.value = ''
+  activePage.value = 'chat'
+  renderAreaRequested.value = false
+  renderAreaDismissed.value = false
+}
+
+function ensureConversation() {
   refreshConversations()
   if (conversations.value.length === 0) {
-    activeId.value = ''
-    await createConversation()
+    startNewConversation()
     return
   }
   if (!activeId.value || !conversationRepository.get(activeId.value)) {
@@ -45,7 +49,7 @@ async function ensureConversation() {
   }
 }
 
-if (!galleryMode) void ensureConversation()
+if (!galleryMode) ensureConversation()
 watch(activeId, id => {
   if (galleryMode) return
   renderAreaRequested.value = false
@@ -73,20 +77,13 @@ watch(() => workspaceController.state.presentationEpoch, () => {
   renderAreaDismissed.value = false
 })
 
-async function createConversation() {
-  if (creatingConversation.value) return
-  creatingConversation.value = true
-  try {
-    const sessionId = await createOpenCodeConversation()
-    const created = conversationRepository.create(sessionId)
-    activeId.value = created.id
-    activePage.value = 'chat'
-    refreshConversations()
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : String(error))
-  } finally {
-    creatingConversation.value = false
-  }
+function materializeConversation(sessionId: string) {
+  const id = sessionId.trim()
+  if (!id) return
+  if (!conversationRepository.get(id)) conversationRepository.create(id)
+  activeId.value = id
+  activePage.value = 'chat'
+  refreshConversations()
 }
 
 function selectConversation(id: string) {
@@ -121,7 +118,7 @@ async function removeConversation(id: string) {
     })
     conversationRepository.remove(id)
     if (activeId.value === id) activeId.value = ''
-    await ensureConversation()
+    ensureConversation()
     ElMessage.success('已删除')
   } catch {
     // cancelled
@@ -148,7 +145,7 @@ function autoRename(name: string) {
           :conversations="conversations"
           :active-id="activeId"
           :active-page="activePage"
-          @create="createConversation"
+          @create="startNewConversation"
           @select="selectConversation"
           @rename="renameConversation"
           @remove="removeConversation"
@@ -164,7 +161,8 @@ function autoRename(name: string) {
             :agent-id="runtime.agentId"
             :agent-display-name="runtime.displayName"
             :active-conversation="activeConversation"
-            @create="createConversation"
+            @create="startNewConversation"
+            @materialized="materializeConversation"
             @changed="refreshConversations"
             @auto-rename="autoRename"
           />
@@ -173,7 +171,7 @@ function autoRename(name: string) {
             v-else-if="activePage === 'history'"
             :conversations="conversations"
             :active-id="activeId"
-            @create="createConversation"
+            @create="startNewConversation"
             @select="selectConversation"
             @rename="renameConversation"
             @remove="removeConversation"
