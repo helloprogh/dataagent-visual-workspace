@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { CopilotChat, CopilotChatInput, CopilotChatMessageView, useAgent } from '@copilotkit/vue/v2'
-import type { AbstractAgent } from '@ag-ui/client'
+import type { AbstractAgent, Message } from '@ag-ui/client'
 import { ElMessage } from 'element-plus'
 import { conversationRepository, deriveConversationName } from '../../conversations/local-repository'
 import { createOpenCodeConversation, interruptOpenCodeConversation } from '../../conversations/opencode-session'
@@ -87,7 +87,7 @@ async function prepareAttachment(file: File) {
 
   // A new conversation has no backend session yet. Keep the File only in
   // browser memory and give CopilotKit a local preview source. The real upload
-  // happens inside the first-send transaction after session creation.
+  // is deferred until the first agent run, after the session has been created.
   const token = draftToken()
   const previewUrl = URL.createObjectURL(file)
   pendingDraftFiles.set(token, { file, previewUrl })
@@ -145,27 +145,38 @@ async function uploadAttachment(file: File, threadId: string) {
   }
 }
 
-async function uploadStagedAttachments(threadId: string, attachments: unknown[]) {
-  for (const rawAttachment of attachments) {
-    const attachment = rawAttachment as {
-      source?: { type?: string; value?: string; mimeType?: string }
-      metadata?: Record<string, unknown>
-    }
-    const token = attachment.metadata?.draftUploadToken
-    if (typeof token !== 'string') continue
-    const staged = pendingDraftFiles.get(token)
-    if (!staged) continue
+async function materializeDraftAttachments(threadId: string, messages: Message[]): Promise<Message[] | undefined> {
+  if (!pendingDraftFiles.size) return undefined
+  const next = structuredClone(messages) as Message[]
+  let changed = false
 
-    const uploaded = await uploadAttachment(staged.file, threadId)
-    attachment.source = {
-      type: uploaded.type,
-      value: uploaded.value,
-      mimeType: uploaded.mimeType,
+  for (const message of next) {
+    if (!Array.isArray(message.content)) continue
+    for (const rawPart of message.content) {
+      if (!rawPart || typeof rawPart !== 'object') continue
+      const part = rawPart as {
+        source?: { type?: string; value?: string; mimeType?: string }
+        metadata?: Record<string, unknown>
+      }
+      const token = part.metadata?.draftUploadToken
+      if (typeof token !== 'string') continue
+      const staged = pendingDraftFiles.get(token)
+      if (!staged) continue
+
+      const uploaded = await uploadAttachment(staged.file, threadId)
+      part.source = {
+        type: uploaded.type,
+        value: uploaded.value,
+        mimeType: uploaded.mimeType,
+      }
+      part.metadata = uploaded.metadata
+      URL.revokeObjectURL(staged.previewUrl)
+      pendingDraftFiles.delete(token)
+      changed = true
     }
-    attachment.metadata = uploaded.metadata
-    URL.revokeObjectURL(staged.previewUrl)
-    pendingDraftFiles.delete(token)
   }
+
+  return changed ? next : undefined
 }
 
 function persistSnapshot(threadId: string, target: AbstractAgent, immediate = false) {
@@ -226,6 +237,17 @@ watch([agent, () => props.threadId, () => props.draft], ([nextAgent, nextThreadI
   const workspace = threadId ? workspaceController.snapshot() : null
   if (workspace) nextAgent.setState({ ...(nextAgent.state ?? {}), workspace })
   agentSubscription = nextAgent.subscribe({
+    onRunInitialized: async ({ messages }) => {
+      const targetId = effectiveSessionId()
+      if (!targetId || !pendingDraftFiles.size) return
+      try {
+        const nextMessages = await materializeDraftAttachments(targetId, messages)
+        return nextMessages ? { messages: nextMessages } : undefined
+      } catch (error) {
+        ElMessage.error(error instanceof Error ? error.message : String(error))
+        throw error
+      }
+    },
     onMessagesChanged: ({ agent: changedAgent }) => {
       const targetId = effectiveSessionId()
       if (targetId) persistSnapshot(targetId, changedAgent)
@@ -240,12 +262,9 @@ watch([agent, () => props.threadId, () => props.draft], ([nextAgent, nextThreadI
   hydrated.value = true
 }, { immediate: true })
 
-async function ensureSessionForFirstSend(value: string, attachments: unknown[]) {
+async function ensureSessionForFirstSend(value: string) {
   const existing = effectiveSessionId()
-  if (existing) {
-    await uploadStagedAttachments(existing, attachments)
-    return existing
-  }
+  if (existing) return existing
   if (!props.draft) throw new Error('当前会话缺少 sessionId')
   if (!draftModel.value) throw new Error('模型尚未加载完成，请稍后再发送')
   if (creatingSession.value) throw new Error('会话正在创建，请稍后重试')
@@ -262,21 +281,15 @@ async function ensureSessionForFirstSend(value: string, attachments: unknown[]) 
     setSelectedModel(sessionId, draftModel.value)
     conversationRepository.create(sessionId, deriveConversationName(value))
     emit('materialized', sessionId)
-
-    await uploadStagedAttachments(sessionId, attachments)
     return sessionId
   } finally {
     creatingSession.value = false
   }
 }
 
-async function handleInputSubmit(
-  value: string,
-  submit: (value: string) => void | Promise<void>,
-  attachments: unknown[],
-) {
+async function handleInputSubmit(value: string, submit: (value: string) => void | Promise<void>) {
   try {
-    await ensureSessionForFirstSend(value, attachments)
+    await ensureSessionForFirstSend(value)
     await submit(value)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : String(error))
@@ -373,11 +386,10 @@ onBeforeUnmount(() => {
               :is-running="inputProps.isRunning"
               :mode="inputProps.inputMode"
               :tools-menu="inputProps.inputToolsMenu"
-              :disabled="creatingSession || Boolean(draft && !draftModel)"
               class="conversation-composer__input"
               positioning="static"
               @update:model-value="inputProps.onUpdateModelValue"
-              @submit-message="handleInputSubmit($event, inputProps.onSubmitMessage, inputProps.attachments)"
+              @submit-message="handleInputSubmit($event, inputProps.onSubmitMessage)"
               @stop="handleInputStop(inputProps.onStop)"
               @add-file="inputProps.onAddFile"
               @start-transcribe="inputProps.onStartTranscribe"
@@ -393,7 +405,7 @@ onBeforeUnmount(() => {
                     :data-processing="isProcessing ? 'true' : 'false'"
                     :aria-label="isProcessing ? '停止生成' : '发送消息'"
                     :title="isProcessing ? '停止生成' : '发送消息'"
-                    :disabled="!isProcessing && disabled"
+                    :disabled="!isProcessing && (disabled || creatingSession || Boolean(draft && !draftModel))"
                     @click="isProcessing ? handleInputStop(inputProps.onStop) : onClick()"
                   >
                     <span class="conversation-composer__send-icon" aria-hidden="true"></span>
