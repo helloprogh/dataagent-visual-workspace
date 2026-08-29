@@ -1,9 +1,12 @@
 import type { Interrupt, Message, State } from '@ag-ui/client'
 import type { ConversationRecord, ConversationRepository, ConversationSessionSummary } from './types'
 
-const STORAGE_KEY = 'dataagent.conversations.v3.session-thread'
+const LEGACY_STORAGE_KEY = 'dataagent.conversations.v3.session-thread'
+const TITLE_OVERRIDES_KEY = 'dataagent.conversations.title-overrides.v1'
 const DEFAULT_NAME = '新需求'
 const GENERIC_NAMES = new Set([DEFAULT_NAME, '新对话', '新分析', 'AG-UI session'])
+
+let records: ConversationRecord[] = []
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -13,6 +16,45 @@ function isGenericName(value: string): boolean {
   return GENERIC_NAMES.has(value) || /^New session\s*-/i.test(value)
 }
 
+function readTitleOverrides(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(TITLE_OVERRIDES_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    return Object.fromEntries(
+      Object.entries(parsed).filter((entry): entry is [string, string] => (
+        typeof entry[0] === 'string' && typeof entry[1] === 'string' && Boolean(entry[1].trim())
+      )),
+    )
+  } catch {
+    return {}
+  }
+}
+
+function writeTitleOverrides(overrides: Record<string, string>) {
+  try {
+    if (Object.keys(overrides).length === 0) {
+      localStorage.removeItem(TITLE_OVERRIDES_KEY)
+      return
+    }
+    localStorage.setItem(TITLE_OVERRIDES_KEY, JSON.stringify(overrides))
+  } catch {
+    // Title overrides are optional UI preferences. Never fail conversation flows
+    // because browser storage is unavailable or full.
+  }
+}
+
+function purgeLegacyConversationCache() {
+  try {
+    localStorage.removeItem(LEGACY_STORAGE_KEY)
+  } catch {
+    // The application can operate without browser storage.
+  }
+}
+
+purgeLegacyConversationCache()
+
 export function compactReasoningMessages(messages: Message[]): Message[] {
   return messages.filter(message => {
     if (message.role !== 'reasoning') return true
@@ -21,18 +63,11 @@ export function compactReasoningMessages(messages: Message[]): Message[] {
 }
 
 function readAll(): ConversationRecord[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as ConversationRecord[]
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
+  return clone(records)
 }
 
-function writeAll(records: ConversationRecord[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(records))
+function writeAll(next: ConversationRecord[]) {
+  records = clone(next)
 }
 
 export class LocalConversationRepository implements ConversationRepository {
@@ -41,14 +76,14 @@ export class LocalConversationRepository implements ConversationRepository {
   }
 
   get(id: string): ConversationRecord | undefined {
-    const found = readAll().find(item => item.id === id)
+    const found = records.find(item => item.id === id)
     return found ? clone({ ...found, messages: compactReasoningMessages(found.messages) }) : undefined
   }
 
   create(id: string, displayName = DEFAULT_NAME): ConversationRecord {
     const sessionId = id.trim()
     if (!sessionId) throw new Error('sessionId is required')
-    const existing = readAll().find(item => item.id === sessionId)
+    const existing = records.find(item => item.id === sessionId)
     if (existing) return clone(existing)
 
     const now = Date.now()
@@ -60,73 +95,78 @@ export class LocalConversationRepository implements ConversationRepository {
       createdAt: now,
       updatedAt: now,
     }
-    const all = readAll()
-    all.unshift(record)
-    writeAll(all)
+    records.unshift(record)
     return clone(record)
   }
 
   syncSessions(sessions: ConversationSessionSummary[]): void {
-    const existing = new Map(readAll().map(item => [item.id, item]))
-    const records = sessions.map(session => {
-      const cached = existing.get(session.id)
+    const existing = new Map(records.map(item => [item.id, item]))
+    const titleOverrides = readTitleOverrides()
+    const sessionIds = new Set(sessions.map(item => item.id))
+
+    records = sessions.map(session => {
+      const current = existing.get(session.id)
       const remoteName = session.displayName.trim() || DEFAULT_NAME
-      const keepCachedName = cached
-        && !isGenericName(cached.displayName)
+      const override = titleOverrides[session.id]?.trim()
+      const keepTransientName = current
+        && !isGenericName(current.displayName)
         && isGenericName(remoteName)
+
       return {
         id: session.id,
         ...(session.parentId ? { parentId: session.parentId } : {}),
         ...(session.archivedAt != null ? { archivedAt: session.archivedAt } : {}),
-        displayName: keepCachedName ? cached.displayName : remoteName,
-        messages: cached?.messages ?? [],
-        state: cached?.state ?? {},
-        ...(cached?.pendingInterrupts ? { pendingInterrupts: cached.pendingInterrupts } : {}),
+        displayName: override || (keepTransientName ? current.displayName : remoteName),
+        messages: current?.messages ?? [],
+        state: current?.state ?? {},
+        ...(current?.pendingInterrupts ? { pendingInterrupts: current.pendingInterrupts } : {}),
         createdAt: session.createdAt,
-        updatedAt: session.updatedAt,
+        updatedAt: Math.max(session.updatedAt, current?.updatedAt ?? 0),
       }
     })
-    writeAll(records)
+
+    const cleanedOverrides = Object.fromEntries(
+      Object.entries(titleOverrides).filter(([id]) => sessionIds.has(id)),
+    )
+    if (Object.keys(cleanedOverrides).length !== Object.keys(titleOverrides).length) {
+      writeTitleOverrides(cleanedOverrides)
+    }
   }
 
   rename(id: string, displayName: string): void {
     const name = displayName.trim() || DEFAULT_NAME
-    const all = readAll()
-    const item = all.find(record => record.id === id)
+    const item = records.find(record => record.id === id)
     if (!item) return
     item.displayName = name
-    writeAll(all)
+
+    const overrides = readTitleOverrides()
+    overrides[id] = name
+    writeTitleOverrides(overrides)
   }
 
   saveSnapshot(id: string, messages: Message[], state: State): void {
-    const all = readAll()
-    const item = all.find(record => record.id === id)
+    const item = records.find(record => record.id === id)
     if (!item) return
     item.messages = clone(compactReasoningMessages(messages))
     item.state = clone(state)
     item.updatedAt = Date.now()
-    writeAll(all)
   }
 
   saveHydratedMessages(id: string, messages: Message[]): void {
-    const all = readAll()
-    const item = all.find(record => record.id === id)
+    const item = records.find(record => record.id === id)
     if (!item) return
     item.messages = clone(compactReasoningMessages(messages))
-    writeAll(all)
   }
 
   saveInterrupts(id: string, interrupts: Interrupt[]): void {
-    const all = readAll()
-    const item = all.find(record => record.id === id)
+    const item = records.find(record => record.id === id)
     if (!item) return
     item.pendingInterrupts = clone(interrupts)
     item.updatedAt = Date.now()
-    writeAll(all)
   }
 
   remove(id: string): void {
-    writeAll(readAll().filter(record => record.id !== id))
+    records = records.filter(record => record.id !== id)
   }
 }
 

@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
 
 const ACTIVE_KEY = 'dataagent.conversations.active.v2.session-thread'
-const CONVERSATIONS_KEY = 'dataagent.conversations.v3.session-thread'
+const LEGACY_CONVERSATIONS_KEY = 'dataagent.conversations.v3.session-thread'
 
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({
   status,
@@ -87,10 +87,20 @@ async function mockApis(page: Page, options: {
   })
 }
 
-test('loads OpenCode V2 sessions and hydrates the active conversation from V2 message history', async ({ page }) => {
+test('loads OpenCode V2 sessions and hydrates the active conversation from V2 message history without persisting conversations', async ({ page }) => {
   const listUrls: URL[] = []
   const messageUrls: URL[] = []
-  await page.addInitScript(activeKey => localStorage.setItem(activeKey, 'session-a'), ACTIVE_KEY)
+  await page.addInitScript(({ activeKey, legacyKey }) => {
+    localStorage.setItem(activeKey, 'session-a')
+    localStorage.setItem(legacyKey, JSON.stringify([{
+      id: 'legacy-session',
+      displayName: '旧缓存不应回显',
+      messages: [{ id: 'legacy-message', role: 'assistant', content: '旧缓存消息' }],
+      state: { large: 'legacy-state' },
+      createdAt: 1,
+      updatedAt: 1,
+    }]))
+  }, { activeKey: ACTIVE_KEY, legacyKey: LEGACY_CONVERSATIONS_KEY })
   await mockApis(page, {
     sessions: [
       {
@@ -120,6 +130,7 @@ test('loads OpenCode V2 sessions and hydrates the active conversation from V2 me
   await expect(page.getByText('远端订单分析', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('SQL 子 Agent', { exact: true })).toHaveCount(0)
   await expect(page.getByText('已归档需求', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('旧缓存不应回显', { exact: true })).toHaveCount(0)
   await expect(page.getByText('订单历史问题', { exact: true })).toBeVisible()
   await expect(page.getByText('订单历史回复', { exact: true })).toBeVisible()
   await page.getByTestId('agent-reasoning-card').getByRole('button').click()
@@ -132,13 +143,7 @@ test('loads OpenCode V2 sessions and hydrates the active conversation from V2 me
   expect(messageUrls).toHaveLength(1)
   expect(messageUrls[0].searchParams.get('order')).toBe('asc')
   expect(messageUrls[0].searchParams.get('limit')).toBe('200')
-
-  const cached = await page.evaluate(key => JSON.parse(localStorage.getItem(key) ?? '[]'), CONVERSATIONS_KEY)
-  expect(cached).toHaveLength(3)
-  expect(cached.find((item: any) => item.id === 'session-child')?.parentId).toBe('session-a')
-  expect(cached.find((item: any) => item.id === 'session-archived')?.archivedAt).toBe(1_780_000_200_000)
-  expect(cached.find((item: any) => item.id === 'session-a')?.messages.map((item: any) => item.role))
-    .toEqual(['user', 'reasoning', 'assistant'])
+  expect(await page.evaluate(key => localStorage.getItem(key), LEGACY_CONVERSATIONS_KEY)).toBeNull()
 })
 
 test('a slow V2 history response cannot overwrite a newer conversation selection', async ({ page }) => {
@@ -186,10 +191,7 @@ test('loads every V2 session page before sorting conversations by remote updated
   await page.goto('/')
   await expect(page.getByText('最近更新的老会话', { exact: true }).first()).toBeVisible()
   expect(listCalls).toBe(2)
-
-  const cached = await page.evaluate(key => JSON.parse(localStorage.getItem(key) ?? '[]'), CONVERSATIONS_KEY)
-  expect(cached).toHaveLength(201)
-  expect(cached[0].id).toBe('session-old-but-active')
+  expect(await page.evaluate(key => localStorage.getItem(key), LEGACY_CONVERSATIONS_KEY)).toBeNull()
 })
 
 test('loads all V2 message pages with cursor.next', async ({ page }) => {

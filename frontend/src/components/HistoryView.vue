@@ -11,7 +11,6 @@ const emit = defineEmits<{
   create: []
   select: [id: string]
   rename: [id: string]
-  remove: [id: string]
 }>()
 
 const keyword = ref('')
@@ -76,7 +75,6 @@ function fullTime(timestamp: number) {
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item @click="emit('rename', item.id)">重命名</el-dropdown-item>
-              <el-dropdown-item divided @click="emit('remove', item.id)">删除</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
