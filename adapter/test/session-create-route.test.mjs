@@ -51,3 +51,36 @@ test('POST /dataagent/web/api/session forwards the selected model to OpenCode se
     await close(server)
   }
 })
+
+test('conversation list and message history routes proxy OpenCode responses inside gateway data', async () => {
+  const calls = []
+  const sessions = [{ id: 'session-a', title: '订单分析', time: { created: 1, updated: 2 } }]
+  const messages = [{
+    info: { id: 'message-a', sessionID: 'session-a', role: 'user' },
+    parts: [{ type: 'text', text: '分析订单' }],
+  }]
+  const client = {
+    async json(pathname, init) {
+      calls.push({ pathname, method: init.method ?? 'GET' })
+      return pathname === '/api/session' ? sessions : messages
+    },
+  }
+  const server = createServer({ client })
+  const address = await listen(server)
+
+  try {
+    const listResponse = await fetch(`http://127.0.0.1:${address.port}/dataagent/web/api/session`)
+    const messageResponse = await fetch(`http://127.0.0.1:${address.port}/dataagent/web/api/session/session-a/message`)
+
+    assert.equal(listResponse.status, 200)
+    assert.equal(messageResponse.status, 200)
+    assert.deepEqual(await listResponse.json(), { data: sessions })
+    assert.deepEqual(await messageResponse.json(), { data: messages })
+    assert.deepEqual(calls, [
+      { pathname: '/api/session', method: 'GET' },
+      { pathname: '/api/session/session-a/message', method: 'GET' },
+    ])
+  } finally {
+    await close(server)
+  }
+})
