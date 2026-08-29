@@ -3,6 +3,31 @@ import { dataAgentWebApi } from '../config/api'
 import type { ConversationSessionSummary } from './types'
 
 type UnknownRecord = Record<string, unknown>
+type SortOrder = 'asc' | 'desc'
+
+type V2Page = {
+  data: unknown[]
+  cursor: {
+    previous?: string
+    next?: string
+  }
+}
+
+type NormalizedTool = {
+  id: string
+  call: {
+    id: string
+    type: 'function'
+    function: {
+      name: string
+      arguments: string
+    }
+  }
+  state: UnknownRecord
+}
+
+const SESSION_PAGE_LIMIT = 200
+const MESSAGE_PAGE_LIMIT = 200
 
 export type RemoteConversationSession = ConversationSessionSummary
 
@@ -10,47 +35,53 @@ function isRecord(value: unknown): value is UnknownRecord {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
-function stringValue(...values: unknown[]): string {
-  for (const value of values) {
-    if (typeof value === 'string' && value.trim()) return value.trim()
-  }
-  return ''
+function optionalString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim()
+  return normalized || undefined
 }
 
-function timestamp(value: unknown, fallback: number): number {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value > 0 && value < 10_000_000_000 ? value * 1000 : value
-  }
-  if (typeof value === 'string' && value.trim()) {
-    const numeric = Number(value)
-    if (Number.isFinite(numeric)) return timestamp(numeric, fallback)
-    const parsed = Date.parse(value)
-    if (Number.isFinite(parsed)) return parsed
-  }
-  return fallback
+function requiredString(value: unknown, field: string, action: string): string {
+  const normalized = optionalString(value)
+  if (!normalized) throw new Error(`${action}：OpenCode V2 ${field} 缺失`)
+  return normalized
 }
 
-function applicationError(body: unknown, action: string): Error | undefined {
-  if (!isRecord(body) || body.code == null) return undefined
-  if (['0', '200', '20000'].includes(String(body.code))) return undefined
-  const detail = stringValue(body.message, isRecord(body.error) ? body.error.message : body.error)
-  return new Error(`${action}${detail ? `：${detail}` : ''}`)
+function requiredText(value: unknown, field: string, action: string): string {
+  if (typeof value !== 'string') throw new Error(`${action}：OpenCode V2 ${field} 不是字符串`)
+  return value
 }
 
-function arrayPayload(body: unknown, action: string): unknown[] {
-  let current = body
-  for (let depth = 0; depth < 5; depth += 1) {
-    if (Array.isArray(current)) return current
-    if (!isRecord(current)) break
-    const error = applicationError(current, action)
-    if (error) throw error
-    for (const key of ['items', 'sessions', 'messages']) {
-      if (Array.isArray(current[key])) return current[key]
-    }
-    if (!('data' in current)) break
-    current = current.data
+function requiredTimestamp(value: unknown, field: string, action: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`${action}：OpenCode V2 ${field} 不是有效时间戳`)
   }
-  throw new Error(`${action}：接口未返回数组`)
+  return value
+}
+
+function optionalTimestamp(value: unknown, field: string, action: string): number | undefined {
+  if (value == null) return undefined
+  return requiredTimestamp(value, field, action)
+}
+
+function textOf(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (value == null) return ''
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function appendQuery(url: string, params: Record<string, string | number | undefined>): string {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value != null) query.set(key, String(value))
+  }
+  const suffix = query.toString()
+  if (!suffix) return url
+  return `${url}${url.includes('?') ? '&' : '?'}${suffix}`
 }
 
 async function requestJson(url: string, action: string, signal?: AbortSignal): Promise<unknown> {
@@ -65,7 +96,8 @@ async function requestJson(url: string, action: string, signal?: AbortSignal): P
     let detail = ''
     try {
       const body = await response.json()
-      detail = stringValue(body?.message, body?.error?.message, body?.error)
+      const error = isRecord(body?.error) ? body.error.message : body?.error
+      detail = optionalString(body?.message) ?? optionalString(error) ?? ''
     } catch {
       detail = await response.text().catch(() => '')
     }
@@ -74,179 +106,231 @@ async function requestJson(url: string, action: string, signal?: AbortSignal): P
   return response.json()
 }
 
-function normalizeSession(value: unknown): RemoteConversationSession | undefined {
-  if (!isRecord(value)) return undefined
-  const id = stringValue(value.id, value.sessionID, value.sessionId)
-  if (!id) return undefined
-  const parentId = stringValue(value.parentID, value.parentId, value.parentSessionID, value.parentSessionId)
-  const now = Date.now()
-  const time = isRecord(value.time) ? value.time : {}
-  const createdAt = timestamp(value.createdAt ?? time.created, now)
-  const updatedAt = timestamp(value.updatedAt ?? time.updated, createdAt)
+function parseV2Page(body: unknown, action: string): V2Page {
+  if (!isRecord(body) || !Array.isArray(body.data) || !isRecord(body.cursor)) {
+    throw new Error(`${action}：接口返回不是 OpenCode V2 { data, cursor } 结构`)
+  }
+  return {
+    data: body.data,
+    cursor: {
+      ...(optionalString(body.cursor.previous) ? { previous: optionalString(body.cursor.previous) } : {}),
+      ...(optionalString(body.cursor.next) ? { next: optionalString(body.cursor.next) } : {}),
+    },
+  }
+}
+
+async function fetchAllV2Pages(
+  path: string,
+  action: string,
+  options: { order: SortOrder; limit: number },
+  signal?: AbortSignal,
+): Promise<unknown[]> {
+  const items: unknown[] = []
+  const seenCursors = new Set<string>()
+  let cursor: string | undefined
+
+  for (;;) {
+    if (cursor) {
+      if (seenCursors.has(cursor)) throw new Error(`${action}：OpenCode V2 返回了重复 cursor`)
+      seenCursors.add(cursor)
+    }
+
+    const url = appendQuery(dataAgentWebApi(path), cursor
+      ? { limit: options.limit, cursor }
+      : { limit: options.limit, order: options.order })
+    const page = parseV2Page(await requestJson(url, action, signal), action)
+    items.push(...page.data)
+
+    if (page.data.length < options.limit || !page.cursor.next) return items
+    cursor = page.cursor.next
+  }
+}
+
+function normalizeSession(value: unknown, index: number): RemoteConversationSession {
+  const action = `解析第 ${index + 1} 个会话失败`
+  if (!isRecord(value)) throw new Error(`${action}：OpenCode V2 Session.Info 不是对象`)
+  if (!isRecord(value.time)) throw new Error(`${action}：OpenCode V2 time 缺失`)
+
+  const id = requiredString(value.id, 'session.id', action)
+  const parentId = optionalString(value.parentID)
+  const archivedAt = optionalTimestamp(value.time.archived, 'session.time.archived', action)
+  const title = requiredText(value.title, 'session.title', action).trim() || '新需求'
+
   return {
     id,
     ...(parentId ? { parentId } : {}),
-    displayName: stringValue(value.title, value.displayName, value.name) || '新需求',
-    createdAt,
-    updatedAt,
+    ...(archivedAt != null ? { archivedAt } : {}),
+    displayName: title,
+    createdAt: requiredTimestamp(value.time.created, 'session.time.created', action),
+    updatedAt: requiredTimestamp(value.time.updated, 'session.time.updated', action),
   }
 }
 
-function textOf(value: unknown): string {
-  if (typeof value === 'string') return value
-  if (value == null) return ''
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return String(value)
+function userFileContent(value: unknown, messageId: string, index: number): UnknownRecord {
+  const action = `解析用户消息 ${messageId} 的第 ${index + 1} 个附件失败`
+  if (!isRecord(value)) throw new Error(`${action}：OpenCode V2 FileAttachment 不是对象`)
+
+  const uri = requiredString(value.uri, 'file.uri', action)
+  const mimeType = requiredString(value.mime, 'file.mime', action)
+  const filename = optionalString(value.name)
+  const type = mimeType.startsWith('image/')
+    ? 'image'
+    : mimeType.startsWith('audio/')
+      ? 'audio'
+      : mimeType.startsWith('video/')
+        ? 'video'
+        : 'document'
+
+  return {
+    type,
+    source: { type: 'url', value: uri, mimeType },
+    ...(filename ? { metadata: { filename } } : {}),
   }
 }
 
-function partType(part: UnknownRecord): string {
-  return stringValue(part.type, part.kind).toLowerCase()
-}
+function normalizeUserMessage(value: UnknownRecord, id: string): Message {
+  const text = requiredText(value.text, 'user.text', `解析用户消息 ${id} 失败`)
+  const files = value.files == null
+    ? []
+    : Array.isArray(value.files)
+      ? value.files
+      : (() => { throw new Error(`解析用户消息 ${id} 失败：OpenCode V2 user.files 不是数组`) })()
 
-function partText(part: UnknownRecord): string {
-  return textOf(part.text ?? part.content ?? part.delta)
-}
+  if (!files.length) return { id, role: 'user', content: text } as Message
 
-function fileContent(part: UnknownRecord): UnknownRecord | undefined {
-  const source = isRecord(part.source) ? part.source : {}
-  const file = isRecord(part.file) ? part.file : {}
-  const mimeType = stringValue(part.mime, part.mimeType, source.mimeType, file.mimeType) || 'application/octet-stream'
-  const filename = stringValue(part.filename, part.name, source.filename, file.filename)
-  const url = stringValue(part.url, source.url, source.value, file.url)
-  const data = stringValue(part.data, source.data, file.data)
-  const metadata = filename ? { filename } : undefined
-
-  if (url) {
-    const type = mimeType.startsWith('image/')
-      ? 'image'
-      : mimeType.startsWith('audio/')
-        ? 'audio'
-        : mimeType.startsWith('video/')
-          ? 'video'
-          : 'document'
-    return {
-      type,
-      source: { type: 'url', value: url, mimeType },
-      ...(metadata ? { metadata } : {}),
-    }
-  }
-  if (data) return { type: 'binary', mimeType, data, ...(filename ? { filename } : {}) }
-  return filename ? { type: 'text', text: `[附件：${filename}]` } : undefined
-}
-
-function userMessage(id: string, parts: UnknownRecord[]): Message {
   const content: UnknownRecord[] = []
-  for (const part of parts) {
-    const type = partType(part)
-    if (type === 'text') {
-      const text = partText(part)
-      if (text) content.push({ type: 'text', text })
-      continue
-    }
-    if (type === 'file' || type === 'image' || type === 'audio' || type === 'video') {
-      const file = fileContent(part)
-      if (file) content.push(file)
-    }
-  }
-  if (!content.some(part => part.type !== 'text')) {
-    return { id, role: 'user', content: content.map(part => String(part.text ?? '')).join('\n') } as Message
-  }
+  if (text) content.push({ type: 'text', text })
+  files.forEach((file, index) => content.push(userFileContent(file, id, index)))
   return { id, role: 'user', content } as Message
 }
 
-function toolCall(part: UnknownRecord, fallbackId: string) {
-  const state = isRecord(part.state) ? part.state : {}
-  const id = stringValue(part.callID, part.callId, part.id, part.partID, part.partId) || fallbackId
-  const name = stringValue(part.tool, part.name) || 'tool'
-  const input = state.input ?? part.input ?? part.args ?? {}
+function normalizeTool(part: UnknownRecord, messageId: string, index: number): NormalizedTool {
+  const action = `解析 assistant ${messageId} 的第 ${index + 1} 个 tool 失败`
+  const state = isRecord(part.state) ? part.state : (() => { throw new Error(`${action}：OpenCode V2 tool.state 缺失`) })()
+  const id = requiredString(part.id, 'tool.id', action)
+  const name = requiredString(part.name, 'tool.name', action)
+  requiredString(state.status, 'tool.state.status', action)
+
   return {
     id,
     call: {
       id,
-      type: 'function' as const,
-      function: { name, arguments: textOf(input) },
+      type: 'function',
+      function: {
+        name,
+        arguments: textOf(state.input ?? {}),
+      },
     },
     state,
   }
 }
 
-function assistantMessages(id: string, parts: UnknownRecord[]): Message[] {
+function toolErrorText(state: UnknownRecord): string {
+  const error = state.error
+  if (isRecord(error) && typeof error.message === 'string') return error.message
+  return textOf(error)
+}
+
+function toolResultText(state: UnknownRecord): string {
+  if (state.result != null) return textOf(state.result)
+  if (state.structured != null) return textOf(state.structured)
+  if (state.content != null) return textOf(state.content)
+  return ''
+}
+
+function normalizeAssistantMessages(value: UnknownRecord, id: string): Message[] {
+  if (!Array.isArray(value.content)) {
+    throw new Error(`解析 assistant ${id} 失败：OpenCode V2 assistant.content 不是数组`)
+  }
+
+  const parts = value.content.map((part, index) => {
+    if (!isRecord(part)) throw new Error(`解析 assistant ${id} 失败：content[${index}] 不是对象`)
+    return part
+  })
   const reasoning = parts
-    .filter(part => partType(part) === 'reasoning')
-    .map(partText)
+    .filter(part => part.type === 'reasoning')
+    .map(part => requiredText(part.text, 'reasoning.text', `解析 assistant ${id} 失败`))
     .filter(Boolean)
     .join('\n')
   const content = parts
-    .filter(part => partType(part) === 'text')
-    .map(partText)
+    .filter(part => part.type === 'text')
+    .map(part => requiredText(part.text, 'text.text', `解析 assistant ${id} 失败`))
     .filter(Boolean)
     .join('\n')
   const tools = parts
-    .filter(part => ['tool', 'tool-invocation'].includes(partType(part)))
-    .map((part, index) => toolCall(part, `${id}-tool-${index}`))
+    .filter(part => part.type === 'tool')
+    .map((part, index) => normalizeTool(part, id, index))
+  const topLevelError = isRecord(value.error) && typeof value.error.message === 'string'
+    ? value.error.message
+    : ''
 
   const result: Message[] = []
   if (reasoning) result.push({ id: `${id}-reasoning`, role: 'reasoning', content: reasoning } as Message)
-  if (content || tools.length) {
+  if (content || tools.length || topLevelError) {
     result.push({
       id,
       role: 'assistant',
-      content,
+      content: content || topLevelError,
       ...(tools.length ? { toolCalls: tools.map(item => item.call) } : {}),
+      ...(topLevelError ? { error: topLevelError } : {}),
     } as Message)
   }
 
   for (const tool of tools) {
-    const status = stringValue(tool.state.status).toLowerCase()
-    const output = tool.state.output ?? tool.state.result
-    const failure = tool.state.error
-    if (!['completed', 'success', 'error', 'failed'].includes(status) && output == null && failure == null) continue
+    const status = requiredString(tool.state.status, 'tool.state.status', `解析 tool ${tool.id} 失败`)
+    if (status !== 'completed' && status !== 'error') continue
+    const error = status === 'error' ? toolErrorText(tool.state) : ''
     result.push({
       id: `${tool.id}-result`,
       role: 'tool',
       toolCallId: tool.id,
-      content: textOf(output ?? failure),
-      ...(failure != null ? { error: textOf(failure) } : {}),
+      content: error || toolResultText(tool.state),
+      ...(error ? { error } : {}),
     } as Message)
   }
+
   return result
 }
 
 function normalizeMessage(value: unknown, index: number): Message[] {
-  if (!isRecord(value)) return []
-  const info = isRecord(value.info) ? value.info : value
-  const parts = (Array.isArray(value.parts) ? value.parts : [])
-    .filter(isRecord)
-  const id = stringValue(info.id, info.messageID, info.messageId, value.id) || `history-message-${index}`
-  const role = stringValue(info.role, value.role).toLowerCase()
+  const action = `解析第 ${index + 1} 个历史消息失败`
+  if (!isRecord(value)) throw new Error(`${action}：OpenCode V2 SessionMessage 不是对象`)
 
-  if (role === 'user') return [userMessage(id, parts)]
-  if (role === 'assistant') return assistantMessages(id, parts)
-  if (role === 'system' || role === 'developer') {
-    const content = parts.filter(part => partType(part) === 'text').map(partText).filter(Boolean).join('\n')
-    return content ? [{ id, role, content } as Message] : []
-  }
+  const id = requiredString(value.id, 'message.id', action)
+  const type = requiredString(value.type, 'message.type', action)
+
+  if (type === 'user') return [normalizeUserMessage(value, id)]
+  if (type === 'assistant') return normalizeAssistantMessages(value, id)
+
+  // OpenCode V2 also projects system/synthetic/shell/compaction/switch events.
+  // They belong to the session timeline rather than the user-facing chat history.
   return []
 }
 
 export async function fetchConversationSessions(signal?: AbortSignal): Promise<RemoteConversationSession[]> {
-  const body = await requestJson(dataAgentWebApi('/session'), '查询对话列表失败', signal)
-  return arrayPayload(body, '查询对话列表失败')
+  const sessions = await fetchAllV2Pages(
+    '/session',
+    '查询对话列表失败',
+    { order: 'desc', limit: SESSION_PAGE_LIMIT },
+    signal,
+  )
+
+  // OpenCode V2 pages by creation time. Fetch every page first, then order the
+  // complete set by remote activity time so an old session updated today is not lost.
+  return sessions
     .map(normalizeSession)
-    .filter((item): item is RemoteConversationSession => Boolean(item))
-    .sort((left, right) => right.updatedAt - left.updatedAt)
+    .sort((left, right) => right.updatedAt - left.updatedAt || right.createdAt - left.createdAt)
 }
 
 export async function fetchConversationMessages(sessionId: string, signal?: AbortSignal): Promise<Message[]> {
   const id = sessionId.trim()
   if (!id) throw new Error('查询历史消息失败：sessionId 为空')
-  const body = await requestJson(
-    dataAgentWebApi(`/session/${encodeURIComponent(id)}/message`),
+
+  const messages = await fetchAllV2Pages(
+    `/session/${encodeURIComponent(id)}/message`,
     '查询历史消息失败',
+    { order: 'asc', limit: MESSAGE_PAGE_LIMIT },
     signal,
   )
-  return arrayPayload(body, '查询历史消息失败').flatMap(normalizeMessage)
+  return messages.flatMap(normalizeMessage)
 }

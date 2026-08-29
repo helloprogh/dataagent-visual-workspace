@@ -3,6 +3,7 @@ import type { Interrupt, Message, State } from '@ag-ui/client'
 export interface ConversationRecord {
   id: string
   parentId?: string
+  archivedAt?: number
   displayName: string
   messages: Message[]
   state: State
@@ -14,6 +15,7 @@ export interface ConversationRecord {
 export interface ConversationSessionSummary {
   id: string
   parentId?: string
+  archivedAt?: number
   displayName: string
   createdAt: number
   updatedAt: number

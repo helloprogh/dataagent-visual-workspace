@@ -9,6 +9,10 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
+function isGenericName(value: string): boolean {
+  return GENERIC_NAMES.has(value) || /^New session\s*-/i.test(value)
+}
+
 export function compactReasoningMessages(messages: Message[]): Message[] {
   return messages.filter(message => {
     if (message.role !== 'reasoning') return true
@@ -68,11 +72,12 @@ export class LocalConversationRepository implements ConversationRepository {
       const cached = existing.get(session.id)
       const remoteName = session.displayName.trim() || DEFAULT_NAME
       const keepCachedName = cached
-        && !GENERIC_NAMES.has(cached.displayName)
-        && GENERIC_NAMES.has(remoteName)
+        && !isGenericName(cached.displayName)
+        && isGenericName(remoteName)
       return {
         id: session.id,
         ...(session.parentId ? { parentId: session.parentId } : {}),
+        ...(session.archivedAt != null ? { archivedAt: session.archivedAt } : {}),
         displayName: keepCachedName ? cached.displayName : remoteName,
         messages: cached?.messages ?? [],
         state: cached?.state ?? {},
@@ -90,7 +95,6 @@ export class LocalConversationRepository implements ConversationRepository {
     const item = all.find(record => record.id === id)
     if (!item) return
     item.displayName = name
-    item.updatedAt = Date.now()
     writeAll(all)
   }
 
