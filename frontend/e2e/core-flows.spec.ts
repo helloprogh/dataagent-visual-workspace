@@ -1,17 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
 
-const CONVERSATIONS_KEY = 'dataagent.conversations.v3.session-thread'
 const ACTIVE_KEY = 'dataagent.conversations.active.v2.session-thread'
 const MODELS_KEY = 'dataagent.model.selection.v4.by-session'
-
-const conversation = (id: string, name: string, updatedAt: number) => ({
-  id,
-  displayName: name,
-  messages: [],
-  state: {},
-  createdAt: updatedAt,
-  updatedAt,
-})
 
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({
   status,
@@ -21,21 +11,29 @@ const json = (route: Route, body: unknown, status = 200) => route.fulfill({
 
 const sse = (events: unknown[]) => events.map(item => `data: ${JSON.stringify(item)}\n\n`).join('')
 
-async function seed(page: Page, options?: { active?: string; twoConversations?: boolean }) {
+async function seed(page: Page, options?: { active?: string }) {
   const active = options?.active ?? 'session-a'
-  const records = options?.twoConversations
-    ? [conversation('session-a', '会话 A', 2), conversation('session-b', '会话 B', 1)]
-    : [conversation('session-a', '会话 A', 1)]
-  await page.addInitScript(({ records, active }) => {
-    localStorage.setItem('dataagent.conversations.v3.session-thread', JSON.stringify(records))
+  await page.addInitScript(({ active }) => {
     localStorage.setItem('dataagent.conversations.active.v2.session-thread', active)
-  }, { records, active })
+  }, { active })
 }
 
 async function mockBaseApi(page: Page, handler?: (route: Route, url: URL) => Promise<boolean> | boolean) {
   await page.route('**/dataagent/web/api/**', async route => {
     const url = new URL(route.request().url())
     if (handler && await handler(route, url)) return
+    if (route.request().method() === 'GET' && url.pathname === '/dataagent/web/api/session') {
+      return json(route, {
+        data: [
+          { id: 'session-a', title: '会话 A', time: { created: 2, updated: 2 } },
+          { id: 'session-b', title: '会话 B', time: { created: 1, updated: 1 } },
+        ],
+        cursor: {},
+      })
+    }
+    if (route.request().method() === 'GET' && /\/session\/[^/]+\/message$/.test(url.pathname)) {
+      return json(route, { data: [], cursor: {} })
+    }
     if (route.request().method() === 'GET' && url.pathname.endsWith('/model')) {
       return json(route, { data: [
         { providerID: 'openai', id: 'gpt-a', name: 'GPT A', enabled: true },
@@ -66,7 +64,7 @@ async function mockBaseApi(page: Page, handler?: (route: Route, url: URL) => Pro
 }
 
 test('model selection stays isolated per conversation and entering a thread does not switch backend model', async ({ page }) => {
-  await seed(page, { twoConversations: true })
+  await seed(page)
   await page.addInitScript(() => {
     localStorage.setItem('dataagent.model.selection.v4.by-session', JSON.stringify({
       'session-a': { providerID: 'openai', id: 'gpt-a' },
