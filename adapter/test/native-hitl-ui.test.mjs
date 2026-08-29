@@ -33,8 +33,12 @@ test('interrupt response UI is JSON-Schema driven and covers single choice, mult
   assert.match(field, /choicesFor/)
   assert.match(field, /type === 'object'/)
   assert.match(field, /type === 'array'/)
-  assert.match(field, /itemChoices\.length/)
+  assert.match(field, /arrayChoiceOptions/)
+  assert.match(field, /arrayAllowsCustomString/)
   assert.match(field, /toggleArrayChoice/)
+  assert.match(field, /addCustomArrayValue/)
+  assert.match(field, /tupleSchemas/)
+  assert.match(field, /allowsAdditionalProperties/)
   assert.match(field, /variants\.length/)
   assert.match(field, /<AguiSchemaField[\s\S]*:depth="depth \+ 1"/)
   assert.match(field, /高级|JSON 响应|applyRawJson/)
@@ -42,6 +46,8 @@ test('interrupt response UI is JSON-Schema driven and covers single choice, mult
   assert.match(helpers, /schema\.oneOf|normalized\.oneOf/)
   assert.match(helpers, /normalized\.anyOf/)
   assert.match(helpers, /normalized\.allOf|schema\.allOf/)
+  assert.match(helpers, /prefixItems/)
+  assert.match(helpers, /additionalProperties/)
   assert.match(helpers, /minItems/)
   assert.match(helpers, /maxItems/)
   assert.match(helpers, /required/)
@@ -62,13 +68,14 @@ test('parallel interrupts are staged in the UI and submitted atomically as nativ
 
 test('user-facing interface does not expose protocol or framework terminology in normal product copy', async () => {
   const sources = await Promise.all([
+    readConversation('AguiInterruptCard.vue'),
     readConversation('ReasoningProcessCard.vue'),
     readRepo('frontend/src/components/genui/ToolStatus.vue'),
     readRepo('frontend/src/components/AssistantPanel.vue'),
   ])
 
   for (const source of sources) {
-    assert.doesNotMatch(templateOf(source), /AG-UI|HUMAN IN THE LOOP|ACTION REQUIRED|CopilotKit|OpenCode/i)
+    assert.doesNotMatch(templateOf(source), /AG-UI|HUMAN IN THE LOOP|ACTION REQUIRED|CopilotKit|OpenCode|resume\[?\]?|resolved|cancelled/i)
   }
 
   const index = await readRepo('frontend/index.html')
