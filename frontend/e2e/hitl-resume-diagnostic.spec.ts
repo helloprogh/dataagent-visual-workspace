@@ -94,11 +94,13 @@ test('diagnose native HITL resume dispatch', async ({ page }) => {
   await page.waitForTimeout(1000)
 
   const cardErrors = await page.locator('.approval-request__error').allTextContents()
+  const submitLabels = await page.locator('.approval-request__footer button.primary').allTextContents()
   const resumeBodies = aguiBodies.filter(body => Array.isArray(body?.resume) && body.resume.length)
   console.log('HITL_DIAG_AGUI_BODIES', JSON.stringify(aguiBodies))
   console.log('HITL_DIAG_CARD_ERRORS', JSON.stringify(cardErrors))
+  console.log('HITL_DIAG_SUBMIT_LABELS', JSON.stringify(submitLabels))
   console.log('HITL_DIAG_BROWSER_LOGS', JSON.stringify(browserLogs))
   console.log('HITL_DIAG_PAGE_ERRORS', JSON.stringify(pageErrors))
 
-  expect(resumeBodies, `cardErrors=${JSON.stringify(cardErrors)} pageErrors=${JSON.stringify(pageErrors)} browserLogs=${JSON.stringify(browserLogs)}`).toHaveLength(1)
+  expect(resumeBodies, `submitLabels=${JSON.stringify(submitLabels)} cardErrors=${JSON.stringify(cardErrors)} pageErrors=${JSON.stringify(pageErrors)} browserLogs=${JSON.stringify(browserLogs)}`).toHaveLength(1)
 })
