@@ -28,14 +28,30 @@ async function mockApi(page: Page) {
   })
 }
 
-test('opening an existing history session hides welcome content and keeps the composer at the bottom', async ({ page }) => {
+test('new conversation uses the concise welcome and has no duplicate header action', async ({ page }) => {
+  await mockApi(page)
+  await page.goto('/')
+
+  const welcome = page.locator('.conversation-welcome')
+  await expect(welcome).toBeVisible()
+  await expect(welcome.getByText('DATA AGENT', { exact: true })).toBeVisible()
+  await expect(welcome.getByText('描述你的数据业务目标，我将与你逐步澄清需求，并自主完成Specification、数据方案、数据集成、ETL开发、治理验证与交付。', { exact: true })).toBeVisible()
+  await expect(welcome.getByText('从一个清晰的数据目标开始', { exact: true })).toHaveCount(0)
+  await expect(welcome.locator('.conversation-welcome__capabilities')).toHaveCount(0)
+  await expect(page.locator('.assistant-header button[title="新建会话"]')).toHaveCount(0)
+})
+
+test('opening an existing history session restores its messages and keeps the composer at the bottom', async ({ page }) => {
   await mockApi(page)
   await page.addInitScript(({ conversationsKey, activeKey }) => {
     const now = Date.now()
     localStorage.setItem(conversationsKey, JSON.stringify([{
       id: 'history-session',
       displayName: '历史订单分析',
-      messages: [],
+      messages: [
+        { id: 'history-user-message', role: 'user', content: '分析去年各区域订单趋势' },
+        { id: 'history-assistant-message', role: 'assistant', content: '历史分析结果已经恢复。' },
+      ],
       state: {},
       createdAt: now - 60_000,
       updatedAt: now,
@@ -54,6 +70,8 @@ test('opening an existing history session hides welcome content and keeps the co
   const overlay = page.getByTestId('copilot-input-overlay')
 
   await expect(panel).toBeVisible()
+  await expect(page.getByText('分析去年各区域订单趋势', { exact: true })).toBeVisible()
+  await expect(page.getByText('历史分析结果已经恢复。', { exact: true })).toBeVisible()
   await expect(page.locator('.conversation-welcome')).not.toBeVisible()
   await expect(overlay).toBeVisible()
 

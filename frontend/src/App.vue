@@ -161,7 +161,6 @@ function autoRename(name: string) {
             :agent-id="runtime.agentId"
             :agent-display-name="runtime.displayName"
             :active-conversation="activeConversation"
-            @create="startNewConversation"
             @materialized="materializeConversation"
             @changed="refreshConversations"
             @auto-rename="autoRename"
