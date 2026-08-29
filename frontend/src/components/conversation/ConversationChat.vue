@@ -4,8 +4,10 @@ import { CopilotChat, CopilotChatInput, CopilotChatMessageView, useAgent } from 
 import type { AbstractAgent } from '@ag-ui/client'
 import { ElMessage } from 'element-plus'
 import { conversationRepository, deriveConversationName } from '../../conversations/local-repository'
-import { interruptOpenCodeConversation } from '../../conversations/opencode-session'
+import { createOpenCodeConversation, interruptOpenCodeConversation } from '../../conversations/opencode-session'
+import { setSelectedModel, type ModelSelection } from '../../model/model-selection'
 import { workspaceController } from '../../workspace/store'
+import DraftModelSelector from '../DraftModelSelector.vue'
 import ModelSelector from '../ModelSelector.vue'
 import AguiInterruptCard from './AguiInterruptCard.vue'
 import AguiInterruptController from './AguiInterruptController.vue'
@@ -17,27 +19,36 @@ const props = defineProps<{
   threadId: string
   displayName: string
   agentDisplayName: string
+  draft?: boolean
 }>()
 
-const emit = defineEmits<{ changed: []; rename: [name: string] }>()
+const emit = defineEmits<{
+  changed: []
+  rename: [name: string]
+  materialized: [sessionId: string]
+}>()
+
 const hydrated = ref(false)
 const hasMessages = ref(false)
-// This hook is used only to resolve the per-thread agent instance. CopilotChat
-// owns reactive rendering. Disabling hook update notifications prevents the
-// same shallowRef from being re-triggered for every streamed message and then
-// accidentally re-running the one-time local-history hydration below.
+// CopilotChat resolves the registry agent without a thread-specific clone and
+// assigns agent.threadId itself. Use that same instance here so first-send
+// materialization updates the exact agent that will issue the AG-UI run.
 const { agent } = useAgent({
   agentId: () => props.agentId,
-  threadId: () => props.threadId,
   throttleMs: 60,
   updates: [],
 })
 const hasInterrupts = ref(false)
 const stopping = ref(false)
+const creatingSession = ref(false)
+const draftModel = ref<ModelSelection | null>(null)
+const materializedSessionId = ref('')
 let persistTimer: number | undefined
 let currentAgent: AbstractAgent | null = null
 let currentThreadId = ''
 let agentSubscription: { unsubscribe: () => void } | null = null
+
+const pendingDraftFiles = new Map<string, { file: File; previewUrl: string }>()
 const chatLabels = computed(() => ({
   chatInputPlaceholder: '描述你的数据需求或业务目标',
   chatInputToolbarAddButtonLabel: '上传文件',
@@ -50,14 +61,52 @@ const attachmentsConfig = computed(() => ({
   enabled: true,
   accept: '*/*',
   maxSize: 20 * 1024 * 1024,
-  onUpload: uploadAttachment,
+  onUpload: prepareAttachment,
   onUploadFailed: ({ message }: { message: string }) => ElMessage.error(message),
 }))
 
-async function uploadAttachment(file: File) {
+function effectiveSessionId() {
+  return props.threadId.trim() || materializedSessionId.value
+}
+
+function draftToken() {
+  const suffix = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+  return `draft-upload:${suffix}`
+}
+
+function clearPendingDraftFiles() {
+  for (const { previewUrl } of pendingDraftFiles.values()) URL.revokeObjectURL(previewUrl)
+  pendingDraftFiles.clear()
+}
+
+async function prepareAttachment(file: File) {
+  const sessionId = effectiveSessionId()
+  if (sessionId) return uploadAttachment(file, sessionId)
+
+  // A new conversation has no backend session yet. Keep the File only in
+  // browser memory and give CopilotKit a local preview source. The real upload
+  // happens inside the first-send transaction after session creation.
+  const token = draftToken()
+  const previewUrl = URL.createObjectURL(file)
+  pendingDraftFiles.set(token, { file, previewUrl })
+  return {
+    type: 'url' as const,
+    value: previewUrl,
+    mimeType: file.type || 'application/octet-stream',
+    metadata: {
+      draftUploadToken: token,
+      filename: file.name,
+      size: file.size,
+    },
+  }
+}
+
+async function uploadAttachment(file: File, threadId: string) {
   const formData = new FormData()
   formData.append('file', file, file.name)
-  formData.append('threadId', props.threadId)
+  formData.append('threadId', threadId)
   const headers = new Headers()
   const token = import.meta.env.VITE_AGUI_TOKEN
   if (token) headers.set('Authorization', `Bearer ${token}`)
@@ -96,7 +145,31 @@ async function uploadAttachment(file: File) {
   }
 }
 
+async function uploadStagedAttachments(threadId: string, attachments: unknown[]) {
+  for (const rawAttachment of attachments) {
+    const attachment = rawAttachment as {
+      source?: { type?: string; value?: string; mimeType?: string }
+      metadata?: Record<string, unknown>
+    }
+    const token = attachment.metadata?.draftUploadToken
+    if (typeof token !== 'string') continue
+    const staged = pendingDraftFiles.get(token)
+    if (!staged) continue
+
+    const uploaded = await uploadAttachment(staged.file, threadId)
+    attachment.source = {
+      type: uploaded.type,
+      value: uploaded.value,
+      mimeType: uploaded.mimeType,
+    }
+    attachment.metadata = uploaded.metadata
+    URL.revokeObjectURL(staged.previewUrl)
+    pendingDraftFiles.delete(token)
+  }
+}
+
 function persistSnapshot(threadId: string, target: AbstractAgent, immediate = false) {
+  if (!threadId) return
   const save = () => {
     conversationRepository.saveSnapshot(threadId, target.messages, target.state)
     emit('changed')
@@ -112,17 +185,15 @@ function persistSnapshot(threadId: string, target: AbstractAgent, immediate = fa
 }
 
 function releaseCurrentAgent() {
-  if (currentAgent && currentThreadId) persistSnapshot(currentThreadId, currentAgent, true)
+  const threadId = currentThreadId || materializedSessionId.value
+  if (currentAgent && threadId) persistSnapshot(threadId, currentAgent, true)
   agentSubscription?.unsubscribe()
   agentSubscription = null
   currentAgent = null
   currentThreadId = ''
 }
 
-watch([agent, () => props.threadId], ([nextAgent, nextThreadId]) => {
-  // useAgent() uses triggerRef() for message updates. Hydration must only run
-  // when the resolved agent instance/thread actually changes; otherwise an
-  // older local snapshot can overwrite a just-streamed reasoning message.
+watch([agent, () => props.threadId, () => props.draft], ([nextAgent, nextThreadId, isDraft]) => {
   if (nextAgent && currentAgent === nextAgent && currentThreadId === nextThreadId) return
 
   hydrated.value = false
@@ -130,44 +201,105 @@ watch([agent, () => props.threadId], ([nextAgent, nextThreadId]) => {
   releaseCurrentAgent()
   if (!nextAgent) return
 
+  if (!nextThreadId && isDraft) {
+    materializedSessionId.value = ''
+    draftModel.value = null
+    clearPendingDraftFiles()
+  } else if (nextThreadId && materializedSessionId.value && nextThreadId !== materializedSessionId.value) {
+    materializedSessionId.value = ''
+  }
+
   const threadId = nextThreadId
   currentAgent = nextAgent
   currentThreadId = threadId
-  const conversation = conversationRepository.get(threadId)
+  const conversation = threadId ? conversationRepository.get(threadId) : undefined
   hasMessages.value = Boolean(conversation?.messages.length)
   if (conversation) {
     nextAgent.setMessages(conversation.messages)
     nextAgent.setState(conversation.state)
+  } else if (isDraft) {
+    nextAgent.setMessages([])
+    nextAgent.setState({})
   }
-  // Workspace tools persist synchronously in the dedicated per-thread store.
-  // A throttled conversation snapshot can lag behind the latest tool result,
-  // so it must not overwrite the newer workspace when a page is reloaded.
-  const workspace = workspaceController.snapshot()
+
+  // Never leak the previous conversation's workspace into the local-only draft.
+  const workspace = threadId ? workspaceController.snapshot() : null
   if (workspace) nextAgent.setState({ ...(nextAgent.state ?? {}), workspace })
   agentSubscription = nextAgent.subscribe({
-    onMessagesChanged: ({ agent: changedAgent }) => persistSnapshot(threadId, changedAgent),
+    onMessagesChanged: ({ agent: changedAgent }) => {
+      const targetId = effectiveSessionId()
+      if (targetId) persistSnapshot(targetId, changedAgent)
+    },
     onStateChanged: ({ agent: changedAgent }) => {
+      const targetId = effectiveSessionId()
       const workspace = (changedAgent.state as { workspace?: unknown })?.workspace
-      if (workspace && typeof workspace === 'object') workspaceController.applyShared(workspace as any)
-      persistSnapshot(threadId, changedAgent)
+      if (targetId && workspace && typeof workspace === 'object') workspaceController.applyShared(workspace as any)
+      if (targetId) persistSnapshot(targetId, changedAgent)
     },
   })
   hydrated.value = true
 }, { immediate: true })
 
+async function ensureSessionForFirstSend(value: string, attachments: unknown[]) {
+  const existing = effectiveSessionId()
+  if (existing) {
+    await uploadStagedAttachments(existing, attachments)
+    return existing
+  }
+  if (!props.draft) throw new Error('当前会话缺少 sessionId')
+  if (!draftModel.value) throw new Error('模型尚未加载完成，请稍后再发送')
+  if (creatingSession.value) throw new Error('会话正在创建，请稍后重试')
+
+  creatingSession.value = true
+  try {
+    const sessionId = await createOpenCodeConversation(draftModel.value)
+    materializedSessionId.value = sessionId
+    if (agent.value) agent.value.threadId = sessionId
+
+    // The session already owns this model because it was supplied to the
+    // creation API. Persist the selection locally without calling the separate
+    // model-switch endpoint.
+    setSelectedModel(sessionId, draftModel.value)
+    conversationRepository.create(sessionId, deriveConversationName(value))
+    emit('materialized', sessionId)
+
+    await uploadStagedAttachments(sessionId, attachments)
+    return sessionId
+  } finally {
+    creatingSession.value = false
+  }
+}
+
+async function handleInputSubmit(
+  value: string,
+  submit: (value: string) => void | Promise<void>,
+  attachments: unknown[],
+) {
+  try {
+    await ensureSessionForFirstSend(value, attachments)
+    await submit(value)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : String(error))
+  }
+}
+
 function onSubmitMessage(value: string) {
   hasMessages.value = true
-  if (props.displayName === '新需求' || props.displayName === '新对话' || props.displayName === '新分析') emit('rename', deriveConversationName(value))
+  if (!props.draft && (props.displayName === '新需求' || props.displayName === '新对话' || props.displayName === '新分析')) {
+    emit('rename', deriveConversationName(value))
+  }
 }
 
 async function onStop() {
   if (stopping.value) return
+  const sessionId = effectiveSessionId()
+  if (!sessionId) return
   stopping.value = true
   try {
     // CopilotChat handles the AG-UI run abort internally. This companion call
     // stops the actual OpenCode session so backend model/tool work does not
     // continue after the UI stream has been cancelled.
-    await interruptOpenCodeConversation(props.threadId)
+    await interruptOpenCodeConversation(sessionId)
   } catch (error) {
     ElMessage.error(`对话已停止显示，但后端中断失败：${error instanceof Error ? error.message : String(error)}`)
   } finally {
@@ -185,6 +317,7 @@ function handleInputStop(stop?: () => void) {
 
 onBeforeUnmount(() => {
   if (persistTimer) window.clearTimeout(persistTimer)
+  clearPendingDraftFiles()
   releaseCurrentAgent()
 })
 </script>
@@ -200,9 +333,8 @@ onBeforeUnmount(() => {
     <div v-if="!hydrated" class="chat-loading"><el-skeleton :rows="5" animated /></div>
     <CopilotChat
       v-else
-      :key="threadId"
       :agent-id="agentId"
-      :thread-id="threadId"
+      :thread-id="threadId || undefined"
       :labels="chatLabels"
       :attachments="attachmentsConfig"
       :throttle-ms="60"
@@ -225,9 +357,15 @@ onBeforeUnmount(() => {
 
           <div class="conversation-composer">
             <div class="conversation-composer__controls">
+              <DraftModelSelector
+                v-if="draft && !threadId"
+                :disabled="Boolean(inputProps.isRunning) || hasInterrupts || creatingSession"
+                @selected="draftModel = $event"
+              />
               <ModelSelector
-                :thread-id="threadId"
-                :disabled="Boolean(inputProps.isRunning) || hasInterrupts"
+                v-else
+                :thread-id="threadId || materializedSessionId"
+                :disabled="Boolean(inputProps.isRunning) || hasInterrupts || creatingSession"
               />
             </div>
             <CopilotChatInput
@@ -235,10 +373,11 @@ onBeforeUnmount(() => {
               :is-running="inputProps.isRunning"
               :mode="inputProps.inputMode"
               :tools-menu="inputProps.inputToolsMenu"
+              :disabled="creatingSession || Boolean(draft && !draftModel)"
               class="conversation-composer__input"
               positioning="static"
               @update:model-value="inputProps.onUpdateModelValue"
-              @submit-message="inputProps.onSubmitMessage"
+              @submit-message="handleInputSubmit($event, inputProps.onSubmitMessage, inputProps.attachments)"
               @stop="handleInputStop(inputProps.onStop)"
               @add-file="inputProps.onAddFile"
               @start-transcribe="inputProps.onStartTranscribe"
