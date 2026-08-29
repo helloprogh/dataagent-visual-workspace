@@ -36,8 +36,10 @@ const emit = defineEmits<{
     <div class="assistant-context">
       <span>当前会话</span>
       <b>{{ activeConversation?.displayName || '新需求' }}</b>
-      <i></i>
-      <small>{{ activeId ? activeId.slice(0, 18) : '首次发送后创建' }}</small>
+      <template v-if="activeId">
+        <i></i>
+        <small>{{ activeId.slice(0, 18) }}</small>
+      </template>
     </div>
 
     <div class="assistant-body">
