@@ -180,7 +180,7 @@ function autoRename(name: string) {
           />
 
           <SkillManagementView v-else-if="activePage === 'skills'" />
-          <ToolManagementView v-else />
+          <ToolManagementView v-else :thread-id="activeId" />
         </section>
 
         <transition name="workspace-reveal">
