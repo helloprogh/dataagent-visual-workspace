@@ -35,6 +35,16 @@ const responses: Record<string, ResumeResponse> = {}
 let subscribedAgent: AbstractAgent | null = null
 let agentSubscription: { unsubscribe: () => void } | null = null
 let completedInterrupts: Interrupt[] | null = null
+const coreErrorSubscription = copilotkit.value.subscribe({
+  onError: ({ error, code, context }) => {
+    console.debug('[HITL-LIFECYCLE] core-error', {
+      threadId: props.threadId,
+      code,
+      message: error.message,
+      context,
+    })
+  },
+})
 
 function ids(items: readonly Interrupt[]) {
   return items.map(interrupt => interrupt.id)
@@ -121,7 +131,9 @@ async function submitIfComplete() {
 
   const resume = buildResumeArray(open, responses)
   console.debug('[HITL-LIFECYCLE] dispatch-resume', { threadId: props.threadId, agentThreadId: currentAgent.threadId, interruptIds: resume.map(entry => entry.interruptId) })
-  return copilotkit.value.runAgent({ agent: currentAgent, resume })
+  const result = await copilotkit.value.runAgent({ agent: currentAgent, resume })
+  console.debug('[HITL-LIFECYCLE] resume-result', { threadId: props.threadId, newMessages: result.newMessages.length })
+  return result
 }
 
 const resolve: InterruptResolveFn = async (payload?, interruptId?) => {
@@ -143,6 +155,7 @@ const cancel: InterruptCancelFn = async (interruptId?) => {
 }
 
 onBeforeUnmount(() => {
+  coreErrorSubscription.unsubscribe()
   releaseAgentSubscription()
   setInterrupts([], true)
 })
