@@ -196,16 +196,6 @@ onBeforeUnmount(() => {
       'is-empty': hydrated && !hasMessages,
     }"
   >
-    <section v-if="hydrated && !hasMessages" class="conversation-welcome">
-      <span class="conversation-welcome__eyebrow"><i></i>DATA AGENT</span>
-      <h2>从一个清晰的数据目标开始</h2>
-      <p>描述业务问题、上传数据，或直接让 Data Agent 构建一份可交互的分析工作区。</p>
-      <div class="conversation-welcome__capabilities" aria-label="可用能力">
-        <span>经营分析</span>
-        <span>SQL 与治理</span>
-        <span>生成式工作区</span>
-      </div>
-    </section>
     <div v-if="!hydrated" class="chat-loading"><el-skeleton :rows="5" animated /></div>
     <CopilotChat
       v-else
@@ -220,45 +210,58 @@ onBeforeUnmount(() => {
     >
       <template #input="inputProps">
         <AguiInterruptController @active-change="hasInterrupts = $event" />
-        <div class="conversation-composer">
-          <div class="conversation-composer__controls">
-            <ModelSelector
-              :thread-id="threadId"
-              :disabled="Boolean(inputProps.isRunning) || hasInterrupts"
-            />
+        <div class="conversation-input-layout" :class="{ 'conversation-input-layout--empty': !hasMessages }">
+          <section v-if="!hasMessages" class="conversation-welcome">
+            <span class="conversation-welcome__eyebrow"><i></i>DATA AGENT</span>
+            <h2>从一个清晰的数据目标开始</h2>
+            <p>描述业务问题、上传数据，或直接让 Data Agent 构建一份可交互的分析工作区。</p>
+            <div class="conversation-welcome__capabilities" aria-label="可用能力">
+              <span>经营分析</span>
+              <span>SQL 与治理</span>
+              <span>生成式工作区</span>
+            </div>
+          </section>
+
+          <div class="conversation-composer">
+            <div class="conversation-composer__controls">
+              <ModelSelector
+                :thread-id="threadId"
+                :disabled="Boolean(inputProps.isRunning) || hasInterrupts"
+              />
+            </div>
+            <CopilotChatInput
+              :model-value="inputProps.modelValue"
+              :is-running="inputProps.isRunning"
+              :mode="inputProps.inputMode"
+              :tools-menu="inputProps.inputToolsMenu"
+              class="conversation-composer__input"
+              positioning="static"
+              @update:model-value="inputProps.onUpdateModelValue"
+              @submit-message="inputProps.onSubmitMessage"
+              @stop="handleInputStop(inputProps.onStop)"
+              @add-file="inputProps.onAddFile"
+              @start-transcribe="inputProps.onStartTranscribe"
+              @cancel-transcribe="inputProps.onCancelTranscribe"
+              @finish-transcribe="inputProps.onFinishTranscribe"
+              @finish-transcribe-with-audio="inputProps.onFinishTranscribeWithAudio"
+            >
+              <template #send-button="{ disabled, isProcessing, onClick }">
+                <div class="conversation-composer__send-wrap">
+                  <button
+                    type="button"
+                    data-testid="copilot-chat-input-send"
+                    :data-processing="isProcessing ? 'true' : 'false'"
+                    :aria-label="isProcessing ? '停止生成' : '发送消息'"
+                    :title="isProcessing ? '停止生成' : '发送消息'"
+                    :disabled="!isProcessing && disabled"
+                    @click="isProcessing ? handleInputStop(inputProps.onStop) : onClick()"
+                  >
+                    <span class="conversation-composer__send-icon" aria-hidden="true"></span>
+                  </button>
+                </div>
+              </template>
+            </CopilotChatInput>
           </div>
-          <CopilotChatInput
-            :model-value="inputProps.modelValue"
-            :is-running="inputProps.isRunning"
-            :mode="inputProps.inputMode"
-            :tools-menu="inputProps.inputToolsMenu"
-            class="conversation-composer__input"
-            positioning="static"
-            @update:model-value="inputProps.onUpdateModelValue"
-            @submit-message="inputProps.onSubmitMessage"
-            @stop="handleInputStop(inputProps.onStop)"
-            @add-file="inputProps.onAddFile"
-            @start-transcribe="inputProps.onStartTranscribe"
-            @cancel-transcribe="inputProps.onCancelTranscribe"
-            @finish-transcribe="inputProps.onFinishTranscribe"
-            @finish-transcribe-with-audio="inputProps.onFinishTranscribeWithAudio"
-          >
-            <template #send-button="{ disabled, isProcessing, onClick }">
-              <div class="conversation-composer__send-wrap">
-                <button
-                  type="button"
-                  data-testid="copilot-chat-input-send"
-                  :data-processing="isProcessing ? 'true' : 'false'"
-                  :aria-label="isProcessing ? '停止生成' : '发送消息'"
-                  :title="isProcessing ? '停止生成' : '发送消息'"
-                  :disabled="!isProcessing && disabled"
-                  @click="isProcessing ? handleInputStop(inputProps.onStop) : onClick()"
-                >
-                  <span class="conversation-composer__send-icon" aria-hidden="true"></span>
-                </button>
-              </div>
-            </template>
-          </CopilotChatInput>
         </div>
       </template>
 
@@ -297,8 +300,9 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .conversation-chat{position:relative;width:100%;height:100%;min-height:0}
-.conversation-welcome{position:absolute;z-index:1;left:50%;top:42%;width:min(520px,calc(100% - 48px));padding:0 20px;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
-.conversation-chat.is-empty .conversation-welcome{top:calc(50% - 55px)}
+.conversation-input-layout{width:100%;min-width:0}
+.conversation-input-layout--empty{width:min(720px,100%);display:flex;flex-direction:column;gap:28px;pointer-events:auto}
+.conversation-welcome{width:min(520px,100%);margin:0 auto;padding:0 20px;text-align:center;pointer-events:none}
 .conversation-welcome__eyebrow{display:inline-flex;align-items:center;gap:8px;color:var(--da-text-muted);font-size:11px;font-weight:600;letter-spacing:.12em}
 .conversation-welcome__eyebrow i{width:20px;height:1px;background:var(--da-accent-orange);box-shadow:0 0 12px var(--da-accent-orange-glow)}
 .conversation-welcome h2{margin:16px 0 10px;color:var(--da-text-emphasis);font-family:Georgia,"Times New Roman","Songti SC",serif;font-size:34px;line-height:1.18;font-weight:400;letter-spacing:-.04em}
@@ -307,7 +311,7 @@ onBeforeUnmount(() => {
 .conversation-welcome__capabilities span{padding:5px 9px;border:1px solid var(--da-border);border-radius:6px;background:var(--da-surface-deep);color:var(--da-text-secondary);font-size:11px}
 :deep([data-testid="copilot-chat-view"]){height:100%!important;min-height:0!important}
 :deep([data-testid="copilot-input-overlay"]){left:14px!important;right:14px!important;bottom:14px!important}
-.conversation-chat.is-empty :deep([data-testid="copilot-input-overlay"]){left:50%!important;right:auto!important;top:calc(50% + 60px)!important;bottom:auto!important;width:min(720px,calc(100% - 80px))!important;transform:translateX(-50%)}
+.conversation-chat.is-empty :deep([data-testid="copilot-input-overlay"]){inset:0!important;width:auto!important;max-width:none!important;padding:28px 40px!important;display:grid!important;place-items:center!important;transform:none!important;pointer-events:none}
 :deep([data-testid="copilot-chat-view-scroll"]){padding-right:8px!important;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.14) transparent}
 :deep([data-testid="copilot-chat-view-scroll"]::-webkit-scrollbar){width:8px}
 :deep([data-testid="copilot-chat-view-scroll"]::-webkit-scrollbar-track){background:transparent}
@@ -339,9 +343,9 @@ onBeforeUnmount(() => {
 .has-interrupts :deep([data-testid="copilot-chat-input-textarea"]),.has-interrupts :deep([data-testid="copilot-chat-input-add"]){opacity:.52;pointer-events:none;cursor:not-allowed}
 
 @media(max-width:540px){
-  .conversation-welcome{width:calc(100% - 28px);padding:0 8px}
-  .conversation-chat.is-empty .conversation-welcome{top:calc(50% - 64px)}
-  .conversation-chat.is-empty :deep([data-testid="copilot-input-overlay"]){top:calc(50% + 68px)!important;width:calc(100% - 28px)!important}
+  .conversation-chat.is-empty :deep([data-testid="copilot-input-overlay"]){padding:18px 14px!important}
+  .conversation-input-layout--empty{gap:22px}
+  .conversation-welcome{width:100%;padding:0 8px}
   .conversation-welcome h2{font-size:28px}
   :deep([data-testid="copilot-chat-attachment-queue"]){padding-left:8px!important;padding-right:8px!important}
   :deep([data-testid="copilot-chat-attachment-item"][data-card-type="document"]){min-width:174px!important;max-width:100%!important}
