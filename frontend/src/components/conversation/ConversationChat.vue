@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { CopilotChat, CopilotChatInput, CopilotChatMessageView, useAgent } from '@copilotkit/vue/v2'
 import type { AbstractAgent, Message } from '@ag-ui/client'
 import { ElMessage } from 'element-plus'
@@ -30,11 +30,12 @@ const emit = defineEmits<{
 
 const hydrated = ref(false)
 const hasMessages = ref(false)
-// CopilotChat resolves the registry agent without a thread-specific clone and
-// assigns agent.threadId itself. Use that same instance here so first-send
-// materialization updates the exact agent that will issue the AG-UI run.
+// CopilotChat resolves a dedicated agent clone for every thread. Resolve that
+// same clone here; hydrating the shared registry agent leaves the chat's clone
+// empty and makes persisted history appear to be lost.
 const { agent } = useAgent({
   agentId: () => props.agentId,
+  threadId: () => props.threadId.trim() || undefined,
   throttleMs: 60,
   updates: [],
 })
@@ -273,7 +274,6 @@ async function ensureSessionForFirstSend(value: string) {
   try {
     const sessionId = await createOpenCodeConversation(draftModel.value)
     materializedSessionId.value = sessionId
-    if (agent.value) agent.value.threadId = sessionId
 
     // The session already owns this model because it was supplied to the
     // creation API. Persist the selection locally without calling the separate
@@ -281,6 +281,9 @@ async function ensureSessionForFirstSend(value: string) {
     setSelectedModel(sessionId, draftModel.value)
     conversationRepository.create(sessionId, deriveConversationName(value))
     emit('materialized', sessionId)
+    // Let both this hydration hook and CopilotChat switch to the same
+    // thread-scoped clone before the first message is submitted.
+    await nextTick()
     return sessionId
   } finally {
     creatingSession.value = false
@@ -358,14 +361,11 @@ onBeforeUnmount(() => {
         <AguiInterruptController @active-change="hasInterrupts = $event" />
         <div class="conversation-input-layout" :class="{ 'conversation-input-layout--empty': !hasMessages }">
           <section v-if="!hasMessages" class="conversation-welcome">
-            <span class="conversation-welcome__eyebrow"><i></i>DATA AGENT</span>
-            <h2>从一个清晰的数据目标开始</h2>
-            <p>描述你的数据业务目标，我将与你逐步澄清需求，并自主完成Specification、数据方案、数据集成、ETL开发、治理验证与交付。</p>
-            <div class="conversation-welcome__capabilities" aria-label="可用能力">
-              <span>经营分析</span>
-              <span>SQL 与治理</span>
-              <span>生成式工作区</span>
+            <div class="conversation-welcome__identity">
+              <span class="conversation-welcome__icon" aria-hidden="true">AI</span>
+              <h2>DATA AGENT</h2>
             </div>
+            <p>描述你的数据业务目标，我将与你逐步澄清需求，并自主完成Specification、数据方案、数据集成、ETL开发、治理验证与交付。</p>
           </section>
 
           <div class="conversation-composer">
@@ -455,12 +455,12 @@ onBeforeUnmount(() => {
 .conversation-input-layout{width:100%;min-width:0}
 .conversation-input-layout--empty{width:min(720px,100%);display:flex;flex-direction:column;gap:28px;pointer-events:auto}
 .conversation-welcome{width:100%;max-width:680px;margin:0 auto;padding:0 20px;text-align:center;pointer-events:none}
-.conversation-welcome__eyebrow{display:inline-flex;align-items:center;gap:8px;color:var(--da-text-muted);font-size:11px;font-weight:600;letter-spacing:.12em}
-.conversation-welcome__eyebrow i{width:20px;height:1px;background:var(--da-accent-orange);box-shadow:0 0 12px var(--da-accent-orange-glow)}
-.conversation-welcome h2{margin:16px 0 10px;color:var(--da-text-emphasis);font-family:Georgia,"Times New Roman","Songti SC",serif;font-size:34px;line-height:1.18;font-weight:400;letter-spacing:-.04em}
+.conversation-welcome__identity{display:flex;align-items:center;justify-content:center;gap:12px}
+.conversation-welcome__icon{position:relative;width:42px;height:42px;display:grid;place-items:center;border:1px solid var(--da-border-strong);border-radius:10px;background:var(--da-surface-deep);color:var(--da-text-emphasis);font-size:11px;font-weight:650;letter-spacing:.03em}
+.conversation-welcome__icon::after{content:"";position:absolute;top:-1px;left:9px;right:9px;height:1px;background:var(--da-accent-orange);box-shadow:0 0 12px var(--da-accent-orange-glow)}
+.conversation-welcome h2{margin:0;color:var(--da-text-emphasis);font-family:Georgia,"Times New Roman","Songti SC",serif;font-size:32px;line-height:1.18;font-weight:400;letter-spacing:-.035em}
 .conversation-welcome p{max-width:640px;margin:0 auto;color:var(--da-text-muted);font-size:13px;line-height:1.7;text-wrap:balance}
-.conversation-welcome__capabilities{margin-top:21px;display:flex;justify-content:center;flex-wrap:wrap;gap:7px}
-.conversation-welcome__capabilities span{padding:5px 9px;border:1px solid var(--da-border);border-radius:6px;background:var(--da-surface-deep);color:var(--da-text-secondary);font-size:11px}
+.conversation-welcome__identity+p{margin-top:14px}
 :deep([data-testid="copilot-chat-view"]){height:100%!important;min-height:0!important}
 :deep([data-testid="copilot-input-overlay"]){left:14px!important;right:14px!important;bottom:14px!important}
 .conversation-chat.is-empty :deep([data-testid="copilot-input-overlay"]){inset:0!important;width:auto!important;max-width:none!important;padding:28px 40px!important;display:grid!important;place-items:center!important;transform:none!important;pointer-events:none}
@@ -498,7 +498,9 @@ onBeforeUnmount(() => {
   .conversation-chat.is-empty :deep([data-testid="copilot-input-overlay"]){padding:18px 14px!important}
   .conversation-input-layout--empty{gap:22px}
   .conversation-welcome{width:100%;padding:0 8px}
-  .conversation-welcome h2{font-size:28px}
+  .conversation-welcome__identity{gap:10px}
+  .conversation-welcome__icon{width:38px;height:38px}
+  .conversation-welcome h2{font-size:27px}
   :deep([data-testid="copilot-chat-attachment-queue"]){padding-left:8px!important;padding-right:8px!important}
   :deep([data-testid="copilot-chat-attachment-item"][data-card-type="document"]){min-width:174px!important;max-width:100%!important}
   :deep([data-testid="copilot-chat-attachment-document-filename"]){max-width:142px!important}

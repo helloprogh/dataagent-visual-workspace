@@ -10,7 +10,6 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  create: []
   materialized: [sessionId: string]
   changed: []
   autoRename: [name: string]
@@ -31,9 +30,6 @@ const emit = defineEmits<{
           <div class="assistant-name"><b>{{ agentDisplayName }}</b><span>在线</span></div>
           <small>SA 数据需求开发与交付助手</small>
         </div>
-      </div>
-      <div class="assistant-actions">
-        <button title="新建会话" type="button" @click="emit('create')">＋</button>
       </div>
     </header>
 
