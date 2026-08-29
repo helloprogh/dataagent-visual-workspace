@@ -11,7 +11,7 @@ const visibleTextOf = source => templateOf(source)
   .replace(/<[^>]+>/g, ' ')
   .replace(/\{\{[\s\S]*?\}\}/g, ' ')
 
-test('conversation HITL resumes through the exact CopilotChat thread clone and standard resume array', async () => {
+test('conversation HITL uses native useInterrupt inside an explicit CopilotKit thread context', async () => {
   const [chat, host, lifecycle] = await Promise.all([
     readConversation('ConversationChat.vue'),
     readConversation('AguiInterruptHost.vue'),
@@ -22,24 +22,20 @@ test('conversation HITL resumes through the exact CopilotChat thread clone and s
   assert.match(chat, /:agent-id="agentId"/)
   assert.match(chat, /:thread-id="threadId \|\| materializedSessionId"/)
   assert.doesNotMatch(chat, /\buseInterrupt\s*\(/)
-  assert.doesNotMatch(chat, /ResumeEntry|pendingInterrupts|decisions|function\s+decide\s*\(/)
   assert.match(chat, /CopilotChatMessageView/)
   assert.match(chat, /#message-view=/)
 
-  assert.match(host, /<AguiInterruptLifecycle/)
+  assert.match(host, /CopilotChatConfigurationProvider/)
   assert.match(host, /:agent-id="agentId"/)
   assert.match(host, /:thread-id="threadId"/)
-  assert.doesNotMatch(host, /CopilotChatConfigurationProvider/)
+  assert.match(host, /:has-explicit-thread-id="true"/)
+  assert.match(host, /<AguiInterruptLifecycle/)
 
-  assert.match(lifecycle, /useAgent\(\{[\s\S]*agentId:\s*\(\)\s*=>\s*props\.agentId,[\s\S]*threadId:\s*\(\)\s*=>\s*props\.threadId/)
-  assert.match(lifecycle, /resolvedAgent\.pendingInterrupts/)
-  assert.match(lifecycle, /authoritativeInterrupts\(\)/)
-  assert.match(lifecycle, /onRunFinishedEvent/)
-  assert.match(lifecycle, /buildResumeArray\(open, responses\)/)
-  assert.match(lifecycle, /copilotkit\.value\.runAgent\(\{\s*agent:\s*currentAgent,\s*resume\s*\}\)/)
-  assert.match(lifecycle, /responses\[id\]\s*=\s*\{\s*status:\s*'resolved'/)
-  assert.match(lifecycle, /responses\[id\]\s*=\s*\{\s*status:\s*'cancelled'/)
-  assert.doesNotMatch(lifecycle, /\buseInterrupt\s*\(/)
+  assert.match(lifecycle, /useInterrupt\(\{\s*renderInChat:\s*false\s*\}\)/)
+  assert.match(lifecycle, /slotProps/)
+  assert.match(lifecycle, /:resolve="slotProps\.resolve"/)
+  assert.match(lifecycle, /:cancel="slotProps\.cancel"/)
+  assert.doesNotMatch(lifecycle, /buildResumeArray|useAgent\(|useCopilotKit\(|pendingInterrupts|responses\[/)
 })
 
 test('interrupt response UI is JSON-Schema driven and covers single choice, multi choice, forms, nesting and fallback JSON', async () => {
