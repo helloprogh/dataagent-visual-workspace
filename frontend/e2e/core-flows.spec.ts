@@ -196,8 +196,120 @@ test('AG-UI interrupt renders schema choices and resolves through resume payload
   await page.getByTestId('copilot-chat-input-send').click()
   await expect(page.getByText('操作确认', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '拒绝', exact: true }).click()
+  expect(resumePayload).toBeUndefined()
+  await page.getByRole('button', { name: '提交并继续', exact: true }).click()
   await expect.poll(() => resumePayload?.payload?.decision).toBe('reject')
   expect(resumePayload?.interruptId).toBe('approval-1')
+  expect(resumePayload?.status).toBe('resolved')
+})
+
+test('AG-UI parallel interrupts support multiselect forms and one atomic complete resume array', async ({ page }) => {
+  await seed(page)
+  let resumeRequests = 0
+  let resumeBody: any
+
+  await mockBaseApi(page, (route, url) => {
+    if (route.request().method() !== 'POST' || !url.pathname.endsWith('/agui')) return false
+    const body = route.request().postDataJSON() as any
+    if (Array.isArray(body.resume) && body.resume.length) {
+      resumeRequests += 1
+      resumeBody = body
+      route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: sse([
+          { type: 'RUN_STARTED', threadId: body.threadId, runId: body.runId },
+          { type: 'RUN_FINISHED', threadId: body.threadId, runId: body.runId, outcome: { type: 'success' } },
+        ]),
+      })
+      return true
+    }
+
+    route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      body: sse([
+        { type: 'RUN_STARTED', threadId: body.threadId, runId: body.runId },
+        { type: 'STATE_SNAPSHOT', snapshot: {} },
+        {
+          type: 'RUN_FINISHED',
+          threadId: body.threadId,
+          runId: body.runId,
+          outcome: {
+            type: 'interrupt',
+            interrupts: [
+              {
+                id: 'form-1',
+                reason: 'input_required',
+                message: '请选择授权范围并补充说明。',
+                responseSchema: {
+                  type: 'object',
+                  properties: {
+                    scopes: {
+                      type: 'array',
+                      title: '授权范围',
+                      minItems: 2,
+                      uniqueItems: true,
+                      items: {
+                        type: 'string',
+                        enum: ['read', 'write', 'export'],
+                        'x-enumNames': ['读取', '写入', '导出'],
+                      },
+                    },
+                    approved: { type: 'boolean', title: '确认授权' },
+                    note: { type: 'string', title: '说明', minLength: 2 },
+                  },
+                  required: ['scopes', 'approved', 'note'],
+                },
+              },
+              {
+                id: 'cancel-2',
+                reason: 'tool_call',
+                toolCallId: 'tool-2',
+                message: '是否同时执行第二项操作？',
+              },
+            ],
+          },
+        },
+      ]),
+    })
+    return true
+  })
+
+  await page.goto('/')
+  await page.getByTestId('copilot-chat-input-textarea').fill('触发并行审批')
+  await page.getByTestId('copilot-chat-input-send').click()
+
+  await expect(page.getByText('2 项待处理', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '读取', exact: true }).click()
+  await page.getByRole('button', { name: '写入', exact: true }).click()
+  await page.getByRole('button', { name: '是', exact: true }).click()
+  await page.getByRole('textbox', { name: '说明' }).fill('允许本次分析')
+
+  const secondItem = page.locator('.approval-request__item').nth(1)
+  await secondItem.getByRole('button', { name: '取消此项', exact: true }).click()
+
+  expect(resumeRequests).toBe(0)
+  await page.getByRole('button', { name: '提交并继续', exact: true }).click()
+  await expect.poll(() => resumeRequests).toBe(1)
+
+  expect(resumeBody.threadId).toBe('session-a')
+  expect(resumeBody.resume).toHaveLength(2)
+  expect(resumeBody.resume).toEqual(expect.arrayContaining([
+    {
+      interruptId: 'form-1',
+      status: 'resolved',
+      payload: {
+        scopes: ['read', 'write'],
+        approved: true,
+        note: '允许本次分析',
+      },
+    },
+    {
+      interruptId: 'cancel-2',
+      status: 'cancelled',
+    },
+  ]))
 })
 
 test('workspace render tool reveals the generated workspace', async ({ page }) => {
