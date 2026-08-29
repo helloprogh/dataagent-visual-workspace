@@ -145,7 +145,7 @@ async function uploadAttachment(file: File, threadId: string) {
   }
 }
 
-async function materializeDraftAttachments(threadId: string, messages: Message[]): Promise<Message[] | undefined> {
+async function materializeDraftAttachments(threadId: string, messages: readonly Message[]): Promise<Message[] | undefined> {
   if (!pendingDraftFiles.size) return undefined
   const next = structuredClone(messages) as Message[]
   let changed = false
