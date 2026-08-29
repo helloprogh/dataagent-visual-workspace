@@ -1,0 +1,172 @@
+/* =========================================================
+   Product theme — Light
+
+   Loaded after the default dark theme. The current dark UI remains the
+   default; this file only activates when <html data-theme="light">.
+   ========================================================= */
+
+:root[data-theme="light"]{
+  color-scheme:light;
+
+  --da-text-emphasis:#111827;
+  --da-text-primary:#1F2937;
+  --da-text-secondary:#475569;
+  --da-text-muted:#64748B;
+  --da-text-subtle:#94A3B8;
+
+  --da-surface-0:#F4F6F8;
+  --da-surface-1:#FFFFFF;
+  --da-surface-2:#F8FAFC;
+  --da-surface-3:#F1F5F9;
+  --da-surface-4:#E9EEF5;
+  --da-surface-input:#FFFFFF;
+  --da-surface-code:#F6F8FB;
+  --da-surface-deep:#F8FAFC;
+
+  --da-border:rgba(15,23,42,.10);
+  --da-border-strong:rgba(15,23,42,.17);
+  --da-border-focus:rgba(37,99,235,.38);
+
+  --da-accent-orange:#EA6A12;
+  --da-accent-orange-glow:rgba(234,106,18,.14);
+  --da-accent-cyan:#0284C7;
+  --da-accent-blue:#2563EB;
+  --da-accent-blue-glow:rgba(37,99,235,.16);
+  --da-accent-violet:#EA6A12;
+  --da-accent-green:#059669;
+  --da-accent-green-glow:rgba(5,150,105,.14);
+  --da-accent-yellow:#B7791F;
+  --da-accent-red:#DC3545;
+  --da-accent-red-glow:rgba(220,53,69,.14);
+  --da-link:#2563EB;
+
+  --da-chart-1:#2563EB;
+  --da-chart-2:#059669;
+  --da-chart-3:#EA6A12;
+  --da-chart-4:#B7791F;
+  --da-chart-5:#334155;
+  --da-chart-6:#DC3545;
+
+  --da-shadow-soft:0 16px 44px rgba(15,23,42,.08);
+  --da-shadow-raised:0 24px 64px rgba(15,23,42,.14);
+}
+
+/* ---------- primary actions ---------- */
+:root[data-theme="light"] .dataagent-shell .el-button--primary{
+  --el-button-bg-color:#111827;
+  --el-button-border-color:#111827;
+  --el-button-hover-bg-color:#273449;
+  --el-button-hover-border-color:#273449;
+  --el-button-active-bg-color:#0F172A;
+  --el-button-active-border-color:#0F172A;
+  color:#FFFFFF!important;
+}
+:root[data-theme="light"] .app-sidebar__new,
+:root[data-theme="light"] .management-page__primary{
+  border-color:#111827;
+  color:#FFFFFF;
+  background:#111827;
+}
+:root[data-theme="light"] .app-sidebar__new:hover,
+:root[data-theme="light"] .management-page__primary:hover:not(:disabled){
+  border-color:#273449;
+  color:#FFFFFF;
+  background:#273449;
+}
+:root[data-theme="light"] .app-sidebar__new-icon{color:#FFFFFF;background:rgba(255,255,255,.10)}
+:root[data-theme="light"] .app-sidebar__new small{color:rgba(255,255,255,.72)}
+
+/* ---------- shell / navigation micro-surfaces ---------- */
+:root[data-theme="light"] .app-sidebar__section-head--recent>b,
+:root[data-theme="light"] .app-sidebar__more:hover,
+:root[data-theme="light"] .app-sidebar__view-all:hover,
+:root[data-theme="light"] .app-sidebar__nav>button:hover,
+:root[data-theme="light"] .app-sidebar__nav>button.active .app-sidebar__nav-icon,
+:root[data-theme="light"] .icon-action:hover,
+:root[data-theme="light"] .opencode-error-banner button:hover,
+:root[data-theme="light"] .opencode-dialog-button:hover{
+  background:rgba(15,23,42,.045);
+}
+:root[data-theme="light"] .app-sidebar__history>article:hover,
+:root[data-theme="light"] .app-sidebar__history>article:focus-visible,
+:root[data-theme="light"] .opencode-skill-row:hover,
+:root[data-theme="light"] .opencode-workspace-row:hover{
+  background:rgba(15,23,42,.035);
+}
+:root[data-theme="light"] .app-sidebar__thread-icon,
+:root[data-theme="light"] .opencode-row-icon,
+:root[data-theme="light"] .opencode-scope-chip,
+:root[data-theme="light"] .opencode-package-card,
+:root[data-theme="light"] .opencode-form-note,
+:root[data-theme="light"] .opencode-skill-list-head,
+:root[data-theme="light"] .opencode-workspace-list-head{
+  background:rgba(15,23,42,.025);
+}
+
+/* ---------- scrollbars ---------- */
+:root[data-theme="light"] .management-page,
+:root[data-theme="light"] .workspace-scroll{
+  scrollbar-color:rgba(15,23,42,.18) transparent;
+}
+:root[data-theme="light"] .management-page::-webkit-scrollbar-thumb,
+:root[data-theme="light"] .workspace-scroll::-webkit-scrollbar-thumb{
+  background:rgba(15,23,42,.18);
+}
+:root[data-theme="light"] .workspace-scroll::-webkit-scrollbar-thumb:hover{background:rgba(15,23,42,.28)}
+
+/* ---------- Element Plus overlays ---------- */
+:root[data-theme="light"] .el-select-dropdown__item.hover,
+:root[data-theme="light"] .el-select-dropdown__item:hover,
+:root[data-theme="light"] .el-dropdown-menu__item:hover{
+  background:rgba(15,23,42,.045)!important;
+}
+:root[data-theme="light"] .el-overlay{--el-overlay-color-lighter:rgba(15,23,42,.32)}
+:root[data-theme="light"] .opencode-dialog.el-dialog{box-shadow:var(--da-shadow-raised)}
+
+/* ---------- conversation / Markdown ---------- */
+:root[data-theme="light"] .copilot-chat-assistant-markdown :where(tr:hover td){background:rgba(15,23,42,.018)!important}
+:root[data-theme="light"] .copilot-chat-assistant-markdown :where(mark){color:#5B3A00!important;background:#FDE7A9!important}
+
+/* ---------- workspace ---------- */
+:root[data-theme="light"] .assistant-panel.assistant-panel--center,
+:root[data-theme="light"] .widget-frame,
+:root[data-theme="light"] .workspace-widget[data-component="ui.metric"] .widget-frame,
+:root[data-theme="light"] .workspace-widget[data-component="ui.kpis"] .widget-frame{
+  box-shadow:var(--da-shadow-soft);
+}
+:root[data-theme="light"] .kpi-cell+.kpi-cell::before,
+:root[data-theme="light"] .insight-item,
+:root[data-theme="light"] .plan-step:not(:last-child)::after,
+:root[data-theme="light"] .opencode-skill-row,
+:root[data-theme="light"] .opencode-workspace-row{
+  border-color:rgba(15,23,42,.08);
+}
+:root[data-theme="light"] .bar-track,
+:root[data-theme="light"] .cause-track,
+:root[data-theme="light"] .quality-bar,
+:root[data-theme="light"] .funnel-track{background:rgba(15,23,42,.07)}
+:root[data-theme="light"] .chart-grid{stroke:rgba(15,23,42,.08)}
+
+/* ---------- OpenCode management semantic colors ---------- */
+:root[data-theme="light"] .management-page__status-chip.connected,
+:root[data-theme="light"] .opencode-workspace-status{color:#047857}
+:root[data-theme="light"] .management-page__status-chip.disconnected,
+:root[data-theme="light"] .opencode-error-banner b,
+:root[data-theme="light"] .opencode-danger-button:hover:not(:disabled){color:#B42335}
+
+/* ---------- model selector (component contains dark-specific scoped values) ---------- */
+:root[data-theme="light"] .model-selector{
+  border-color:rgba(15,23,42,.13);
+  background:linear-gradient(180deg,#FFFFFF,#F8FAFC);
+  box-shadow:0 1px 0 rgba(255,255,255,.9) inset;
+}
+:root[data-theme="light"] .model-selector:hover{border-color:rgba(37,99,235,.26);background:#FFFFFF}
+:root[data-theme="light"] .model-selector:focus-within{border-color:rgba(37,99,235,.38);box-shadow:0 0 0 3px rgba(37,99,235,.08)}
+:root[data-theme="light"] .model-selector__select .el-select__selected-item{color:var(--da-text-primary)!important}
+:root[data-theme="light"] .model-selector__select .el-select__placeholder{color:var(--da-text-muted)!important}
+:root[data-theme="light"] .model-selector__select .el-select__caret{color:var(--da-text-muted)!important}
+:root[data-theme="light"] .model-selector-popper{border-color:var(--da-border)!important;background:#FFFFFF!important;box-shadow:var(--da-shadow-raised)!important}
+:root[data-theme="light"] .model-selector-popper .el-select-dropdown__item:hover,
+:root[data-theme="light"] .model-selector-popper .el-select-dropdown__item.is-hovering{background:rgba(15,23,42,.045)!important}
+:root[data-theme="light"] .model-selector-popper .el-select-dropdown__item.is-selected{background:rgba(37,99,235,.08)!important}
+:root[data-theme="light"] .model-selector__option-meta>em{background:rgba(2,132,199,.08);color:#0369A1}
