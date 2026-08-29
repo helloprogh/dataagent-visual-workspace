@@ -77,11 +77,12 @@ async function loadConversationList(initial = false) {
     if (error instanceof DOMException && error.name === 'AbortError') return
     if (request !== conversationListRequest) return
     ensureConversation()
-    ElMessage.warning(
-      rootConversations.value.length
-        ? '对话列表加载失败，已显示本地缓存'
-        : (error instanceof Error ? error.message : String(error)),
-    )
+    const detail = error instanceof Error ? error.message : String(error)
+    if (rootConversations.value.length) {
+      ElMessage.warning(`对话列表刷新失败，已保留当前页面数据：${detail}`)
+    } else {
+      ElMessage.error(detail)
+    }
   } finally {
     if (initial && request === conversationListRequest) conversationListLoading.value = false
   }
@@ -155,22 +156,6 @@ async function renameConversation(id: string) {
   }
 }
 
-async function removeConversation(id: string) {
-  try {
-    await ElMessageBox.confirm('删除后将清除当前浏览器保存的需求记录与消息，是否继续？', '删除需求', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-    })
-    conversationRepository.remove(id)
-    if (activeId.value === id) activeId.value = ''
-    ensureConversation()
-    ElMessage.success('已删除')
-  } catch {
-    // cancelled
-  }
-}
-
 function autoRename(name: string) {
   if (!activeId.value) return
   conversationRepository.rename(activeId.value, name)
@@ -195,7 +180,6 @@ function autoRename(name: string) {
           @create="startNewConversation"
           @select="selectConversation"
           @rename="renameConversation"
-          @remove="removeConversation"
           @open-history="openHistory"
           @open-skills="activePage = 'skills'"
           @open-tools="activePage = 'tools'"
@@ -225,7 +209,6 @@ function autoRename(name: string) {
             @create="startNewConversation"
             @select="selectConversation"
             @rename="renameConversation"
-            @remove="removeConversation"
           />
 
           <SkillManagementView v-else-if="activePage === 'skills'" />
