@@ -12,6 +12,7 @@ import {
 
 type ResolveInterrupt = (payload?: unknown, interruptId?: string) => Promise<unknown>
 type CancelInterrupt = (interruptId?: string) => Promise<unknown>
+type InterruptWithSubagent = Interrupt & { subagentRunId?: string }
 
 const props = defineProps<{
   interrupt: Interrupt | null
@@ -105,6 +106,10 @@ function resourceFor(interrupt: Interrupt) {
 
 function isExpired(interrupt: Interrupt) {
   return isInterruptExpired(interrupt)
+}
+
+function isSubagentInterrupt(interrupt: Interrupt) {
+  return Boolean((interrupt as InterruptWithSubagent).subagentRunId)
 }
 
 function expiryFor(interrupt: Interrupt) {
@@ -213,7 +218,7 @@ async function submitAll() {
         <div class="approval-request__copy">
           <div class="approval-request__title-row">
             <b>{{ titleFor(item) }}</b>
-            <span v-if="item.subagentRunId" class="approval-request__tag">子任务请求</span>
+            <span v-if="isSubagentInterrupt(item)" class="approval-request__tag">子任务请求</span>
           </div>
           <p>{{ messageFor(item) }}</p>
           <code v-if="resourceFor(item)">{{ resourceFor(item) }}</code>
