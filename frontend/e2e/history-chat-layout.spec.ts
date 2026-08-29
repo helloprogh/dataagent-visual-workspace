@@ -74,17 +74,8 @@ test('opening history hides welcome content, keeps the composer at the bottom an
   expect(overlayBox!.y).toBeGreaterThan(bodyBox!.y + bodyBox!.height / 2)
   expect(Math.abs((bodyBottom - overlayBottom) - 14)).toBeLessThanOrEqual(3)
 
-  await expect.poll(async () => scroller.evaluate(element => ({
-    scrollTop: element.scrollTop,
-    scrollHeight: element.scrollHeight,
-    clientHeight: element.clientHeight,
-  }))).toMatchObject({})
-
-  const scroll = await scroller.evaluate(element => ({
-    scrollTop: element.scrollTop,
-    scrollHeight: element.scrollHeight,
-    clientHeight: element.clientHeight,
-  }))
-  expect(scroll.scrollHeight).toBeGreaterThan(scroll.clientHeight)
-  expect(scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop).toBeLessThanOrEqual(4)
+  await expect.poll(async () => scroller.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true)
+  await expect.poll(async () => scroller.evaluate(element => (
+    element.scrollHeight - element.clientHeight - element.scrollTop
+  ))).toBeLessThanOrEqual(4)
 })
