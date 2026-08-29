@@ -53,7 +53,6 @@ const pendingDraftFiles = new Map<string, { file: File; previewUrl: string }>()
 const chatLabels = computed(() => ({
   chatInputPlaceholder: '描述你的数据需求或业务目标',
   chatInputToolbarAddButtonLabel: '上传文件',
-  welcomeMessageText: `我是 ${props.agentDisplayName}，你的 SA 数据需求开发与交付助手。`,
   modalHeaderTitle: props.agentDisplayName,
 })) as any
 
@@ -357,6 +356,10 @@ onBeforeUnmount(() => {
       @submit-message="onSubmitMessage"
       @stop="onStop"
     >
+      <template #welcome-message>
+        <span class="conversation-native-welcome-suppressed" aria-hidden="true"></span>
+      </template>
+
       <template #input="inputProps">
         <AguiInterruptController @active-change="hasInterrupts = $event" />
         <div class="conversation-input-layout" :class="{ 'conversation-input-layout--empty': !hasMessages }">
@@ -461,6 +464,7 @@ onBeforeUnmount(() => {
 .conversation-welcome h2{margin:0;color:var(--da-text-emphasis);font-family:Georgia,"Times New Roman","Songti SC",serif;font-size:32px;line-height:1.18;font-weight:400;letter-spacing:-.035em}
 .conversation-welcome p{max-width:640px;margin:0 auto;color:var(--da-text-muted);font-size:13px;line-height:1.7;text-wrap:balance}
 .conversation-welcome__identity+p{margin-top:14px}
+:deep([data-testid="copilot-chat-view-welcome-screen"] div:has(>.conversation-native-welcome-suppressed)){display:none!important}
 :deep([data-testid="copilot-chat-view"]){height:100%!important;min-height:0!important}
 :deep([data-testid="copilot-input-overlay"]){left:14px!important;right:14px!important;bottom:14px!important}
 .conversation-chat.is-empty :deep([data-testid="copilot-input-overlay"]){inset:0!important;width:auto!important;max-width:none!important;padding:28px 40px!important;display:grid!important;place-items:center!important;transform:none!important;pointer-events:none}
