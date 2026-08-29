@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
 
-const CONVERSATIONS_KEY = 'dataagent.conversations.v3.session-thread'
+const LEGACY_CONVERSATIONS_KEY = 'dataagent.conversations.v3.session-thread'
 const ACTIVE_KEY = 'dataagent.conversations.active.v2.session-thread'
 const MODELS_KEY = 'dataagent.model.selection.v4.by-session'
 
@@ -22,6 +22,9 @@ async function mockLazyApi(page: Page, hooks?: {
     const request = route.request()
     const url = new URL(request.url())
 
+    if (request.method() === 'GET' && url.pathname === '/dataagent/web/api/session') {
+      return json(route, { data: [], cursor: {} })
+    }
     if (request.method() === 'GET' && url.pathname.endsWith('/model')) {
       return json(route, { data: [
         { providerID: 'openai', id: 'gpt-a', name: 'GPT A', enabled: true },
@@ -102,14 +105,13 @@ test('new conversation stays local until first send, then creates one session wi
   await expect.poll(() => aguiBody?.threadId).toBe('session-created')
   expect(switchCalls).toBe(0)
 
-  const stored = await page.evaluate(({ conversationsKey, activeKey, modelsKey }) => ({
-    conversations: JSON.parse(localStorage.getItem(conversationsKey) ?? '[]'),
+  const stored = await page.evaluate(({ legacyConversationsKey, activeKey, modelsKey }) => ({
+    legacyConversations: localStorage.getItem(legacyConversationsKey),
     active: localStorage.getItem(activeKey),
     models: JSON.parse(localStorage.getItem(modelsKey) ?? '{}'),
-  }), { conversationsKey: CONVERSATIONS_KEY, activeKey: ACTIVE_KEY, modelsKey: MODELS_KEY })
+  }), { legacyConversationsKey: LEGACY_CONVERSATIONS_KEY, activeKey: ACTIVE_KEY, modelsKey: MODELS_KEY })
 
-  expect(stored.conversations).toHaveLength(1)
-  expect(stored.conversations[0].id).toBe('session-created')
+  expect(stored.legacyConversations).toBeNull()
   expect(stored.active).toBe('session-created')
   expect(stored.models['session-created']).toEqual({ providerID: 'openai', id: 'gpt-a' })
 })
