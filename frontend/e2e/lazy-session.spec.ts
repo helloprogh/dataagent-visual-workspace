@@ -90,7 +90,7 @@ test('new conversation stays local until first send, then creates one session wi
   expect(createCalls).toBe(0)
 
   // Clicking New is still a local UI reset and must not allocate a backend session.
-  await page.getByTitle('新建会话').click()
+  await page.getByRole('button', { name: '新建会话', exact: true }).click()
   await expect(page.locator('.draft-model-selector__select')).toContainText('GPT A')
   expect(createCalls).toBe(0)
 
