@@ -98,7 +98,7 @@ test('sidebar exposes product copy instead of transport terminology', async () =
   assert.doesNotMatch(template, /AG-UI|CopilotKit|OpenCode/i)
 })
 
-test('sidebar exposes tools and removes workspace management navigation', async () => {
+test('sidebar exposes a searchable runtime tool catalog without category controls', async () => {
   const [app, sidebar, tools] = await Promise.all([
     frontend('App.vue'),
     frontend('components/AppSidebar.vue'),
@@ -109,9 +109,11 @@ test('sidebar exposes tools and removes workspace management navigation', async 
 
   assert.match(sidebarTemplate, />工具</)
   assert.doesNotMatch(sidebarTemplate, /工作空间管理|openWorkspace|open-workspace/)
-  assert.match(app, /ToolManagementView/)
+  assert.match(app, /ToolManagementView v-else :thread-id="activeId"/)
   assert.match(toolsTemplate, /搜索工具或能力/)
-  assert.match(tools, /数据库查询/)
+  assert.match(tools, /dataAgentWebApi\('\/tools'\)/)
+  assert.doesNotMatch(tools, /tool-filters|activeCategory|const categories/)
+  assert.doesNotMatch(tools, /database-query|python-runtime|visual-renderer/)
   assert.match(tools, /<style scoped>/)
 })
 
@@ -147,7 +149,7 @@ test('workspace header exposes product language instead of demo implementation l
   assert.doesNotMatch(template, /DYNAMIC RENDER SPACE|Agent driven|RENDER|UPDATED|READY/)
 })
 
-test('workspace presentation is model-driven and scroll surfaces reserve their tracks', async () => {
+test('workspace presentation is model-driven and empty composer layout is content-driven', async () => {
   const [app, store, conversation, workspace, shell] = await Promise.all([
     frontend('App.vue'),
     frontend('workspace/store.ts'),
@@ -162,8 +164,10 @@ test('workspace presentation is model-driven and scroll surfaces reserve their t
   assert.match(store, /requestPresentation\(\)/)
   assert.match(store, /presentationThreadId/)
   assert.match(conversation, /'is-empty': hydrated && !hasMessages/)
-  assert.match(conversation, /copilot-input-overlay[^}]*left:14px!important[^}]*right:14px!important[^}]*bottom:14px!important/)
-  assert.match(conversation, /conversation-chat\.is-empty[^}]*copilot-input-overlay[^}]*width:min\(720px,calc\(100% - 80px\)\)/)
+  assert.match(conversation, /conversation-input-layout--empty/)
+  assert.match(conversation, /conversation-chat\.is-empty[^}]*copilot-input-overlay[^}]*inset:0!important/)
+  assert.doesNotMatch(conversation, /top:calc\(50%\s*[+-]/)
+  assert.doesNotMatch(conversation, /conversation-welcome\{[^}]*position:absolute/)
   assert.match(conversation, /copilot-chat-view-scroll/)
   assert.match(conversation, /scrollbar-gutter:stable/)
   assert.match(workspace, /workspace-scroll::\-webkit-scrollbar-thumb/)

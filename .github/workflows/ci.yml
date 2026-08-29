@@ -74,6 +74,34 @@ jobs:
       - name: Build production frontend
         run: npm run build -w frontend
 
+  e2e:
+    name: Browser interaction tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install application dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Install pinned Playwright runner
+        run: npm install --no-save --package-lock=false @playwright/test@1.62.1
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run core browser flows
+        run: npx playwright test --config frontend/playwright.config.ts
+
   gallery:
     name: Component gallery build
     runs-on: ubuntu-latest

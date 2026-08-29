@@ -90,6 +90,16 @@ export class OpenCodeClient {
     return body?.data ?? body
   }
 
+  async experimentalJson(pathname, query, action) {
+    const suffix = querySuffix({ directory: this.workspaceDirectory, ...query })
+    try {
+      return await this.json(`/api${pathname}${suffix}`, {}, action)
+    } catch (error) {
+      if (!/\(404\)/.test(error.message)) throw error
+      return this.json(`${pathname}${suffix}`, {}, action)
+    }
+  }
+
   async health() {
     return this.json('/api/health', { headers: { Accept: 'application/json' } }, 'OpenCode health check failed')
   }
@@ -124,6 +134,18 @@ export class OpenCodeClient {
 
   async listWorkspaces(input = {}) {
     return this.json(`/api/workspace${querySuffix(input)}`, {}, 'Unable to list OpenCode workspaces')
+  }
+
+  async listToolIds() {
+    return this.experimentalJson('/experimental/tool/ids', {}, 'Unable to list OpenCode tool ids')
+  }
+
+  async listTools({ providerID, modelID } = {}) {
+    if (!providerID || !modelID) return []
+    return this.experimentalJson('/experimental/tool', {
+      provider: providerID,
+      model: modelID,
+    }, 'Unable to list OpenCode tools')
   }
 
   async getWorkspace(workspaceId) {
