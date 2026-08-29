@@ -94,9 +94,8 @@ const runtimeCapabilities = async (client, res, url) => {
   res.end(JSON.stringify({ data: catalog }))
 }
 
-export const createServer = () => {
+export const createServer = ({ client = new OpenCodeClient({ baseUrl: process.env.OPENCODE_BASE_URL }) } = {}) => {
   const agentServer = createAgentServer()
-  const client = new OpenCodeClient({ baseUrl: process.env.OPENCODE_BASE_URL })
   const handleManagement = createOpenCodeManagementHandler(client)
 
   return http.createServer(async (req, res) => {
