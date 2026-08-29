@@ -18,7 +18,10 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <section class="assistant-panel assistant-panel--center">
+  <section
+    class="assistant-panel assistant-panel--center"
+    :class="{ 'assistant-panel--existing': Boolean(activeConversation) }"
+  >
     <div class="assistant-panel-glow"></div>
 
     <header class="assistant-header">
@@ -60,3 +63,35 @@ const emit = defineEmits<{
     </footer>
   </section>
 </template>
+
+<style scoped>
+/* A real session is never the new-conversation welcome surface. Historical
+   messages can be restored asynchronously by CopilotKit after the local
+   snapshot is read, so message count must not control the existing-session
+   composer position. Keep the input at the normal bottom edge and suppress
+   the welcome content whenever a real conversation already exists. */
+.assistant-panel.assistant-panel--existing :deep(.conversation-welcome){
+  display:none!important;
+}
+.assistant-panel.assistant-panel--existing :deep(.conversation-input-layout--empty){
+  width:100%!important;
+  display:block!important;
+}
+.assistant-panel.assistant-panel--existing :deep(.conversation-chat.is-empty [data-testid="copilot-input-overlay"]){
+  inset:auto 14px 14px 14px!important;
+  width:auto!important;
+  max-width:none!important;
+  height:auto!important;
+  padding:0!important;
+  display:block!important;
+  place-items:initial!important;
+  transform:none!important;
+  pointer-events:auto!important;
+}
+@media(max-width:540px){
+  .assistant-panel.assistant-panel--existing :deep(.conversation-chat.is-empty [data-testid="copilot-input-overlay"]){
+    inset:auto 14px 14px 14px!important;
+    padding:0!important;
+  }
+}
+</style>
