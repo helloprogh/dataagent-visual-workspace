@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
 import type { ConversationRecord } from '../conversations/types'
 import ConversationChat from './conversation/ConversationChat.vue'
 
@@ -16,30 +15,10 @@ const emit = defineEmits<{
   changed: []
   autoRename: [name: string]
 }>()
-
-const panelRoot = ref<HTMLElement | null>(null)
-
-function scrollExistingConversationToLatest(sessionId: string) {
-  void nextTick(() => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (props.activeConversation?.id !== sessionId) return
-        const scroller = panelRoot.value?.querySelector<HTMLElement>('[data-testid="copilot-chat-view-scroll"]')
-        if (!scroller) return
-        scroller.scrollTop = scroller.scrollHeight
-      })
-    })
-  })
-}
-
-watch(() => props.activeConversation?.id, sessionId => {
-  if (sessionId) scrollExistingConversationToLatest(sessionId)
-}, { immediate: true })
 </script>
 
 <template>
   <section
-    ref="panelRoot"
     class="assistant-panel assistant-panel--center"
     :class="{ 'assistant-panel--existing': Boolean(activeConversation) }"
   >
@@ -86,9 +65,11 @@ watch(() => props.activeConversation?.id, sessionId => {
 </template>
 
 <style scoped>
-/* An existing session is never a welcome/draft surface. Even if an older
-   local snapshot temporarily reports zero messages, keep the normal chat
-   composer anchored to the bottom and hide all welcome-state content. */
+/* A real session is never the new-conversation welcome surface. Historical
+   messages can be restored asynchronously by CopilotKit after the local
+   snapshot is read, so message count must not control the existing-session
+   composer position. Keep the input at the normal bottom edge and suppress
+   the welcome content whenever a real conversation already exists. */
 .assistant-panel.assistant-panel--existing :deep(.conversation-welcome){
   display:none!important;
 }
