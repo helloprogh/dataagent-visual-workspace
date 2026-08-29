@@ -23,7 +23,7 @@ const galleryMode = import.meta.env.VITE_COMPONENT_GALLERY === 'true'
 const runtime = createAgentRuntime()
 const ACTIVE_CONVERSATION_KEY = 'dataagent.conversations.active.v2.session-thread'
 const conversations = ref<ConversationRecord[]>([])
-const rootConversations = computed(() => conversations.value.filter(item => !item.parentId))
+const rootConversations = computed(() => conversations.value.filter(item => !item.parentId && item.archivedAt == null))
 const activeId = ref(localStorage.getItem(ACTIVE_CONVERSATION_KEY) ?? '')
 const conversationListLoading = ref(!galleryMode)
 const renderAreaRequested = ref(false)
@@ -48,7 +48,7 @@ function ensureConversation() {
     return
   }
   const active = activeId.value ? conversationRepository.get(activeId.value) : undefined
-  if (!active || active.parentId) {
+  if (!active || active.parentId || active.archivedAt != null) {
     activeId.value = rootConversations.value[0].id
   }
 }
