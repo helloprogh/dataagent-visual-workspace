@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { CopilotChat, CopilotChatInput, CopilotChatMessageView, useAgent } from '@copilotkit/vue/v2'
+import { CopilotChat, CopilotChatInput, CopilotChatMessageView, useAgent, useInterrupt } from '@copilotkit/vue/v2'
 import type { AbstractAgent, Message } from '@ag-ui/client'
 import { ElMessage } from 'element-plus'
 import { conversationRepository, deriveConversationName } from '../../conversations/local-repository'
@@ -10,7 +10,6 @@ import { workspaceController } from '../../workspace/store'
 import DraftModelSelector from '../DraftModelSelector.vue'
 import ModelSelector from '../ModelSelector.vue'
 import AguiInterruptCard from './AguiInterruptCard.vue'
-import AguiInterruptController from './AguiInterruptController.vue'
 import ReasoningAwareAssistantMessage from './ReasoningAwareAssistantMessage.vue'
 import ReasoningProcessCard from './ReasoningProcessCard.vue'
 
@@ -38,7 +37,17 @@ const { agent } = useAgent({
   throttleMs: 60,
   updates: [],
 })
-const hasInterrupts = ref(false)
+// Own the native interrupt lifecycle in the same conversation component that
+// owns the agent. Do not publish through CopilotKit's global interruptState:
+// the UI and resolve/cancel closures must always target this exact runtime
+// agent instance and its current thread.
+const {
+  hasInterrupt: hasInterrupts,
+  slotProps: interruptSlot,
+} = useInterrupt({
+  agentId: props.agentId,
+  renderInChat: false,
+})
 const stopping = ref(false)
 const creatingSession = ref(false)
 const draftModel = ref<ModelSelection | null>(null)
@@ -208,7 +217,6 @@ watch([agent, () => props.threadId, () => props.draft], ([nextAgent, nextThreadI
   if (nextAgent && currentAgent === nextAgent && currentThreadId === nextThreadId) return
 
   hydrated.value = false
-  hasInterrupts.value = false
   releaseCurrentAgent()
   if (!nextAgent) return
 
@@ -355,7 +363,6 @@ onBeforeUnmount(() => {
       @stop="onStop"
     >
       <template #input="inputProps">
-        <AguiInterruptController @active-change="hasInterrupts = $event" />
         <div class="conversation-input-layout" :class="{ 'conversation-input-layout--empty': !hasMessages }">
           <section v-if="!hasMessages" class="conversation-welcome">
             <span class="conversation-welcome__eyebrow"><i></i>DATA AGENT</span>
@@ -417,10 +424,6 @@ onBeforeUnmount(() => {
         </div>
       </template>
 
-      <!-- CopilotChat@1.64.1 types its top-level interrupt slot too narrowly.
-           The public CopilotChatMessageView exposes the complete native
-           InterruptRenderProps, so render messages through that supported
-           extension point instead of weakening local types or lifecycle. -->
       <template #message-view="{ messages, isRunning }">
         <CopilotChatMessageView :messages="messages" :is-running="isRunning">
           <template #assistant-message="{ message, messages: allMessages, isRunning: messageRunning }">
@@ -437,15 +440,14 @@ onBeforeUnmount(() => {
               :is-running="messageRunning"
             />
           </template>
-          <template #interrupt="{ interrupt, interrupts, resolve, cancel }">
-            <AguiInterruptCard
-              :interrupt="interrupt"
-              :interrupts="interrupts"
-              :resolve="resolve"
-              :cancel="cancel"
-            />
-          </template>
         </CopilotChatMessageView>
+        <AguiInterruptCard
+          v-if="interruptSlot"
+          :interrupt="interruptSlot.interrupt"
+          :interrupts="interruptSlot.interrupts"
+          :resolve="interruptSlot.resolve"
+          :cancel="interruptSlot.cancel"
+        />
       </template>
     </CopilotChat>
   </div>
