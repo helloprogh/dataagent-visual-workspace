@@ -33,9 +33,11 @@ test('conversation HITL uses native useInterrupt inside an explicit CopilotKit t
 
   assert.match(lifecycle, /useInterrupt\(\{\s*renderInChat:\s*false\s*\}\)/)
   assert.match(lifecycle, /slotProps/)
-  assert.match(lifecycle, /:resolve="slotProps\.resolve"/)
-  assert.match(lifecycle, /:cancel="slotProps\.cancel"/)
-  assert.doesNotMatch(lifecycle, /buildResumeArray|useAgent\(|useCopilotKit\(|pendingInterrupts|responses\[/)
+  assert.match(lifecycle, /nativeResolve/)
+  assert.match(lifecycle, /nativeCancel/)
+  assert.match(lifecycle, /:resolve="resolve"/)
+  assert.match(lifecycle, /:cancel="cancel"/)
+  assert.doesNotMatch(lifecycle, /buildResumeArray|useCopilotKit\(|responses\[/)
 })
 
 test('interrupt response UI is JSON-Schema driven and covers single choice, multi choice, forms, nesting and fallback JSON', async () => {
