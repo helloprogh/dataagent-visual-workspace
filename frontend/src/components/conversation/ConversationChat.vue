@@ -437,11 +437,12 @@ onBeforeUnmount(() => {
               :is-running="messageRunning"
             />
           </template>
-          <template #interrupt="{ interrupt, interrupts, resolve }">
+          <template #interrupt="{ interrupt, interrupts, resolve, cancel }">
             <AguiInterruptCard
               :interrupt="interrupt"
               :interrupts="interrupts"
               :resolve="resolve"
+              :cancel="cancel"
             />
           </template>
         </CopilotChatMessageView>
