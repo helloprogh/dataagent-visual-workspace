@@ -17,7 +17,7 @@ const props = defineProps<{
   interrupt: Interrupt | null
   interrupts: Interrupt[]
   resolve: ResolveInterrupt
-  cancel: CancelInterrupt
+  cancel?: CancelInterrupt
 }>()
 
 const answers = reactive<Record<string, any>>({})
@@ -165,8 +165,12 @@ async function submitAll() {
     // native useInterrupt accumulates these per-id responses and emits the actual
     // run only when the final open interrupt is addressed.
     for (const interrupt of activeInterrupts.value) {
-      if (isCancelled(interrupt.id)) await props.cancel(interrupt.id)
-      else await props.resolve(answers[interrupt.id], interrupt.id)
+      if (isCancelled(interrupt.id)) {
+        if (!props.cancel) throw new Error('当前渲染上下文未提供 interrupt cancel 能力')
+        await props.cancel(interrupt.id)
+      } else {
+        await props.resolve(answers[interrupt.id], interrupt.id)
+      }
     }
   } catch (reason) {
     error.value = reason instanceof Error ? reason.message : String(reason)
