@@ -154,7 +154,7 @@ function normalizeSession(value: unknown, index: number): RemoteConversationSess
   const id = requiredString(value.id, 'session.id', action)
   const parentId = optionalString(value.parentID)
   const archivedAt = optionalTimestamp(value.time.archived, 'session.time.archived', action)
-  const title = requiredText(value.title, 'session.title', action).trim() || '新需求'
+  const title = optionalString(value.title) ?? '新需求'
 
   return {
     id,
