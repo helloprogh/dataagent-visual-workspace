@@ -11,19 +11,21 @@ const visibleTextOf = source => templateOf(source)
   .replace(/<[^>]+>/g, ' ')
   .replace(/\{\{[\s\S]*?\}\}/g, ' ')
 
-test('conversation HITL uses CopilotKit native interrupt lifecycle through the fully typed message view', async () => {
-  const [chat, controller] = await Promise.all([
-    readConversation('ConversationChat.vue'),
-    readConversation('AguiInterruptController.vue'),
-  ])
+test('conversation HITL owns one native interrupt lifecycle on the same runtime agent', async () => {
+  const chat = await readConversation('ConversationChat.vue')
 
-  assert.match(controller, /useInterrupt\(\)/)
+  assert.match(chat, /useInterrupt/)
+  assert.match(chat, /useInterrupt\(\{[\s\S]*agentId:\s*props\.agentId,[\s\S]*renderInChat:\s*false,[\s\S]*\}\)/)
+  assert.match(chat, /slotProps:\s*interruptSlot/)
+  assert.match(chat, /v-if="interruptSlot"/)
+  assert.match(chat, /:interrupt="interruptSlot\.interrupt"/)
+  assert.match(chat, /:interrupts="interruptSlot\.interrupts"/)
+  assert.match(chat, /:resolve="interruptSlot\.resolve"/)
+  assert.match(chat, /:cancel="interruptSlot\.cancel"/)
+  assert.doesNotMatch(chat, /AguiInterruptController/)
   assert.doesNotMatch(chat, /ResumeEntry|pendingInterrupts|decisions|function\s+decide\s*\(/)
   assert.match(chat, /CopilotChatMessageView/)
   assert.match(chat, /#message-view=/)
-  assert.match(chat, /<CopilotChatMessageView[\s\S]*?#interrupt=/)
-  assert.match(chat, /#interrupt="\{ interrupt, interrupts, resolve, cancel \}"/)
-  assert.match(chat, /:interrupt="interrupt"[\s\S]*:interrupts="interrupts"[\s\S]*:resolve="resolve"[\s\S]*:cancel="cancel"/)
 })
 
 test('interrupt response UI is JSON-Schema driven and covers single choice, multi choice, forms, nesting and fallback JSON', async () => {
