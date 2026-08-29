@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { shallowRef, watch } from 'vue'
+import { onBeforeUnmount, shallowRef, watch } from 'vue'
 import {
   buildResumeArray,
   isInterruptExpired,
   useAgent,
   useCopilotKit,
+  type AbstractAgent,
   type Interrupt,
   type InterruptCancelFn,
   type InterruptResolveFn,
@@ -18,13 +19,10 @@ const props = defineProps<{
 
 const emit = defineEmits<{ 'active-change': [active: boolean] }>()
 
-// Bind the lifecycle directly to the same thread-scoped agent clone that
-// CopilotChat uses. The stock Vue useInterrupt composable keeps its pending
-// standard-interrupt state inside the composable instance; when used from our
-// custom message-view subtree that state can become detached from the card that
-// remains rendered. Tracking RUN_FINISHED on the thread clone itself avoids that
-// split while still using the standard AG-UI ResumeEntry[] contract and
-// CopilotKit's runAgent pipeline.
+// Bind directly to the same thread-scoped agent clone as CopilotChat. Keep the
+// subscription stable when useAgent refreshes the same shallow-ref instance;
+// otherwise a reactive refresh can tear down the listener and clear a still
+// visible interrupt before the user submits a response.
 const { copilotkit } = useCopilotKit()
 const { agent } = useAgent({
   agentId: () => props.agentId,
@@ -38,31 +36,61 @@ type ResumeResponse =
   | { status: 'cancelled' }
 const responses: Record<string, ResumeResponse> = {}
 
+let subscribedAgent: AbstractAgent | null = null
+let agentSubscription: { unsubscribe: () => void } | null = null
+let completedInterrupts: Interrupt[] | null = null
+
 function clearResponses() {
   for (const id of Object.keys(responses)) delete responses[id]
 }
 
-function setInterrupts(next: readonly Interrupt[]) {
+function interruptSetKey(items: readonly Interrupt[]) {
+  return items.map(interrupt => interrupt.id).join('\u0000')
+}
+
+function setInterrupts(next: readonly Interrupt[], forceReset = false) {
+  const changed = interruptSetKey(interrupts.value) !== interruptSetKey(next)
   interrupts.value = [...next]
-  clearResponses()
+  if (changed || forceReset) clearResponses()
   emit('active-change', interrupts.value.length > 0)
 }
 
-watch(agent, (resolvedAgent, _previous, onCleanup) => {
-  setInterrupts([])
-  if (!resolvedAgent) return
+function authoritativeInterrupts(): Interrupt[] {
+  const pending = agent.value?.pendingInterrupts
+  return pending?.length ? [...pending] : [...interrupts.value]
+}
 
-  // If this host is recreated after the run has already finalized, restore
-  // directly from the agent's protocol state instead of losing the interrupt.
-  if (resolvedAgent.pendingInterrupts?.length) {
-    setInterrupts(resolvedAgent.pendingInterrupts)
+function releaseAgentSubscription() {
+  agentSubscription?.unsubscribe()
+  agentSubscription = null
+  subscribedAgent = null
+  completedInterrupts = null
+}
+
+watch(agent, resolvedAgent => {
+  // useAgent can trigger the shallow ref again for the same thread clone. Do
+  // not treat that as an agent switch: preserving the subscription and staged
+  // responses is essential while a HITL card is open.
+  if (resolvedAgent && resolvedAgent === subscribedAgent) {
+    if (resolvedAgent.pendingInterrupts?.length) {
+      setInterrupts(resolvedAgent.pendingInterrupts)
+    }
+    return
   }
 
-  let completedInterrupts: Interrupt[] | null = null
-  const subscription = resolvedAgent.subscribe({
+  releaseAgentSubscription()
+  setInterrupts([], true)
+  if (!resolvedAgent) return
+
+  subscribedAgent = resolvedAgent
+  if (resolvedAgent.pendingInterrupts?.length) {
+    setInterrupts(resolvedAgent.pendingInterrupts, true)
+  }
+
+  agentSubscription = resolvedAgent.subscribe({
     onRunStartedEvent: () => {
       completedInterrupts = null
-      setInterrupts([])
+      setInterrupts([], true)
     },
     onRunFinishedEvent: params => {
       completedInterrupts = params.outcome === 'interrupt'
@@ -70,25 +98,23 @@ watch(agent, (resolvedAgent, _previous, onCleanup) => {
         : []
     },
     onRunFinalized: () => {
-      if (completedInterrupts !== null) setInterrupts(completedInterrupts)
+      if (completedInterrupts !== null) setInterrupts(completedInterrupts, true)
       completedInterrupts = null
     },
     onRunFailed: () => {
       completedInterrupts = null
-      setInterrupts([])
+      setInterrupts([], true)
     },
-  })
-
-  onCleanup(() => {
-    subscription.unsubscribe()
-    completedInterrupts = null
-    setInterrupts([])
   })
 }, { immediate: true })
 
 async function submitIfComplete() {
-  const open = interrupts.value
+  const open = authoritativeInterrupts()
   if (!open.length || !open.every(interrupt => responses[interrupt.id])) return
+
+  // Synchronize the rendered copy from the protocol-owned pending set without
+  // clearing the responses that have just been collected from the form.
+  setInterrupts(open)
 
   const expired = open.find(interrupt => isInterruptExpired(interrupt))
   if (expired) throw new Error(`该请求已过期（${expired.expiresAt ?? '未知时间'}），请重新发起。`)
@@ -97,14 +123,14 @@ async function submitIfComplete() {
   if (!currentAgent) throw new Error('当前会话运行时不可用，请重试。')
 
   const resume = buildResumeArray(open, responses)
-  // Do not clear pending state here. The resumed run's RUN_STARTED event is the
-  // authoritative transition that closes the card. If runAgent rejects before
-  // starting, keeping the responses allows the user to retry the same submit.
+  // RUN_STARTED is the authoritative transition that closes the card. If the
+  // resumed run rejects before starting, keep the staged responses so the user
+  // can submit again instead of silently losing the decision.
   return copilotkit.value.runAgent({ agent: currentAgent, resume })
 }
 
 const resolve: InterruptResolveFn = async (payload?, interruptId?) => {
-  const open = interrupts.value
+  const open = authoritativeInterrupts()
   const id = interruptId ?? open[0]?.id
   if (!id || !open.some(interrupt => interrupt.id === id)) return
   responses[id] = { status: 'resolved', payload }
@@ -112,12 +138,17 @@ const resolve: InterruptResolveFn = async (payload?, interruptId?) => {
 }
 
 const cancel: InterruptCancelFn = async (interruptId?) => {
-  const open = interrupts.value
+  const open = authoritativeInterrupts()
   const id = interruptId ?? open[0]?.id
   if (!id || !open.some(interrupt => interrupt.id === id)) return
   responses[id] = { status: 'cancelled' }
   return submitIfComplete()
 }
+
+onBeforeUnmount(() => {
+  releaseAgentSubscription()
+  setInterrupts([], true)
+})
 </script>
 
 <template>
