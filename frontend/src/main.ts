@@ -10,6 +10,7 @@ import './opencode-management.css'
 import './composer-model-placement.css'
 import './theme-controls.css'
 import './light-theme.css'
+import './light-component-overrides.css'
 import { initializeTheme } from './theme'
 import App from './App.vue'
 
