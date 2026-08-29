@@ -11,21 +11,32 @@ const visibleTextOf = source => templateOf(source)
   .replace(/<[^>]+>/g, ' ')
   .replace(/\{\{[\s\S]*?\}\}/g, ' ')
 
-test('conversation HITL owns one native interrupt lifecycle on the same runtime agent', async () => {
-  const chat = await readConversation('ConversationChat.vue')
+test('conversation HITL resolves through the exact CopilotChat thread clone', async () => {
+  const [chat, host, lifecycle] = await Promise.all([
+    readConversation('ConversationChat.vue'),
+    readConversation('AguiInterruptHost.vue'),
+    readConversation('AguiInterruptLifecycle.vue'),
+  ])
 
-  assert.match(chat, /useInterrupt/)
-  assert.match(chat, /useInterrupt\(\{[\s\S]*agentId:\s*props\.agentId,[\s\S]*renderInChat:\s*false,[\s\S]*\}\)/)
-  assert.match(chat, /slotProps:\s*interruptSlot/)
-  assert.match(chat, /v-if="interruptSlot"/)
-  assert.match(chat, /:interrupt="interruptSlot\.interrupt"/)
-  assert.match(chat, /:interrupts="interruptSlot\.interrupts"/)
-  assert.match(chat, /:resolve="interruptSlot\.resolve"/)
-  assert.match(chat, /:cancel="interruptSlot\.cancel"/)
-  assert.doesNotMatch(chat, /AguiInterruptController/)
+  assert.match(chat, /<AguiInterruptHost/)
+  assert.match(chat, /:agent-id="agentId"/)
+  assert.match(chat, /:thread-id="threadId \|\| materializedSessionId"/)
+  assert.doesNotMatch(chat, /useInterrupt/)
   assert.doesNotMatch(chat, /ResumeEntry|pendingInterrupts|decisions|function\s+decide\s*\(/)
   assert.match(chat, /CopilotChatMessageView/)
   assert.match(chat, /#message-view=/)
+
+  assert.match(host, /CopilotChatConfigurationProvider/)
+  assert.match(host, /:agent-id="agentId"/)
+  assert.match(host, /:thread-id="threadId"/)
+  assert.match(host, /:has-explicit-thread-id="true"/)
+
+  assert.match(lifecycle, /useInterrupt\(\{\s*renderInChat:\s*false\s*\}\)/)
+  assert.match(lifecycle, /slotProps/)
+  assert.match(lifecycle, /:interrupt="slotProps\.interrupt"/)
+  assert.match(lifecycle, /:interrupts="slotProps\.interrupts"/)
+  assert.match(lifecycle, /:resolve="slotProps\.resolve"/)
+  assert.match(lifecycle, /:cancel="slotProps\.cancel"/)
 })
 
 test('interrupt response UI is JSON-Schema driven and covers single choice, multi choice, forms, nesting and fallback JSON', async () => {
