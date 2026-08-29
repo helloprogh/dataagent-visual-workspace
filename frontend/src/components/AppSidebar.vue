@@ -69,7 +69,7 @@ function timeLabel(timestamp: number) {
           </span>
           <div class="app-sidebar__thread-copy">
             <b>{{ item.displayName }}</b>
-            <small>{{ timeLabel(item.updatedAt) }} · {{ item.messages.length }} 条消息</small>
+            <small>{{ timeLabel(item.updatedAt) }}</small>
           </div>
           <el-dropdown trigger="click" @click.stop>
             <button class="app-sidebar__more" type="button" aria-label="会话操作" @click.stop>

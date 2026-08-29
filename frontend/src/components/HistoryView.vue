@@ -50,7 +50,7 @@ function fullTime(timestamp: number) {
 
     <div class="history-table">
       <div class="history-table__head">
-        <span>会话</span><span>消息</span><span>更新时间</span><span></span>
+        <span>会话</span><span>更新时间</span><span></span>
       </div>
       <article
         v-for="item in filtered"
@@ -68,7 +68,6 @@ function fullTime(timestamp: number) {
           <span class="history-table__icon"><svg viewBox="0 0 20 20"><path d="M4 5.5h12v8H9l-3.8 2.4V13.5H4z" /></svg></span>
           <div><b>{{ item.displayName }}</b><small>{{ item.id }}</small></div>
         </div>
-        <span>{{ item.messages.length }} 条</span>
         <span>{{ fullTime(item.updatedAt) }}</span>
         <el-dropdown trigger="click" @click.stop>
           <button class="history-table__more" type="button" aria-label="会话操作" @click.stop>
