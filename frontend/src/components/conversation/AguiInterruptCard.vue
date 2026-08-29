@@ -166,7 +166,7 @@ async function submitAll() {
     // run only when the final open interrupt is addressed.
     for (const interrupt of activeInterrupts.value) {
       if (isCancelled(interrupt.id)) {
-        if (!props.cancel) throw new Error('当前渲染上下文未提供 interrupt cancel 能力')
+        if (!props.cancel) throw new Error('当前渲染上下文未提供取消能力')
         await props.cancel(interrupt.id)
       } else {
         await props.resolve(answers[interrupt.id], interrupt.id)
@@ -234,7 +234,7 @@ async function submitAll() {
             />
 
             <div v-else-if="!hasResponseSchema(item)" class="approval-request__no-schema">
-              此请求未声明响应结构。确认后将按协议提交 resolved 状态，不附加 payload。
+              此请求无需填写额外内容，确认后即可继续处理。
             </div>
 
             <div v-else class="approval-request__raw">
@@ -256,10 +256,10 @@ async function submitAll() {
             </ul>
           </template>
 
-          <div v-else class="approval-request__cancelled-note">该项将以 AG-UI `cancelled` 状态提交，不包含 payload。</div>
+          <div v-else class="approval-request__cancelled-note">该项将被取消，不会提交响应内容。</div>
         </div>
 
-        <div v-else class="approval-request__expired-note">该请求已经过期。根据 AG-UI 规范，客户端不会提交过期的 resume。</div>
+        <div v-else class="approval-request__expired-note">该请求已经过期，无法继续提交。</div>
       </article>
     </div>
 
