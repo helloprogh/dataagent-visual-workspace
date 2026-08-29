@@ -117,10 +117,11 @@ test('sidebar exposes a searchable runtime tool catalog without category control
   assert.match(tools, /<style scoped>/)
 })
 
-test('visible controls keep native icons and centered action labels', async () => {
-  const [composer, shell, approval] = await Promise.all([
+test('visible controls keep native icons and schema response actions intact', async () => {
+  const [composer, shell, schemaField, approval] = await Promise.all([
     frontend('composer-model-placement.css'),
     frontend('layout-shell.css'),
+    frontend('components/conversation/AguiSchemaField.vue'),
     frontend('components/conversation/AguiInterruptCard.vue'),
   ])
 
@@ -128,16 +129,21 @@ test('visible controls keep native icons and centered action labels', async () =
   assert.doesNotMatch(composer, /filter\s*:\s*brightness\(0\)\s*invert\(1\)/i)
   assert.match(composer, /copilot-chat-input-add[^}]*>svg\s*\{[\s\S]*display:block!important[\s\S]*stroke:currentColor!important[\s\S]*filter:none!important/i)
   assert.match(shell, /\.app-sidebar__nav-icon\s*\{[\s\S]*display:grid[\s\S]*place-items:center/)
-  assert.match(approval, /approval-request__choices button,[\s\S]*flex:0 0 auto[\s\S]*display:inline-flex[\s\S]*align-items:center[\s\S]*justify-content:center[\s\S]*line-height:1!important/)
+  assert.match(schemaField, /\.schema-field__choices/)
+  assert.match(schemaField, /\.schema-field__choices button/)
+  assert.match(approval, /\.approval-request__footer button\.primary/)
 })
 
-test('approval choice controls are not nested inside label elements', async () => {
-  const approval = await frontend('components/conversation/AguiInterruptCard.vue')
-  const template = vueTemplate(approval)
+test('schema choice controls are not nested inside label elements', async () => {
+  const [field, approval] = await Promise.all([
+    frontend('components/conversation/AguiSchemaField.vue'),
+    frontend('components/conversation/AguiInterruptCard.vue'),
+  ])
+  const template = vueTemplate(field)
 
-  assert.doesNotMatch(template, /<label[^>]*approval-request__field/)
-  assert.match(template, /class="approval-request__field-label"/)
-  assert.match(template, /class="approval-request__choices" role="group"/)
+  assert.doesNotMatch(template, /<label[^>]*schema-field/)
+  assert.match(template, /class="schema-field__label"/)
+  assert.match(template, /class="schema-field__choices" role="group"/)
   assert.doesNotMatch(approval, /approval-request__footer button\.cancel/)
 })
 

@@ -216,6 +216,10 @@ export class OpenCodeAguiConverter {
       this.activateRun()
       return this.interrupt(raw)
     }
+    if (type === 'question.asked') {
+      this.activateRun()
+      return this.question(raw)
+    }
 
     if (type === 'session.error') return this.fail(errorText(raw.error ?? raw.message) || 'OpenCode run failed')
     if (type === 'session.status' && (raw.status?.type ?? raw.status) === 'busy') {
@@ -462,12 +466,83 @@ export class OpenCodeAguiConverter {
       },
       metadata: {
         source: 'opencode2',
+        kind: 'permission',
         action,
         ...(resources ? { resources } : {}),
       },
     }
     return [
       taskActivity(this.runId, { mode: 'async', status: 'waiting_permission', permission: raw }),
+      ...this.finish({ type: 'interrupt', interrupts: [interrupt] }),
+    ]
+  }
+
+  question(raw) {
+    const requestId = String(raw.id ?? raw.requestID ?? raw.requestId ?? randomUUID())
+    const questions = Array.isArray(raw.questions) ? raw.questions : []
+    const toolCallId = raw.tool?.callID ?? raw.tool?.callId
+    const answerSchemas = questions.map((question, index) => {
+      const options = Array.isArray(question.options) ? question.options : []
+      const labels = options.map((option) => String(option?.label ?? option))
+      const displayLabels = options.map((option, optionIndex) => {
+        const label = String(option?.label ?? option)
+        const description = option?.description
+        return description ? `${label} — ${description}` : labels[optionIndex]
+      })
+      const enumSchema = {
+        type: 'string',
+        enum: labels,
+        'x-enumNames': displayLabels,
+      }
+      const itemSchema = question.custom === false
+        ? enumSchema
+        : {
+            anyOf: [
+              enumSchema,
+              { type: 'string', minLength: 1, title: '自定义回答' },
+            ],
+          }
+      return {
+        type: 'array',
+        title: question.header ?? `问题 ${index + 1}`,
+        description: question.question,
+        minItems: 1,
+        ...(question.multiple ? {} : { maxItems: 1 }),
+        uniqueItems: true,
+        items: itemSchema,
+      }
+    })
+    const interrupt = {
+      id: requestId,
+      reason: 'input_required',
+      message: questions.length === 1
+        ? String(questions[0]?.question ?? '需要你的回答后才能继续。')
+        : `需要你回答 ${questions.length} 个问题后才能继续。`,
+      ...(toolCallId ? { toolCallId: String(toolCallId) } : {}),
+      responseSchema: {
+        type: 'object',
+        required: ['answers'],
+        additionalProperties: false,
+        properties: {
+          answers: {
+            type: 'array',
+            title: '回答',
+            minItems: questions.length,
+            maxItems: questions.length,
+            default: questions.map(() => []),
+            prefixItems: answerSchemas,
+            items: false,
+          },
+        },
+      },
+      metadata: {
+        source: 'opencode2',
+        kind: 'question',
+        questionCount: questions.length,
+      },
+    }
+    return [
+      taskActivity(this.runId, { mode: 'async', status: 'waiting_input', question: raw }),
       ...this.finish({ type: 'interrupt', interrupts: [interrupt] }),
     ]
   }

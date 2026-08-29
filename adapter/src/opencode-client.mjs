@@ -228,6 +228,20 @@ export class OpenCodeClient {
     }, 'Unable to reply to OpenCode permission')
   }
 
+  async replyQuestion(sessionId, requestId, answers) {
+    return this.json(`/api/session/${encodeURIComponent(sessionId)}/question/${encodeURIComponent(requestId)}/reply`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ answers }),
+    }, 'Unable to reply to OpenCode question')
+  }
+
+  async rejectQuestion(sessionId, requestId) {
+    return this.json(`/api/session/${encodeURIComponent(sessionId)}/question/${encodeURIComponent(requestId)}/reject`, {
+      method: 'POST',
+    }, 'Unable to reject OpenCode question')
+  }
+
   async *events(signal) {
     const response = await this.request('/api/event', {
       headers: { Accept: 'text/event-stream' },

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { normalizeState, stateSnapshot } from './agui.mjs'
 import { OpenCodeAguiConverter } from './converter.mjs'
 import { FrontendToolBridge } from './frontend-tool-bridge.mjs'
+import { applyResume } from './interrupt-resume.mjs'
 import { createFrontendMcpHandler } from './mcp-frontend-server.mjs'
 import { languageFromCookie, languageInstruction } from './language.mjs'
 import { OpenCodeClient } from './opencode-client.mjs'
@@ -119,42 +120,6 @@ const promptWithContext = (input, text, attachments = [], language) => {
   ].join('\n')
 }
 
-const resumeSignature = (resume) => JSON.stringify([...resume]
-  .map((item) => ({ interruptId: item.interruptId, status: item.status, payload: item.payload }))
-  .sort((left, right) => String(left.interruptId).localeCompare(String(right.interruptId))))
-
-const applyResume = async (threadId, sessionId, resume) => {
-  const signature = resumeSignature(resume)
-  const pending = await registry.pendingInterrupts(threadId)
-  if (!pending.length) {
-    const receipt = await registry.lastResume(threadId)
-    if (receipt?.signature === signature) {
-      return { resumedToolCallIds: receipt.resumedToolCallIds ?? [], replayed: true }
-    }
-    throw new Error('Thread does not have a pending AG-UI interrupt')
-  }
-  const entries = new Map(resume.map((item) => [item.interruptId, item]))
-  const pendingIds = new Set(pending.map((item) => item.id))
-  const uncovered = pending.filter((item) => !entries.has(item.id)).map((item) => item.id)
-  const unknown = resume.filter((item) => !pendingIds.has(item.interruptId)).map((item) => item.interruptId)
-  if (entries.size !== resume.length) throw new Error('RunAgentInput.resume contains duplicate interrupt ids')
-  if (uncovered.length || unknown.length) {
-    throw new Error(`RunAgentInput.resume must cover all pending interrupts${uncovered.length ? `; missing: ${uncovered.join(', ')}` : ''}${unknown.length ? `; unknown: ${unknown.join(', ')}` : ''}`)
-  }
-  const replies = pending.map((interrupt) => {
-    const entry = entries.get(interrupt.id)
-    const decision = entry.status === 'cancelled' ? 'reject' : entry.payload?.decision
-    if (!['once', 'always', 'reject'].includes(decision)) {
-      throw new Error(`Interrupt ${interrupt.id} requires payload.decision to be once, always, or reject`)
-    }
-    return { requestId: interrupt.id, decision, message: entry.payload?.message }
-  })
-  await Promise.all(replies.map((item) => client.replyPermission(sessionId, item.requestId, item.decision, item.message)))
-  const resumedToolCallIds = pending.map((item) => item.toolCallId).filter(Boolean)
-  await registry.resolveInterrupts(threadId, { signature, resumedToolCallIds, resolvedAt: Date.now() })
-  return { resumedToolCallIds, replayed: false }
-}
-
 const ensureFrontendTools = async (threadId, tools, adapterBaseUrl) => {
   const catalog = frontendTools.updateCatalog(threadId, tools)
   if (!catalog.length) return
@@ -238,7 +203,13 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl, language } = {}) => 
     const acceptedResults = frontendTools.acceptToolMessages(input.threadId, results)
     let promptPromise
     if (resume.length) {
-      const resumeResult = await applyResume(input.threadId, sessionId, resume)
+      const resumeResult = await applyResume({
+        threadId: input.threadId,
+        sessionId,
+        resume,
+        registry,
+        client,
+      })
       if (resumeResult.replayed) {
         nextEvent.catch(() => undefined)
         for (const item of converter.finish()) writeSse(res, item)
