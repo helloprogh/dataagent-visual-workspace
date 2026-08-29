@@ -21,7 +21,7 @@ test('conversation HITL resumes through the exact CopilotChat thread clone and s
   assert.match(chat, /<AguiInterruptHost/)
   assert.match(chat, /:agent-id="agentId"/)
   assert.match(chat, /:thread-id="threadId \|\| materializedSessionId"/)
-  assert.doesNotMatch(chat, /useInterrupt/)
+  assert.doesNotMatch(chat, /\buseInterrupt\s*\(/)
   assert.doesNotMatch(chat, /ResumeEntry|pendingInterrupts|decisions|function\s+decide\s*\(/)
   assert.match(chat, /CopilotChatMessageView/)
   assert.match(chat, /#message-view=/)
@@ -33,12 +33,13 @@ test('conversation HITL resumes through the exact CopilotChat thread clone and s
 
   assert.match(lifecycle, /useAgent\(\{[\s\S]*agentId:\s*\(\)\s*=>\s*props\.agentId,[\s\S]*threadId:\s*\(\)\s*=>\s*props\.threadId/)
   assert.match(lifecycle, /resolvedAgent\.pendingInterrupts/)
+  assert.match(lifecycle, /authoritativeInterrupts\(\)/)
   assert.match(lifecycle, /onRunFinishedEvent/)
   assert.match(lifecycle, /buildResumeArray\(open, responses\)/)
   assert.match(lifecycle, /copilotkit\.value\.runAgent\(\{\s*agent:\s*currentAgent,\s*resume\s*\}\)/)
   assert.match(lifecycle, /responses\[id\]\s*=\s*\{\s*status:\s*'resolved'/)
   assert.match(lifecycle, /responses\[id\]\s*=\s*\{\s*status:\s*'cancelled'/)
-  assert.doesNotMatch(lifecycle, /useInterrupt/)
+  assert.doesNotMatch(lifecycle, /\buseInterrupt\s*\(/)
 })
 
 test('interrupt response UI is JSON-Schema driven and covers single choice, multi choice, forms, nesting and fallback JSON', async () => {
