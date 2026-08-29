@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nextTick, ref, watch } from 'vue'
 import type { ConversationRecord } from '../conversations/types'
 import ConversationChat from './conversation/ConversationChat.vue'
 
@@ -15,10 +16,30 @@ const emit = defineEmits<{
   changed: []
   autoRename: [name: string]
 }>()
+
+const panelRoot = ref<HTMLElement | null>(null)
+
+function scrollExistingConversationToLatest(sessionId: string) {
+  void nextTick(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (props.activeConversation?.id !== sessionId) return
+        const scroller = panelRoot.value?.querySelector<HTMLElement>('[data-testid="copilot-chat-view-scroll"]')
+        if (!scroller) return
+        scroller.scrollTop = scroller.scrollHeight
+      })
+    })
+  })
+}
+
+watch(() => props.activeConversation?.id, sessionId => {
+  if (sessionId) scrollExistingConversationToLatest(sessionId)
+}, { immediate: true })
 </script>
 
 <template>
   <section
+    ref="panelRoot"
     class="assistant-panel assistant-panel--center"
     :class="{ 'assistant-panel--existing': Boolean(activeConversation) }"
   >
