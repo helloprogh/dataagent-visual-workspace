@@ -1,6 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
 
-const CONVERSATIONS_KEY = 'dataagent.conversations.v3.session-thread'
 const ACTIVE_KEY = 'dataagent.conversations.active.v2.session-thread'
 
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({
@@ -9,11 +8,23 @@ const json = (route: Route, body: unknown, status = 200) => route.fulfill({
   body: JSON.stringify(body),
 })
 
-async function mockApi(page: Page) {
+async function mockApi(page: Page, options?: { history?: boolean }) {
   await page.route('**/dataagent/web/api/**', async route => {
     const request = route.request()
     const url = new URL(request.url())
 
+    if (request.method() === 'GET' && url.pathname === '/dataagent/web/api/session') {
+      return json(route, {
+        data: options?.history
+          ? [{
+              id: 'history-session',
+              title: '历史订单分析',
+              time: { created: Date.now() - 60_000, updated: Date.now() },
+            }]
+          : [],
+        cursor: {},
+      })
+    }
     if (request.method() === 'GET' && url.pathname.endsWith('/model')) {
       return json(route, {
         data: [{ providerID: 'openai', id: 'gpt-a', name: 'GPT A', enabled: true }],
@@ -25,16 +36,26 @@ async function mockApi(page: Page) {
       })
     }
     if (request.method() === 'GET' && url.pathname.endsWith('/session/history-session/message')) {
-      return json(route, { data: [
-        {
-          info: { id: 'history-user-message', sessionID: 'history-session', role: 'user' },
-          parts: [{ type: 'text', text: '分析去年各区域订单趋势' }],
-        },
-        {
-          info: { id: 'history-assistant-message', sessionID: 'history-session', role: 'assistant' },
-          parts: [{ type: 'text', text: '历史分析结果已经恢复。' }],
-        },
-      ] })
+      return json(route, {
+        data: [
+          {
+            id: 'history-user-message',
+            type: 'user',
+            text: '分析去年各区域订单趋势',
+            time: { created: 1 },
+          },
+          {
+            id: 'history-assistant-message',
+            type: 'assistant',
+            agent: 'build',
+            model: { id: 'gpt-a', providerID: 'openai', variant: 'default' },
+            content: [{ id: 'history-assistant-text', type: 'text', text: '历史分析结果已经恢复。' }],
+            time: { created: 2, completed: 3 },
+            finish: 'stop',
+          },
+        ],
+        cursor: {},
+      })
     }
     return json(route, { data: {} })
   })
@@ -55,22 +76,10 @@ test('new conversation uses the concise welcome and has no duplicate header acti
 })
 
 test('opening an existing history session restores its messages and keeps the composer at the bottom', async ({ page }) => {
-  await mockApi(page)
-  await page.addInitScript(({ conversationsKey, activeKey }) => {
-    const now = Date.now()
-    localStorage.setItem(conversationsKey, JSON.stringify([{
-      id: 'history-session',
-      displayName: '历史订单分析',
-      messages: [
-        { id: 'history-user-message', role: 'user', content: '分析去年各区域订单趋势' },
-        { id: 'history-assistant-message', role: 'assistant', content: '历史分析结果已经恢复。' },
-      ],
-      state: {},
-      createdAt: now - 60_000,
-      updatedAt: now,
-    }]))
+  await mockApi(page, { history: true })
+  await page.addInitScript(activeKey => {
     localStorage.setItem(activeKey, 'history-session')
-  }, { conversationsKey: CONVERSATIONS_KEY, activeKey: ACTIVE_KEY })
+  }, ACTIVE_KEY)
 
   await page.goto('/')
   await page.getByRole('button', { name: '查看全部会话' }).click()
