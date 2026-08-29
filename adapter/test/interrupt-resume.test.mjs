@@ -50,7 +50,7 @@ test('dispatches one complete AG-UI resume set across permission and question in
 
   assert.deepEqual(client.calls, [
     ['permission', 'session-1', 'permission-1', 'once', undefined],
-    ['question', 'question-1', [['生产'], ['表', '自定义范围']]],
+    ['question', 'session-1', 'question-1', [['生产'], ['表', '自定义范围']]],
   ])
   assert.deepEqual(result.resumedToolCallIds, ['tool-1', 'tool-2'])
   assert.equal(result.replayed, false)
@@ -69,7 +69,7 @@ test('maps AG-UI cancelled question to OpenCode question reject', async () => {
     resume: [{ interruptId: 'question-1', status: 'cancelled' }],
   })
 
-  assert.deepEqual(client.calls, [['question-reject', 'question-1']])
+  assert.deepEqual(client.calls, [['question-reject', 'session-1', 'question-1']])
 })
 
 test('rejects partial resume arrays before touching OpenCode', async () => {
