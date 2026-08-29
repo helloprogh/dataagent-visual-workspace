@@ -6,6 +6,7 @@ import { createAgentRuntime } from './copilot/agent'
 import { fetchConversationSessions } from './conversations/history-api'
 import { conversationRepository } from './conversations/local-repository'
 import type { ConversationRecord } from './conversations/types'
+import { applyTheme, readTheme, type AppTheme } from './theme'
 import { workspaceController } from './workspace/store'
 import GenUIBridge from './components/GenUIBridge.vue'
 import WorkspaceCanvas from './components/WorkspaceCanvas.vue'
@@ -25,10 +26,16 @@ const ACTIVE_CONVERSATION_KEY = 'dataagent.conversations.active.v2.session-threa
 const conversations = ref<ConversationRecord[]>([])
 const rootConversations = computed(() => conversations.value.filter(item => !item.parentId && item.archivedAt == null))
 const activeId = ref(localStorage.getItem(ACTIVE_CONVERSATION_KEY) ?? '')
+const theme = ref<AppTheme>(readTheme())
 const conversationListLoading = ref(!galleryMode)
 const renderAreaRequested = ref(false)
 const renderAreaDismissed = ref(false)
 const activePage = ref<AppPage>('chat')
+
+function toggleTheme() {
+  theme.value = theme.value === 'dark' ? 'light' : 'dark'
+  applyTheme(theme.value)
+}
 
 function refreshConversations() {
   conversations.value = conversationRepository.list()
@@ -184,6 +191,7 @@ function autoRename(name: string) {
           :conversations="rootConversations"
           :active-id="activeId"
           :active-page="activePage"
+          :theme="theme"
           @create="startNewConversation"
           @select="selectConversation"
           @rename="renameConversation"
@@ -191,6 +199,7 @@ function autoRename(name: string) {
           @open-history="openHistory"
           @open-skills="activePage = 'skills'"
           @open-tools="activePage = 'tools'"
+          @toggle-theme="toggleTheme"
         />
 
         <section class="app-main-stage" :class="{ 'app-main-stage--chat': activePage === 'chat' }">
