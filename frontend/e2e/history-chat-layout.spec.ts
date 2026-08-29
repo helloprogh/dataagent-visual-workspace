@@ -24,6 +24,18 @@ async function mockApi(page: Page) {
         data: { providerID: 'openai', id: 'gpt-a', name: 'GPT A', enabled: true },
       })
     }
+    if (request.method() === 'GET' && url.pathname.endsWith('/session/history-session/message')) {
+      return json(route, { data: [
+        {
+          info: { id: 'history-user-message', sessionID: 'history-session', role: 'user' },
+          parts: [{ type: 'text', text: '分析去年各区域订单趋势' }],
+        },
+        {
+          info: { id: 'history-assistant-message', sessionID: 'history-session', role: 'assistant' },
+          parts: [{ type: 'text', text: '历史分析结果已经恢复。' }],
+        },
+      ] })
+    }
     return json(route, { data: {} })
   })
 }
