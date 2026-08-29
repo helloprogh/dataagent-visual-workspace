@@ -59,12 +59,24 @@ watch(activeInterrupts, interrupts => {
   error.value = ''
 }, { immediate: true, deep: true })
 
-function schemaFor(interrupt: Interrupt): JsonSchema {
-  return normalizeSchema((interrupt.responseSchema ?? {}) as JsonSchema)
+function hasDeclaredResponseSchema(interrupt: Interrupt) {
+  return !!interrupt.responseSchema && Object.keys(interrupt.responseSchema as Record<string, unknown>).length > 0
 }
 
 function hasResponseSchema(interrupt: Interrupt) {
-  return !!interrupt.responseSchema && Object.keys(interrupt.responseSchema as Record<string, unknown>).length > 0
+  return hasDeclaredResponseSchema(interrupt) || interrupt.reason === 'confirmation'
+}
+
+function schemaFor(interrupt: Interrupt): JsonSchema {
+  if (hasDeclaredResponseSchema(interrupt)) return normalizeSchema(interrupt.responseSchema as JsonSchema)
+  if (interrupt.reason === 'confirmation') {
+    return {
+      type: 'boolean',
+      title: '是否继续',
+      description: '请选择是或否。',
+    }
+  }
+  return {}
 }
 
 function titleFor(interrupt: Interrupt) {
