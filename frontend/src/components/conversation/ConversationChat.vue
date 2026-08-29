@@ -45,7 +45,7 @@ const chatLabels = computed(() => ({
   modalHeaderTitle: props.agentDisplayName,
 })) as any
 
-const uploadUrl = '/dataagent/web/api/agui/upload'
+const uploadUrl = '/dataagent/web/api/agui/file/upload'
 const attachmentsConfig = computed(() => ({
   enabled: true,
   accept: '*/*',
@@ -57,6 +57,7 @@ const attachmentsConfig = computed(() => ({
 async function uploadAttachment(file: File) {
   const formData = new FormData()
   formData.append('file', file, file.name)
+  formData.append('threadId', props.threadId)
   const headers = new Headers()
   const token = import.meta.env.VITE_AGUI_TOKEN
   if (token) headers.set('Authorization', `Bearer ${token}`)
@@ -80,8 +81,8 @@ async function uploadAttachment(file: File) {
   const body = await response.json()
   const uploaded = body?.data ?? body?.file ?? body
   const fileId = uploaded?.fileId ?? uploaded?.file_id ?? uploaded?.id
-  const source = uploaded?.url ?? uploaded?.uri ?? uploaded?.downloadUrl ?? uploaded?.download_url ?? uploaded?.path ?? fileId
-  if (!source) throw new Error('上传接口未返回 fileId 或文件地址')
+  const source = uploaded?.url ?? uploaded?.uri ?? uploaded?.downloadUrl ?? uploaded?.download_url ?? uploaded?.path ?? fileId ?? file.name
+  if (!source) throw new Error('上传接口未返回 fileId、文件地址或文件名')
 
   return {
     type: 'url' as const,
