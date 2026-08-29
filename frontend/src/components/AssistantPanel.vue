@@ -11,6 +11,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   create: []
+  materialized: [sessionId: string]
   changed: []
   autoRename: [name: string]
 }>()
@@ -37,17 +38,17 @@ const emit = defineEmits<{
       <span>当前会话</span>
       <b>{{ activeConversation?.displayName || '新需求' }}</b>
       <i></i>
-      <small>{{ activeId.slice(0, 18) }}</small>
+      <small>{{ activeId ? activeId.slice(0, 18) : '首次发送后创建' }}</small>
     </div>
 
     <div class="assistant-body">
       <ConversationChat
-        v-if="activeConversation"
-        :key="activeConversation.id"
         :agent-id="agentId"
         :agent-display-name="agentDisplayName"
-        :thread-id="activeConversation.id"
-        :display-name="activeConversation.displayName"
+        :thread-id="activeConversation?.id ?? ''"
+        :display-name="activeConversation?.displayName ?? '新需求'"
+        :draft="!activeConversation"
+        @materialized="emit('materialized', $event)"
         @changed="emit('changed')"
         @rename="emit('autoRename', $event)"
       />
