@@ -20,10 +20,33 @@ const isDirectUpstreamApi = (req, url) => {
   return false
 }
 
+const readJsonBody = async (req) => {
+  const chunks = []
+  for await (const chunk of req) chunks.push(chunk)
+  if (!chunks.length) return {}
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+}
+
+const normalizeSessionModel = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const providerID = typeof value.providerID === 'string' ? value.providerID.trim() : ''
+  const id = typeof value.id === 'string' ? value.id.trim() : ''
+  return providerID && id ? { providerID, id } : undefined
+}
+
 const proxyDirectApi = async (client, req, res, url) => {
   if (req.method === 'POST' && url.pathname === `${API_BASE}/session`) {
-    req.resume()
-    const session = await client.createSession()
+    const input = await readJsonBody(req)
+    const model = normalizeSessionModel(input?.model)
+    const session = await client.json('/api/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'AG-UI session',
+        location: { directory: client.workspaceDirectory },
+        ...(model ? { model } : {}),
+      }),
+    }, 'Unable to create OpenCode session')
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
     res.end(JSON.stringify({ data: session }))
     return
@@ -71,9 +94,8 @@ const runtimeCapabilities = async (client, res, url) => {
   res.end(JSON.stringify({ data: catalog }))
 }
 
-export const createServer = () => {
+export const createServer = ({ client = new OpenCodeClient({ baseUrl: process.env.OPENCODE_BASE_URL }) } = {}) => {
   const agentServer = createAgentServer()
-  const client = new OpenCodeClient({ baseUrl: process.env.OPENCODE_BASE_URL })
   const handleManagement = createOpenCodeManagementHandler(client)
 
   return http.createServer(async (req, res) => {
