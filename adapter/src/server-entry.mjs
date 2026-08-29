@@ -12,11 +12,13 @@ const isDirectUpstreamApi = (req, url) => {
   if (req.method === 'GET' && url.pathname === `${API_BASE}/skill`) return true
   if (req.method === 'POST' && url.pathname === `${API_BASE}/skill/upload`) return true
   if (req.method === 'DELETE' && new RegExp(`^${API_BASE}/skill/upload/delete/[^/]+$`).test(url.pathname)) return true
+  if (req.method === 'GET' && url.pathname === `${API_BASE}/session`) return true
   if (req.method === 'POST' && url.pathname === `${API_BASE}/session`) return true
   if (req.method === 'GET' && url.pathname === `${API_BASE}/model`) return true
   if (req.method === 'GET' && url.pathname === `${API_BASE}/model/default`) return true
   if (req.method === 'POST' && new RegExp(`^${API_BASE}/session/[^/]+/model$`).test(url.pathname)) return true
   if (req.method === 'POST' && new RegExp(`^${API_BASE}/session/[^/]+/interrupt$`).test(url.pathname)) return true
+  if (req.method === 'GET' && new RegExp(`^${API_BASE}/session/[^/]+/message$`).test(url.pathname)) return true
   return false
 }
 
@@ -49,6 +51,24 @@ const proxyDirectApi = async (client, req, res, url) => {
     }, 'Unable to create OpenCode session')
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
     res.end(JSON.stringify({ data: session }))
+    return
+  }
+
+  const isConversationList = req.method === 'GET' && url.pathname === `${API_BASE}/session`
+  const isConversationMessages = req.method === 'GET'
+    && new RegExp(`^${API_BASE}/session/[^/]+/message$`).test(url.pathname)
+  if (isConversationList || isConversationMessages) {
+    const upstreamPath = url.pathname.slice(WEB_PREFIX.length)
+    const payload = await client.json(
+      `${upstreamPath}${url.search}`,
+      { headers: { Accept: 'application/json' } },
+      isConversationList ? 'Unable to list OpenCode sessions' : 'Unable to read OpenCode messages',
+    )
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+    })
+    res.end(JSON.stringify({ data: payload }))
     return
   }
 
