@@ -167,6 +167,12 @@ function applyRaw(interrupt: Interrupt) {
   }
 }
 
+function toProtocolPayload(value: unknown): unknown {
+  if (value === undefined) return undefined
+  const json = JSON.stringify(value)
+  return json === undefined ? undefined : JSON.parse(json)
+}
+
 async function submitAll() {
   if (submitting.value || !allComplete.value) return
   const expired = activeInterrupts.value.find(isExpired)
@@ -178,15 +184,16 @@ async function submitAll() {
   error.value = ''
   submitting.value = true
   try {
-    // AG-UI requires one resume request to cover every open interrupt. CopilotKit's
-    // native useInterrupt accumulates these per-id responses and emits the actual
-    // run only when the final open interrupt is addressed.
+    // AG-UI resume payloads cross the JSON protocol boundary. Vue makes nested
+    // form values reactive proxies, which browser structuredClone cannot clone.
+    // Normalize every resolved response to plain JSON data before handing it to
+    // CopilotKit/@ag-ui/client; cancellation carries no payload.
     for (const interrupt of activeInterrupts.value) {
       if (isCancelled(interrupt.id)) {
         if (!props.cancel) throw new Error('当前渲染上下文未提供取消能力')
         await props.cancel(interrupt.id)
       } else {
-        await props.resolve(answers[interrupt.id], interrupt.id)
+        await props.resolve(toProtocolPayload(answers[interrupt.id]), interrupt.id)
       }
     }
   } catch (reason) {
