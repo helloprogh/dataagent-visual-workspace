@@ -38,14 +38,34 @@ const choices = computed(() => choicesFor(schema.value))
 const variants = computed(() => variantsFor(schema.value))
 const nullable = computed(() => schemaAllowsNull(schema.value))
 const objectProperties = computed(() => Object.entries(schema.value.properties ?? {}) as Array<[string, JsonSchema]>)
+const definedPropertyNames = computed(() => new Set(objectProperties.value.map(([name]) => name)))
 const requiredNames = computed(() => new Set(Array.isArray(schema.value.required) ? schema.value.required.map(String) : []))
+const tupleSchemas = computed<JsonSchema[]>(() => {
+  if (Array.isArray(schema.value.prefixItems)) return schema.value.prefixItems.map((item: JsonSchema) => normalizeSchema(item))
+  if (Array.isArray(schema.value.items)) return schema.value.items.map((item: JsonSchema) => normalizeSchema(item))
+  return []
+})
 const itemSchema = computed(() => normalizeSchema(schema.value.items && !Array.isArray(schema.value.items) ? schema.value.items : {}))
 const itemChoices = computed(() => choicesFor(itemSchema.value))
 const arrayValue = computed<any[]>(() => Array.isArray(props.modelValue) ? props.modelValue : [])
 const objectValue = computed<Record<string, any>>(() => props.modelValue && typeof props.modelValue === 'object' && !Array.isArray(props.modelValue) ? props.modelValue : {})
+const extraEntries = computed(() => Object.entries(objectValue.value).filter(([key]) => !definedPropertyNames.value.has(key)))
+const allowsAdditionalProperties = computed(() => schema.value.additionalProperties !== false)
+const additionalSchema = computed<JsonSchema>(() => normalizeSchema(
+  schema.value.additionalProperties && typeof schema.value.additionalProperties === 'object'
+    ? schema.value.additionalProperties
+    : {},
+))
 const variantIndex = ref(-1)
 const rawJson = ref('')
 const rawError = ref('')
+const newPropertyName = ref('')
+const propertyError = ref('')
+
+const selectedVariant = computed<JsonSchema | null>(() => {
+  if (variantIndex.value < 0) return null
+  return variants.value[variantIndex.value] ?? null
+})
 
 watch(() => props.modelValue, value => {
   rawJson.value = prettyJson(value)
@@ -61,6 +81,28 @@ function setValue(value: any) {
 
 function setObjectChild(key: string, value: any) {
   setValue({ ...objectValue.value, [key]: value })
+}
+
+function removeObjectChild(key: string) {
+  const next = { ...objectValue.value }
+  delete next[key]
+  setValue(next)
+}
+
+function addAdditionalProperty() {
+  propertyError.value = ''
+  const name = newPropertyName.value.trim()
+  if (!name) {
+    propertyError.value = '请输入字段名'
+    return
+  }
+  if (Object.prototype.hasOwnProperty.call(objectValue.value, name)) {
+    propertyError.value = '字段名已存在'
+    return
+  }
+  const initial = defaultValueForSchema(additionalSchema.value)
+  setObjectChild(name, initial === undefined ? null : initial)
+  newPropertyName.value = ''
 }
 
 function selectChoice(value: any) {
@@ -81,6 +123,7 @@ function toggleArrayChoice(value: any) {
 
 function setArrayItem(index: number, value: any) {
   const next = [...arrayValue.value]
+  while (next.length <= index) next.push(undefined)
   next[index] = value
   setValue(next)
 }
@@ -127,7 +170,14 @@ function selectVariant(event: Event) {
   const selected = variants.value[index]
   if (!selected) return
   const initial = defaultValueForSchema(selected)
-  setValue(initial === undefined ? (inferSchemaType(selected) === 'object' ? {} : inferSchemaType(selected) === 'array' ? [] : undefined) : initial)
+  const selectedType = inferSchemaType(selected)
+  setValue(initial === undefined
+    ? selectedType === 'object'
+      ? {}
+      : selectedType === 'array'
+        ? []
+        : undefined
+    : initial)
 }
 
 function applyRawJson() {
@@ -171,6 +221,7 @@ function variantLabel(variant: JsonSchema, index: number) {
           :key="JSON.stringify(choice.value)"
           type="button"
           :disabled="disabled"
+          :aria-pressed="jsonEqual(modelValue, choice.value)"
           :class="{ selected: jsonEqual(modelValue, choice.value) }"
           @click="selectChoice(choice.value)"
         >{{ choice.label }}</button>
@@ -178,13 +229,19 @@ function variantLabel(variant: JsonSchema, index: number) {
     </template>
 
     <template v-else-if="variants.length">
-      <select class="schema-field__select" :value="variantIndex" :disabled="disabled" @change="selectVariant">
+      <select
+        class="schema-field__select"
+        :value="variantIndex"
+        :disabled="disabled"
+        :aria-label="label || schema.title || '响应结构'"
+        @change="selectVariant"
+      >
         <option :value="-1" disabled>请选择响应结构</option>
         <option v-for="(variant, index) in variants" :key="index" :value="index">{{ variantLabel(variant, index) }}</option>
       </select>
       <AguiSchemaField
-        v-if="variantIndex >= 0"
-        :schema="variants[variantIndex]"
+        v-if="selectedVariant"
+        :schema="selectedVariant"
         :model-value="modelValue"
         :disabled="disabled"
         :depth="depth + 1"
@@ -194,12 +251,12 @@ function variantLabel(variant: JsonSchema, index: number) {
 
     <template v-else-if="type === 'boolean'">
       <div class="schema-field__choices" role="group" :aria-label="label || schema.title || '请选择'">
-        <button type="button" :disabled="disabled" :class="{ selected: modelValue === true }" @click="setValue(true)">是</button>
-        <button type="button" :disabled="disabled" :class="{ selected: modelValue === false }" @click="setValue(false)">否</button>
+        <button type="button" :disabled="disabled" :aria-pressed="modelValue === true" :class="{ selected: modelValue === true }" @click="setValue(true)">是</button>
+        <button type="button" :disabled="disabled" :aria-pressed="modelValue === false" :class="{ selected: modelValue === false }" @click="setValue(false)">否</button>
       </div>
     </template>
 
-    <template v-else-if="type === 'object' && objectProperties.length">
+    <template v-else-if="type === 'object'">
       <div class="schema-field__object">
         <AguiSchemaField
           v-for="([key, childSchema]) in objectProperties"
@@ -212,6 +269,39 @@ function variantLabel(variant: JsonSchema, index: number) {
           :depth="depth + 1"
           @update:model-value="setObjectChild(key, $event)"
         />
+
+        <div v-for="([key, value]) in extraEntries" :key="`extra-${key}`" class="schema-field__extra">
+          <div class="schema-field__extra-head"><span>{{ key }}</span><button type="button" :disabled="disabled" @click="removeObjectChild(key)">移除</button></div>
+          <AguiSchemaField
+            :schema="additionalSchema"
+            :model-value="value"
+            :disabled="disabled"
+            :depth="depth + 1"
+            @update:model-value="setObjectChild(key, $event)"
+          />
+        </div>
+
+        <div v-if="allowsAdditionalProperties" class="schema-field__additional">
+          <input v-model="newPropertyName" :disabled="disabled" type="text" placeholder="新增字段名" aria-label="新增字段名" @keydown.enter.prevent="addAdditionalProperty" />
+          <button type="button" :disabled="disabled" @click="addAdditionalProperty">添加字段</button>
+        </div>
+        <small v-if="propertyError" class="schema-field__error">{{ propertyError }}</small>
+      </div>
+    </template>
+
+    <template v-else-if="type === 'array' && tupleSchemas.length">
+      <div class="schema-field__array">
+        <div v-for="(tupleSchema, index) in tupleSchemas" :key="index" class="schema-field__array-item">
+          <div class="schema-field__array-head"><span>{{ tupleSchema.title || `第 ${index + 1} 项` }}</span></div>
+          <AguiSchemaField
+            :schema="tupleSchema"
+            :model-value="arrayValue[index]"
+            :required="index < (schema.minItems ?? 0)"
+            :disabled="disabled"
+            :depth="depth + 1"
+            @update:model-value="setArrayItem(index, $event)"
+          />
+        </div>
       </div>
     </template>
 
@@ -258,7 +348,8 @@ function variantLabel(variant: JsonSchema, index: number) {
         class="schema-field__input"
         :type="schemaInputType(schema)"
         :value="modelValue ?? ''"
-        :disabled="disabled"
+        :disabled="disabled || schema.readOnly === true"
+        :aria-label="label || schema.title || '输入响应'"
         :placeholder="schema.examples?.[0] ?? schema.placeholder ?? ''"
         :min="schema.minimum"
         :max="schema.maximum"
@@ -276,7 +367,7 @@ function variantLabel(variant: JsonSchema, index: number) {
 
     <template v-else>
       <div class="schema-field__raw">
-        <textarea v-model="rawJson" :disabled="disabled" rows="6" spellcheck="false" aria-label="JSON 响应"></textarea>
+        <textarea v-model="rawJson" :disabled="disabled" rows="6" spellcheck="false" :aria-label="label || schema.title || 'JSON 响应'"></textarea>
         <div class="schema-field__raw-actions"><button type="button" :disabled="disabled" @click="applyRawJson">应用 JSON</button></div>
         <small v-if="rawError" class="schema-field__error">JSON 解析失败：{{ rawError }}</small>
       </div>
@@ -291,17 +382,19 @@ function variantLabel(variant: JsonSchema, index: number) {
 .schema-field__label em{color:var(--da-accent-red);font-style:normal}
 .schema-field__description{margin:0;color:var(--da-text-muted);font-size:12px;line-height:1.5}
 .schema-field__choices{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-.schema-field__choices button,.schema-field__nullable button,.schema-field__array-head button,.schema-field__add,.schema-field__raw-actions button{min-height:36px;padding:0 13px;border:1px solid var(--da-border);border-radius:8px;background:var(--da-surface-3);color:var(--da-text-primary);font:580 13px/1 inherit;cursor:pointer;transition:border-color .15s ease,background .15s ease,color .15s ease}
-.schema-field__choices button:hover:not(:disabled),.schema-field__nullable button:hover:not(:disabled),.schema-field__array-head button:hover:not(:disabled),.schema-field__add:hover:not(:disabled),.schema-field__raw-actions button:hover:not(:disabled){border-color:var(--da-border-strong);background:var(--da-surface-4)}
+.schema-field__choices button,.schema-field__nullable button,.schema-field__array-head button,.schema-field__add,.schema-field__raw-actions button,.schema-field__additional button,.schema-field__extra-head button{min-height:36px;padding:0 13px;border:1px solid var(--da-border);border-radius:8px;background:var(--da-surface-3);color:var(--da-text-primary);font-family:inherit;font-size:13px;font-weight:580;line-height:1;cursor:pointer;transition:border-color .15s ease,background .15s ease,color .15s ease}
+.schema-field__choices button:hover:not(:disabled),.schema-field__nullable button:hover:not(:disabled),.schema-field__array-head button:hover:not(:disabled),.schema-field__add:hover:not(:disabled),.schema-field__raw-actions button:hover:not(:disabled),.schema-field__additional button:hover:not(:disabled),.schema-field__extra-head button:hover:not(:disabled){border-color:var(--da-border-strong);background:var(--da-surface-4)}
 .schema-field__choices button.selected{border-color:color-mix(in srgb,var(--da-accent-yellow) 52%,var(--da-border));background:color-mix(in srgb,var(--da-accent-yellow) 10%,var(--da-surface-3));color:var(--da-text-emphasis)}
 .schema-field__choices--multi button{display:inline-flex;align-items:center;gap:7px}
 .schema-field__check{width:14px;height:14px;display:grid;place-items:center;border:1px solid var(--da-border-strong);border-radius:4px;font-size:10px}
 .schema-field__choices--multi button.selected .schema-field__check{border-color:color-mix(in srgb,var(--da-accent-yellow) 58%,var(--da-border));background:color-mix(in srgb,var(--da-accent-yellow) 12%,transparent)}
-.schema-field__input,.schema-field__select,.schema-field__raw textarea{width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--da-border);border-radius:8px;outline:none;background:var(--da-surface-input);color:var(--da-text-primary);font:14px/1.4 inherit;transition:border-color .15s ease,box-shadow .15s ease}
-.schema-field__input,.schema-field__select{height:40px;padding:0 10px}
+.schema-field__input,.schema-field__select,.schema-field__raw textarea,.schema-field__additional input{width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--da-border);border-radius:8px;outline:none;background:var(--da-surface-input);color:var(--da-text-primary);font-family:inherit;font-size:14px;line-height:1.4;transition:border-color .15s ease,box-shadow .15s ease}
+.schema-field__input,.schema-field__select,.schema-field__additional input{height:40px;padding:0 10px}
 .schema-field__raw textarea{padding:9px 10px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
-.schema-field__input:focus,.schema-field__select:focus,.schema-field__raw textarea:focus{border-color:color-mix(in srgb,var(--da-accent-yellow) 42%,var(--da-border));box-shadow:0 0 0 3px color-mix(in srgb,var(--da-accent-yellow) 6%,transparent)}
+.schema-field__input:focus,.schema-field__select:focus,.schema-field__raw textarea:focus,.schema-field__additional input:focus{border-color:color-mix(in srgb,var(--da-accent-yellow) 42%,var(--da-border));box-shadow:0 0 0 3px color-mix(in srgb,var(--da-accent-yellow) 6%,transparent)}
 .schema-field__object{display:flex;flex-direction:column;gap:13px;padding:10px;border:1px solid color-mix(in srgb,var(--da-border) 82%,transparent);border-radius:9px;background:color-mix(in srgb,var(--da-surface-deep) 55%,transparent)}
+.schema-field__extra{padding:9px;border:1px dashed var(--da-border);border-radius:8px}.schema-field__extra-head{margin-bottom:7px;display:flex;align-items:center;justify-content:space-between;color:var(--da-text-secondary);font-size:12px}.schema-field__extra-head button{min-height:28px;padding:0 8px;font-size:11px}
+.schema-field__additional{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}.schema-field__additional button{min-width:86px}
 .schema-field__array{display:flex;flex-direction:column;gap:9px}
 .schema-field__array-item{padding:10px;border:1px solid var(--da-border);border-radius:9px;background:color-mix(in srgb,var(--da-surface-deep) 45%,transparent)}
 .schema-field__array-head{margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;color:var(--da-text-muted);font-size:12px}
@@ -316,5 +409,5 @@ function variantLabel(variant: JsonSchema, index: number) {
 .schema-field__raw-actions button{min-height:30px;font-size:12px}
 .schema-field__error{color:#F1A1AE;font-size:12px;line-height:1.4}
 button:disabled,input:disabled,select:disabled,textarea:disabled{opacity:.46;cursor:not-allowed}
-@media(max-width:540px){.schema-field__choices button{flex:1 1 calc(50% - 4px);min-width:0}.schema-field__object{padding:8px}}
+@media(max-width:540px){.schema-field__choices button{flex:1 1 calc(50% - 4px);min-width:0}.schema-field__object{padding:8px}.schema-field__additional{grid-template-columns:1fr}.schema-field__additional button{width:100%}}
 </style>
