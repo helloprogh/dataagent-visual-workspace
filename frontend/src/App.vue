@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { CopilotKitProvider } from '@copilotkit/vue/v2'
 import { createAgentRuntime } from './copilot/agent'
+import { fetchConversationSessions } from './conversations/history-api'
 import { conversationRepository } from './conversations/local-repository'
 import type { ConversationRecord } from './conversations/types'
 import { workspaceController } from './workspace/store'
@@ -22,7 +23,9 @@ const galleryMode = import.meta.env.VITE_COMPONENT_GALLERY === 'true'
 const runtime = createAgentRuntime()
 const ACTIVE_CONVERSATION_KEY = 'dataagent.conversations.active.v2.session-thread'
 const conversations = ref<ConversationRecord[]>([])
+const rootConversations = computed(() => conversations.value.filter(item => !item.parentId))
 const activeId = ref(localStorage.getItem(ACTIVE_CONVERSATION_KEY) ?? '')
+const conversationListLoading = ref(!galleryMode)
 const renderAreaRequested = ref(false)
 const renderAreaDismissed = ref(false)
 const activePage = ref<AppPage>('chat')
@@ -40,16 +43,52 @@ function startNewConversation() {
 
 function ensureConversation() {
   refreshConversations()
-  if (conversations.value.length === 0) {
+  if (rootConversations.value.length === 0) {
     startNewConversation()
     return
   }
-  if (!activeId.value || !conversationRepository.get(activeId.value)) {
-    activeId.value = conversations.value[0].id
+  const active = activeId.value ? conversationRepository.get(activeId.value) : undefined
+  if (!active || active.parentId) {
+    activeId.value = rootConversations.value[0].id
   }
 }
 
-if (!galleryMode) ensureConversation()
+let conversationListRequest = 0
+let conversationListAbort: AbortController | undefined
+
+async function loadConversationList(initial = false) {
+  const request = ++conversationListRequest
+  conversationListAbort?.abort()
+  conversationListAbort = new AbortController()
+  if (initial) conversationListLoading.value = true
+  try {
+    const sessions = await fetchConversationSessions(conversationListAbort.signal)
+    if (request !== conversationListRequest) return
+    conversationRepository.syncSessions(sessions)
+    ensureConversation()
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') return
+    if (request !== conversationListRequest) return
+    ensureConversation()
+    ElMessage.warning(
+      rootConversations.value.length
+        ? '对话列表加载失败，已显示本地缓存'
+        : (error instanceof Error ? error.message : String(error)),
+    )
+  } finally {
+    if (initial && request === conversationListRequest) conversationListLoading.value = false
+  }
+}
+
+function openHistory() {
+  activePage.value = 'history'
+  void loadConversationList()
+}
+
+if (!galleryMode) {
+  refreshConversations()
+  void loadConversationList(true)
+}
 watch(activeId, id => {
   if (galleryMode) return
   renderAreaRequested.value = false
@@ -142,21 +181,25 @@ function autoRename(name: string) {
     <GenUIBridge>
       <main class="dataagent-shell dataagent-shell--three-zone" :class="{ 'has-dynamic-workspace': renderAreaVisible }">
         <AppSidebar
-          :conversations="conversations"
+          :conversations="rootConversations"
           :active-id="activeId"
           :active-page="activePage"
           @create="startNewConversation"
           @select="selectConversation"
           @rename="renameConversation"
           @remove="removeConversation"
-          @open-history="activePage = 'history'"
+          @open-history="openHistory"
           @open-skills="activePage = 'skills'"
           @open-tools="activePage = 'tools'"
         />
 
         <section class="app-main-stage" :class="{ 'app-main-stage--chat': activePage === 'chat' }">
+          <div v-if="activePage === 'chat' && conversationListLoading" class="conversation-bootstrap-loading">
+            <el-skeleton :rows="7" animated />
+          </div>
+
           <AssistantPanel
-            v-if="activePage === 'chat'"
+            v-else-if="activePage === 'chat'"
             :active-id="activeId"
             :agent-id="runtime.agentId"
             :agent-display-name="runtime.displayName"
@@ -168,7 +211,7 @@ function autoRename(name: string) {
 
           <HistoryView
             v-else-if="activePage === 'history'"
-            :conversations="conversations"
+            :conversations="rootConversations"
             :active-id="activeId"
             @create="startNewConversation"
             @select="selectConversation"
@@ -195,3 +238,7 @@ function autoRename(name: string) {
     </GenUIBridge>
   </CopilotKitProvider>
 </template>
+
+<style scoped>
+.conversation-bootstrap-loading{position:relative;z-index:2;width:min(100%,1040px);height:100%;padding:34px;border:1px solid var(--da-border);border-radius:12px;background:var(--da-surface-1)}
+</style>

@@ -1,8 +1,9 @@
 import type { Interrupt, Message, State } from '@ag-ui/client'
-import type { ConversationRecord, ConversationRepository } from './types'
+import type { ConversationRecord, ConversationRepository, ConversationSessionSummary } from './types'
 
 const STORAGE_KEY = 'dataagent.conversations.v3.session-thread'
 const DEFAULT_NAME = '新需求'
+const GENERIC_NAMES = new Set([DEFAULT_NAME, '新对话', '新分析', 'AG-UI session'])
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -61,6 +62,28 @@ export class LocalConversationRepository implements ConversationRepository {
     return clone(record)
   }
 
+  syncSessions(sessions: ConversationSessionSummary[]): void {
+    const existing = new Map(readAll().map(item => [item.id, item]))
+    const records = sessions.map(session => {
+      const cached = existing.get(session.id)
+      const remoteName = session.displayName.trim() || DEFAULT_NAME
+      const keepCachedName = cached
+        && !GENERIC_NAMES.has(cached.displayName)
+        && GENERIC_NAMES.has(remoteName)
+      return {
+        id: session.id,
+        ...(session.parentId ? { parentId: session.parentId } : {}),
+        displayName: keepCachedName ? cached.displayName : remoteName,
+        messages: cached?.messages ?? [],
+        state: cached?.state ?? {},
+        ...(cached?.pendingInterrupts ? { pendingInterrupts: cached.pendingInterrupts } : {}),
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+      }
+    })
+    writeAll(records)
+  }
+
   rename(id: string, displayName: string): void {
     const name = displayName.trim() || DEFAULT_NAME
     const all = readAll()
@@ -78,6 +101,14 @@ export class LocalConversationRepository implements ConversationRepository {
     item.messages = clone(compactReasoningMessages(messages))
     item.state = clone(state)
     item.updatedAt = Date.now()
+    writeAll(all)
+  }
+
+  saveHydratedMessages(id: string, messages: Message[]): void {
+    const all = readAll()
+    const item = all.find(record => record.id === id)
+    if (!item) return
+    item.messages = clone(compactReasoningMessages(messages))
     writeAll(all)
   }
 

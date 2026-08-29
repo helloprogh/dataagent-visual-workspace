@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { CopilotChat, CopilotChatInput, CopilotChatMessageView, useAgent } from '@copilotkit/vue/v2'
 import type { AbstractAgent, Message } from '@ag-ui/client'
 import { ElMessage } from 'element-plus'
+import { fetchConversationMessages } from '../../conversations/history-api'
 import { conversationRepository, deriveConversationName } from '../../conversations/local-repository'
 import { createOpenCodeConversation, interruptOpenCodeConversation } from '../../conversations/opencode-session'
 import { setSelectedModel, type ModelSelection } from '../../model/model-selection'
@@ -47,7 +48,10 @@ const materializedSessionId = ref('')
 let persistTimer: number | undefined
 let currentAgent: AbstractAgent | null = null
 let currentThreadId = ''
+let currentAgentDirty = false
 let agentSubscription: { unsubscribe: () => void } | null = null
+let historyAbort: AbortController | undefined
+let hydrationGeneration = 0
 
 const pendingDraftFiles = new Map<string, { file: File; previewUrl: string }>()
 const chatLabels = computed(() => ({
@@ -196,17 +200,93 @@ function persistSnapshot(threadId: string, target: AbstractAgent, immediate = fa
 }
 
 function releaseCurrentAgent() {
+  historyAbort?.abort()
+  historyAbort = undefined
   const threadId = currentThreadId || materializedSessionId.value
-  if (currentAgent && threadId) persistSnapshot(threadId, currentAgent, true)
+  if (currentAgent && threadId && currentAgentDirty) persistSnapshot(threadId, currentAgent, true)
   agentSubscription?.unsubscribe()
   agentSubscription = null
   currentAgent = null
   currentThreadId = ''
+  currentAgentDirty = false
+}
+
+function subscribeToAgent(target: AbstractAgent) {
+  agentSubscription = target.subscribe({
+    onRunInitialized: async ({ messages }) => {
+      const targetId = effectiveSessionId()
+      if (!targetId || !pendingDraftFiles.size) return
+      try {
+        const nextMessages = await materializeDraftAttachments(targetId, messages)
+        return nextMessages ? { messages: nextMessages } : undefined
+      } catch (error) {
+        ElMessage.error(error instanceof Error ? error.message : String(error))
+        throw error
+      }
+    },
+    onMessagesChanged: ({ agent: changedAgent }) => {
+      const targetId = effectiveSessionId()
+      currentAgentDirty = true
+      if (targetId) persistSnapshot(targetId, changedAgent)
+    },
+    onStateChanged: ({ agent: changedAgent }) => {
+      const targetId = effectiveSessionId()
+      const workspace = (changedAgent.state as { workspace?: unknown })?.workspace
+      currentAgentDirty = true
+      if (targetId && workspace && typeof workspace === 'object') workspaceController.applyShared(workspace as any)
+      if (targetId) persistSnapshot(targetId, changedAgent)
+    },
+  })
+}
+
+async function hydrateConversation(
+  target: AbstractAgent,
+  threadId: string,
+  isDraft: boolean,
+  generation: number,
+) {
+  const conversation = threadId ? conversationRepository.get(threadId) : undefined
+  target.setState(conversation?.state ?? {})
+  const workspace = threadId ? workspaceController.snapshot() : null
+  if (workspace) target.setState({ ...(target.state ?? {}), workspace })
+
+  let messages = conversation?.messages ?? []
+  const shouldFetchHistory = Boolean(threadId && threadId !== materializedSessionId.value)
+  if (shouldFetchHistory) {
+    const controller = new AbortController()
+    historyAbort = controller
+    try {
+      messages = await fetchConversationMessages(threadId, controller.signal)
+      if (generation !== hydrationGeneration || currentAgent !== target || currentThreadId !== threadId) return
+      conversationRepository.saveHydratedMessages(threadId, messages)
+      emit('changed')
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      if (generation !== hydrationGeneration || currentAgent !== target || currentThreadId !== threadId) return
+      ElMessage.warning(
+        messages.length
+          ? '历史消息加载失败，已显示本地缓存'
+          : (error instanceof Error ? error.message : String(error)),
+      )
+    } finally {
+      if (historyAbort === controller) historyAbort = undefined
+    }
+  } else if (isDraft && !threadId) {
+    messages = []
+  }
+
+  if (generation !== hydrationGeneration || currentAgent !== target || currentThreadId !== threadId) return
+  target.setMessages(messages)
+  hasMessages.value = messages.length > 0
+  currentAgentDirty = false
+  subscribeToAgent(target)
+  hydrated.value = true
 }
 
 watch([agent, () => props.threadId, () => props.draft], ([nextAgent, nextThreadId, isDraft]) => {
   if (nextAgent && currentAgent === nextAgent && currentThreadId === nextThreadId) return
 
+  const generation = ++hydrationGeneration
   hydrated.value = false
   hasInterrupts.value = false
   releaseCurrentAgent()
@@ -223,43 +303,8 @@ watch([agent, () => props.threadId, () => props.draft], ([nextAgent, nextThreadI
   const threadId = nextThreadId
   currentAgent = nextAgent
   currentThreadId = threadId
-  const conversation = threadId ? conversationRepository.get(threadId) : undefined
-  hasMessages.value = Boolean(conversation?.messages.length)
-  if (conversation) {
-    nextAgent.setMessages(conversation.messages)
-    nextAgent.setState(conversation.state)
-  } else if (isDraft) {
-    nextAgent.setMessages([])
-    nextAgent.setState({})
-  }
-
-  // Never leak the previous conversation's workspace into the local-only draft.
-  const workspace = threadId ? workspaceController.snapshot() : null
-  if (workspace) nextAgent.setState({ ...(nextAgent.state ?? {}), workspace })
-  agentSubscription = nextAgent.subscribe({
-    onRunInitialized: async ({ messages }) => {
-      const targetId = effectiveSessionId()
-      if (!targetId || !pendingDraftFiles.size) return
-      try {
-        const nextMessages = await materializeDraftAttachments(targetId, messages)
-        return nextMessages ? { messages: nextMessages } : undefined
-      } catch (error) {
-        ElMessage.error(error instanceof Error ? error.message : String(error))
-        throw error
-      }
-    },
-    onMessagesChanged: ({ agent: changedAgent }) => {
-      const targetId = effectiveSessionId()
-      if (targetId) persistSnapshot(targetId, changedAgent)
-    },
-    onStateChanged: ({ agent: changedAgent }) => {
-      const targetId = effectiveSessionId()
-      const workspace = (changedAgent.state as { workspace?: unknown })?.workspace
-      if (targetId && workspace && typeof workspace === 'object') workspaceController.applyShared(workspace as any)
-      if (targetId) persistSnapshot(targetId, changedAgent)
-    },
-  })
-  hydrated.value = true
+  hasMessages.value = Boolean(threadId && conversationRepository.get(threadId)?.messages.length)
+  void hydrateConversation(nextAgent, threadId, isDraft, generation)
 }, { immediate: true })
 
 async function ensureSessionForFirstSend(value: string) {

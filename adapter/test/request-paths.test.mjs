@@ -8,6 +8,7 @@ const frontendRequestSources = async () => Promise.all([
   read('../../frontend/src/config/api.ts'),
   read('../../frontend/src/copilot/agent.ts'),
   read('../../frontend/src/components/conversation/ConversationChat.vue'),
+  read('../../frontend/src/conversations/history-api.ts'),
   read('../../frontend/src/conversations/opencode-session.ts'),
   read('../../frontend/src/model/model-selection.ts'),
   read('../../frontend/src/opencode/management.ts'),
