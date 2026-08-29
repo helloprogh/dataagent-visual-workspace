@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { ConversationRecord } from '../conversations/types'
+import type { AppTheme } from '../theme'
 
 const props = defineProps<{
   conversations: ConversationRecord[]
   activeId: string
   activePage: 'chat' | 'history' | 'skills' | 'tools'
+  theme: AppTheme
 }>()
 
 const emit = defineEmits<{
@@ -16,9 +18,11 @@ const emit = defineEmits<{
   openHistory: []
   openSkills: []
   openTools: []
+  toggleTheme: []
 }>()
 
 const recentConversations = computed(() => props.conversations.slice(0, 4))
+const themeToggleLabel = computed(() => props.theme === 'dark' ? '切换到浅色模式' : '切换到深色模式')
 
 function timeLabel(timestamp: number) {
   const date = new Date(timestamp)
@@ -135,7 +139,22 @@ function timeLabel(timestamp: number) {
 
     <footer class="app-sidebar__footer">
       <span><i></i>服务已连接</span>
-      <small>就绪</small>
+      <button
+        class="app-sidebar__theme-toggle"
+        type="button"
+        :title="themeToggleLabel"
+        :aria-label="themeToggleLabel"
+        @click="emit('toggleTheme')"
+      >
+        <svg v-if="theme === 'dark'" viewBox="0 0 20 20" aria-hidden="true">
+          <circle cx="10" cy="10" r="3.2" />
+          <path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4" />
+        </svg>
+        <svg v-else viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M14.8 13.6A6.3 6.3 0 0 1 6.4 5.2 6.4 6.4 0 1 0 14.8 13.6Z" />
+        </svg>
+        <span>{{ theme === 'dark' ? '浅色' : '深色' }}</span>
+      </button>
     </footer>
   </aside>
 </template>
