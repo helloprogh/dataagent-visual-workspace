@@ -86,8 +86,63 @@ test('turns OpenCode permission requests into a standard AG-UI interrupt', () =>
       },
       additionalProperties: false,
     },
-    metadata: { source: 'opencode2', action: 'shell', resources: ['npm test'] },
+    metadata: { source: 'opencode2', kind: 'permission', action: 'shell', resources: ['npm test'] },
   })
+})
+
+test('turns OpenCode question requests into schema-driven AG-UI forms with single, multi and custom answers', () => {
+  const converter = create()
+  const events = converter.convert({
+    type: 'question.asked',
+    data: {
+      sessionID: 'ses-1',
+      id: 'question-1',
+      tool: { messageID: 'a1', callID: 'tool-question' },
+      questions: [
+        {
+          header: '环境',
+          question: '选择部署环境',
+          multiple: false,
+          custom: false,
+          options: [
+            { label: '测试', description: '测试环境' },
+            { label: '生产', description: '生产环境' },
+          ],
+        },
+        {
+          header: '范围',
+          question: '选择需要处理的范围',
+          multiple: true,
+          custom: true,
+          options: [
+            { label: '表', description: '处理表' },
+            { label: '视图', description: '处理视图' },
+          ],
+        },
+      ],
+    },
+  })
+  const finished = events.at(-1)
+  const interrupt = finished.outcome.interrupts[0]
+
+  assert.deepEqual(types(events), ['ACTIVITY_SNAPSHOT', 'RUN_FINISHED'])
+  assert.equal(finished.outcome.type, 'interrupt')
+  assert.equal(interrupt.id, 'question-1')
+  assert.equal(interrupt.reason, 'input_required')
+  assert.equal(interrupt.toolCallId, 'tool-question')
+  assert.equal(interrupt.metadata.kind, 'question')
+  assert.equal(interrupt.metadata.questionCount, 2)
+  assert.equal(interrupt.responseSchema.type, 'object')
+  const answers = interrupt.responseSchema.properties.answers
+  assert.equal(answers.type, 'array')
+  assert.equal(answers.minItems, 2)
+  assert.equal(answers.maxItems, 2)
+  assert.deepEqual(answers.default, [[], []])
+  assert.equal(answers.prefixItems[0].maxItems, 1)
+  assert.deepEqual(answers.prefixItems[0].items.enum, ['测试', '生产'])
+  assert.equal(answers.prefixItems[1].maxItems, undefined)
+  assert.deepEqual(answers.prefixItems[1].items.anyOf[0].enum, ['表', '视图'])
+  assert.equal(answers.prefixItems[1].items.anyOf[1].type, 'string')
 })
 
 test('resumed tool calls emit only the result in the new run', () => {
