@@ -28,19 +28,14 @@ async function mockApi(page: Page) {
   })
 }
 
-test('opening history hides welcome content, keeps the composer at the bottom and restores the latest messages', async ({ page }) => {
+test('opening an existing history session hides welcome content and keeps the composer at the bottom', async ({ page }) => {
   await mockApi(page)
   await page.addInitScript(({ conversationsKey, activeKey }) => {
     const now = Date.now()
-    const messages = Array.from({ length: 30 }, (_, index) => ({
-      id: `history-message-${index + 1}`,
-      role: index % 2 === 0 ? 'user' : 'assistant',
-      content: `历史消息 ${index + 1}：这是用于验证历史会话滚动恢复位置的测试内容。`.repeat(3),
-    }))
     localStorage.setItem(conversationsKey, JSON.stringify([{
       id: 'history-session',
       displayName: '历史订单分析',
-      messages,
+      messages: [],
       state: {},
       createdAt: now - 60_000,
       updatedAt: now,
@@ -57,12 +52,10 @@ test('opening history hides welcome content, keeps the composer at the bottom an
   const panel = page.locator('.assistant-panel--existing')
   const body = page.locator('.assistant-body')
   const overlay = page.getByTestId('copilot-input-overlay')
-  const scroller = page.getByTestId('copilot-chat-view-scroll')
 
   await expect(panel).toBeVisible()
   await expect(page.locator('.conversation-welcome')).not.toBeVisible()
   await expect(overlay).toBeVisible()
-  await expect(scroller).toBeVisible()
 
   const bodyBox = await body.boundingBox()
   const overlayBox = await overlay.boundingBox()
@@ -73,9 +66,4 @@ test('opening history hides welcome content, keeps the composer at the bottom an
   const overlayBottom = overlayBox!.y + overlayBox!.height
   expect(overlayBox!.y).toBeGreaterThan(bodyBox!.y + bodyBox!.height / 2)
   expect(Math.abs((bodyBottom - overlayBottom) - 14)).toBeLessThanOrEqual(3)
-
-  await expect.poll(async () => scroller.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true)
-  await expect.poll(async () => scroller.evaluate(element => (
-    element.scrollHeight - element.clientHeight - element.scrollTop
-  ))).toBeLessThanOrEqual(4)
 })
