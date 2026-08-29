@@ -1,4 +1,5 @@
 import { dataAgentWebApi } from '../config/api'
+import type { ModelSelection } from '../model/model-selection'
 
 async function responseError(response: Response, action: string) {
   let detail = ''
@@ -11,14 +12,19 @@ async function responseError(response: Response, action: string) {
   return new Error(`${action} (${response.status})${detail ? `: ${detail}` : ''}`)
 }
 
-export async function createOpenCodeConversation(): Promise<string> {
+export async function createOpenCodeConversation(model: ModelSelection): Promise<string> {
   const response = await fetch(dataAgentWebApi('/session'), {
     method: 'POST',
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({}),
+    body: JSON.stringify({
+      model: {
+        providerID: model.providerID,
+        id: model.id,
+      },
+    }),
     credentials: 'same-origin',
     cache: 'no-store',
   })
