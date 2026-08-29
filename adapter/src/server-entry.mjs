@@ -1,4 +1,5 @@
 import http from 'node:http'
+import { buildCapabilityCatalog } from './capability-catalog.mjs'
 import { createServer as createAgentServer } from './server.mjs'
 import { OpenCodeClient } from './opencode-client.mjs'
 import { createOpenCodeManagementHandler } from './opencode-management.mjs'
@@ -58,6 +59,18 @@ const proxyDirectApi = async (client, req, res, url) => {
   res.end()
 }
 
+const runtimeCapabilities = async (client, res, url) => {
+  const catalog = await buildCapabilityCatalog(client, {
+    providerID: url.searchParams.get('providerID') || undefined,
+    modelID: url.searchParams.get('modelID') || undefined,
+  })
+  res.writeHead(200, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+  })
+  res.end(JSON.stringify({ data: catalog }))
+}
+
 export const createServer = () => {
   const agentServer = createAgentServer()
   const client = new OpenCodeClient({ baseUrl: process.env.OPENCODE_BASE_URL })
@@ -67,6 +80,11 @@ export const createServer = () => {
     const url = new URL(req.url, `http://${req.headers.host ?? '127.0.0.1'}`)
 
     try {
+      if (req.method === 'GET' && url.pathname === `${API_BASE}/tools`) {
+        await runtimeCapabilities(client, res, url)
+        return
+      }
+
       if (isDirectUpstreamApi(req, url)) {
         await proxyDirectApi(client, req, res, url)
         return
