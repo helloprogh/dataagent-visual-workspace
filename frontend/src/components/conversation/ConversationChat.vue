@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { CopilotChat, CopilotChatInput, CopilotChatMessageView, useAgent, useInterrupt } from '@copilotkit/vue/v2'
+import { CopilotChat, CopilotChatInput, CopilotChatMessageView, useAgent } from '@copilotkit/vue/v2'
 import type { AbstractAgent, Message } from '@ag-ui/client'
 import { ElMessage } from 'element-plus'
 import { conversationRepository, deriveConversationName } from '../../conversations/local-repository'
@@ -9,7 +9,7 @@ import { setSelectedModel, type ModelSelection } from '../../model/model-selecti
 import { workspaceController } from '../../workspace/store'
 import DraftModelSelector from '../DraftModelSelector.vue'
 import ModelSelector from '../ModelSelector.vue'
-import AguiInterruptCard from './AguiInterruptCard.vue'
+import AguiInterruptHost from './AguiInterruptHost.vue'
 import ReasoningAwareAssistantMessage from './ReasoningAwareAssistantMessage.vue'
 import ReasoningProcessCard from './ReasoningProcessCard.vue'
 
@@ -29,25 +29,14 @@ const emit = defineEmits<{
 
 const hydrated = ref(false)
 const hasMessages = ref(false)
-// CopilotChat resolves the registry agent without a thread-specific clone and
-// assigns agent.threadId itself. Use that same instance here so first-send
-// materialization updates the exact agent that will issue the AG-UI run.
+// This helper agent remains responsible for draft materialization and local
+// snapshots. CopilotChat owns the thread-specific runtime clone used for runs.
 const { agent } = useAgent({
   agentId: () => props.agentId,
   throttleMs: 60,
   updates: [],
 })
-// Own the native interrupt lifecycle in the same conversation component that
-// owns the agent. Do not publish through CopilotKit's global interruptState:
-// the UI and resolve/cancel closures must always target this exact runtime
-// agent instance and its current thread.
-const {
-  hasInterrupt: hasInterrupts,
-  slotProps: interruptSlot,
-} = useInterrupt({
-  agentId: props.agentId,
-  renderInChat: false,
-})
+const hasInterrupts = ref(false)
 const stopping = ref(false)
 const creatingSession = ref(false)
 const draftModel = ref<ModelSelection | null>(null)
@@ -217,6 +206,7 @@ watch([agent, () => props.threadId, () => props.draft], ([nextAgent, nextThreadI
   if (nextAgent && currentAgent === nextAgent && currentThreadId === nextThreadId) return
 
   hydrated.value = false
+  hasInterrupts.value = false
   releaseCurrentAgent()
   if (!nextAgent) return
 
@@ -441,12 +431,11 @@ onBeforeUnmount(() => {
             />
           </template>
         </CopilotChatMessageView>
-        <AguiInterruptCard
-          v-if="interruptSlot"
-          :interrupt="interruptSlot.interrupt"
-          :interrupts="interruptSlot.interrupts"
-          :resolve="interruptSlot.resolve"
-          :cancel="interruptSlot.cancel"
+        <AguiInterruptHost
+          v-if="threadId || materializedSessionId"
+          :agent-id="agentId"
+          :thread-id="threadId || materializedSessionId"
+          @active-change="hasInterrupts = $event"
         />
       </template>
     </CopilotChat>
@@ -482,6 +471,7 @@ onBeforeUnmount(() => {
 :deep([data-testid="copilot-chat-attachment-item"][data-card-type="image"]),:deep([data-testid="copilot-chat-attachment-item"][data-card-type="video"]){width:56px!important;height:56px!important;border-radius:10px!important}
 :deep([data-testid="copilot-chat-attachment-image-thumbnail"]),:deep([data-testid="copilot-chat-attachment-video-thumbnail"]),:deep([data-testid="copilot-chat-attachment-video-fallback"]){border-radius:9px!important}
 :deep([data-testid="copilot-chat-attachment-document-button"]){gap:8px!important;color:var(--da-text-primary)!important;align-items:center!important;cursor:pointer!important}
+:deep([data-testid="copilot-chat-attachment-item"][data-card-type="document"]){min-width:190px!important;max-width:258px!important;min-height:52px!important;padding:7px 32px 7px 8px!important}
 :deep([data-testid="copilot-chat-attachment-document-button"]>div:first-child){width:34px!important;height:34px!important;border:1px solid rgba(139,159,210,.15)!important;border-radius:9px!important;background:rgba(139,159,210,.045)!important;box-shadow:none!important;color:var(--da-text-secondary)!important;font-size:9px!important;font-weight:700!important;letter-spacing:.03em!important}
 :deep([data-testid="copilot-chat-attachment-document-filename"]){display:block!important;max-width:170px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;color:var(--da-text-primary)!important;font-size:11px!important;font-weight:600!important;line-height:1.35!important}
 :deep([data-testid="copilot-chat-attachment-document-button"]>div:last-child>span:last-child){display:flex!important;align-items:center!important;margin-top:3px!important;color:var(--da-text-muted)!important;font-size:10px!important;line-height:1!important}
