@@ -321,7 +321,7 @@ async function onStop() {
 }
 
 function handleInputStop(stop?: () => void) {
-  // Stop the CopilotKit/AG-UI run immediately, then explicitly interrupt the
+  // Stop the CopilotKit/AG-UI run abort immediately, then explicitly interrupt the
   // matching OpenCode session. Do not rely solely on CopilotChat's outer stop
   // event bubbling when a custom input slot is used.
   stop?.()
@@ -360,7 +360,7 @@ onBeforeUnmount(() => {
           <section v-if="!hasMessages" class="conversation-welcome">
             <span class="conversation-welcome__eyebrow"><i></i>DATA AGENT</span>
             <h2>从一个清晰的数据目标开始</h2>
-            <p>描述业务问题、上传数据，或直接让 Data Agent 构建一份可交互的分析工作区。</p>
+            <p>描述你的数据业务目标，我将与你逐步澄清需求，并自主完成Specification、数据方案、数据集成、ETL开发、治理验证与交付。</p>
             <div class="conversation-welcome__capabilities" aria-label="可用能力">
               <span>经营分析</span>
               <span>SQL 与治理</span>
@@ -454,11 +454,11 @@ onBeforeUnmount(() => {
 .conversation-chat{position:relative;width:100%;height:100%;min-height:0}
 .conversation-input-layout{width:100%;min-width:0}
 .conversation-input-layout--empty{width:min(720px,100%);display:flex;flex-direction:column;gap:28px;pointer-events:auto}
-.conversation-welcome{width:min(520px,100%);margin:0 auto;padding:0 20px;text-align:center;pointer-events:none}
+.conversation-welcome{width:100%;max-width:680px;margin:0 auto;padding:0 20px;text-align:center;pointer-events:none}
 .conversation-welcome__eyebrow{display:inline-flex;align-items:center;gap:8px;color:var(--da-text-muted);font-size:11px;font-weight:600;letter-spacing:.12em}
 .conversation-welcome__eyebrow i{width:20px;height:1px;background:var(--da-accent-orange);box-shadow:0 0 12px var(--da-accent-orange-glow)}
 .conversation-welcome h2{margin:16px 0 10px;color:var(--da-text-emphasis);font-family:Georgia,"Times New Roman","Songti SC",serif;font-size:34px;line-height:1.18;font-weight:400;letter-spacing:-.04em}
-.conversation-welcome p{max-width:460px;margin:0 auto;color:var(--da-text-muted);font-size:13px;line-height:1.7}
+.conversation-welcome p{max-width:640px;margin:0 auto;color:var(--da-text-muted);font-size:13px;line-height:1.7;text-wrap:balance}
 .conversation-welcome__capabilities{margin-top:21px;display:flex;justify-content:center;flex-wrap:wrap;gap:7px}
 .conversation-welcome__capabilities span{padding:5px 9px;border:1px solid var(--da-border);border-radius:6px;background:var(--da-surface-deep);color:var(--da-text-secondary);font-size:11px}
 :deep([data-testid="copilot-chat-view"]){height:100%!important;min-height:0!important}
