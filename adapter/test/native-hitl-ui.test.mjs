@@ -11,7 +11,7 @@ const visibleTextOf = source => templateOf(source)
   .replace(/<[^>]+>/g, ' ')
   .replace(/\{\{[\s\S]*?\}\}/g, ' ')
 
-test('conversation HITL uses the explicit CopilotKit thread clone and standard AG-UI resume array', async () => {
+test('conversation HITL uses native useInterrupt inside an explicit CopilotKit thread context', async () => {
   const [chat, host, lifecycle] = await Promise.all([
     readConversation('ConversationChat.vue'),
     readConversation('AguiInterruptHost.vue'),
@@ -32,17 +32,10 @@ test('conversation HITL uses the explicit CopilotKit thread clone and standard A
   assert.match(host, /<AguiInterruptLifecycle/)
 
   assert.match(lifecycle, /useInterrupt\(\{\s*renderInChat:\s*false\s*\}\)/)
-  assert.match(lifecycle, /useAgent\(\{\s*updates:\s*\[\]\s*\}\)/)
-  assert.match(lifecycle, /useCopilotKit\(\)/)
-  assert.match(lifecycle, /agent\.value\?\.pendingInterrupts/)
-  assert.match(lifecycle, /buildResumeArray\(interrupts, responses\)/)
-  assert.match(lifecycle, /copilotkit\.value\.runAgent\(\{\s*agent:\s*currentAgent,\s*resume\s*\}\)/)
-  assert.match(lifecycle, /responses\[id\]\s*=\s*\{\s*status:\s*'resolved'/)
-  assert.match(lifecycle, /responses\[id\]\s*=\s*\{\s*status:\s*'cancelled'/)
-  assert.match(lifecycle, /isInterruptExpired/)
-  assert.match(lifecycle, /:resolve="resolve"/)
-  assert.match(lifecycle, /:cancel="cancel"/)
-  assert.doesNotMatch(lifecycle, /fetch\(|axios|\/agui|forwardedProps:\s*\{\s*command/)
+  assert.match(lifecycle, /slotProps/)
+  assert.match(lifecycle, /:resolve="slotProps\.resolve"/)
+  assert.match(lifecycle, /:cancel="slotProps\.cancel"/)
+  assert.doesNotMatch(lifecycle, /buildResumeArray|useAgent\(|useCopilotKit\(|pendingInterrupts|responses\[/)
 })
 
 test('interrupt response UI is JSON-Schema driven and covers single choice, multi choice, forms, nesting and fallback JSON', async () => {
@@ -78,13 +71,15 @@ test('interrupt response UI is JSON-Schema driven and covers single choice, mult
   assert.doesNotMatch(card, /['"]once['"]|['"]always['"]|['"]reject['"]/)
 })
 
-test('parallel interrupts are staged in the UI and submitted atomically as standard resume entries', async () => {
+test('parallel interrupts are staged in the UI and resolved with JSON-safe payloads through the native lifecycle', async () => {
   const card = await readConversation('AguiInterruptCard.vue')
 
   assert.match(card, /activeInterrupts\.value\.every\(isComplete\)/)
   assert.match(card, /async function submitAll\(\)/)
   assert.match(card, /for \(const interrupt of activeInterrupts\.value\)/)
-  assert.match(card, /await props\.resolve\(answers\[interrupt\.id\], interrupt\.id\)/)
+  assert.match(card, /function toProtocolPayload\(value: unknown\)/)
+  assert.match(card, /JSON\.stringify\(value\)/)
+  assert.match(card, /await props\.resolve\(toProtocolPayload\(answers\[interrupt\.id\]\), interrupt\.id\)/)
   assert.match(card, /await props\.cancel\(interrupt\.id\)/)
   assert.match(card, /isInterruptExpired/)
   assert.doesNotMatch(card, /async function chooseField|async function chooseRoot/)
