@@ -1,73 +1,105 @@
 <script setup lang="ts">
-import { onBeforeUnmount, watch } from 'vue'
+import { watch } from 'vue'
 import { useAgent, useCopilotKit, useInterrupt } from '@copilotkit/vue/v2'
+import { buildResumeArray, isInterruptExpired, type Interrupt } from '@ag-ui/client'
 import AguiInterruptCard from './AguiInterruptCard.vue'
 
 const emit = defineEmits<{ 'active-change': [active: boolean] }>()
 
-// The parent AguiInterruptHost supplies an explicit CopilotKit chat
-// configuration with the same agentId + threadId as CopilotChat. This makes
-// useInterrupt resolve the exact same per-thread agent clone and lets
-// CopilotKit own response accumulation plus the single atomic resume[] run.
+// AguiInterruptHost provides the same explicit agentId + threadId used by
+// CopilotChat, so both useAgent() and useInterrupt() resolve the exact same
+// per-thread clone. CopilotKit Vue 1.64.1 correctly detects standard AG-UI
+// interrupts here, but its real-thread resolve/cancel path can return without
+// dispatching runAgent(resume) even while the interrupt remains pending.
+// Keep native useInterrupt as the protocol-aware detector/render source, and
+// perform only the final standard resume dispatch with CopilotKit/AG-UI public
+// APIs. No private transport or backend-specific HITL protocol is introduced.
 const { copilotkit } = useCopilotKit()
 const { agent } = useAgent({ updates: [] })
-const {
-  hasInterrupt,
-  slotProps,
-  resolve: nativeResolve,
-  cancel: nativeCancel,
-} = useInterrupt({ renderInChat: false })
+const { hasInterrupt, slotProps } = useInterrupt({ renderInChat: false })
 
-const coreSubscription = copilotkit.value.subscribe({
-  onError: event => {
-    console.debug('[HITL-CORE-ERROR]', {
-      message: event.error instanceof Error ? event.error.message : String(event.error),
-      name: event.error instanceof Error ? event.error.name : undefined,
-      code: event.code,
-      context: event.context,
-    })
+type ResumeResponse =
+  | { status: 'resolved'; payload?: unknown }
+  | { status: 'cancelled' }
+
+const responses: Record<string, ResumeResponse> = {}
+let currentInterruptKey = ''
+
+function clearResponses() {
+  for (const id of Object.keys(responses)) delete responses[id]
+}
+
+function openInterrupts(): Interrupt[] {
+  const pending = agent.value?.pendingInterrupts
+  if (pending?.length) return [...pending]
+  const rendered = slotProps.value?.interrupts
+  if (rendered?.length) return [...rendered]
+  const primary = slotProps.value?.interrupt
+  return primary ? [primary] : []
+}
+
+function interruptKey(interrupts: readonly Interrupt[]) {
+  return interrupts.map(item => item.id).join('\u0000')
+}
+
+watch(
+  () => openInterrupts(),
+  interrupts => {
+    const nextKey = interruptKey(interrupts)
+    if (nextKey !== currentInterruptKey) {
+      clearResponses()
+      currentInterruptKey = nextKey
+    }
   },
-})
+  { immediate: true },
+)
 
-watch(hasInterrupt, active => emit('active-change', active), { immediate: true })
+watch(hasInterrupt, active => {
+  emit('active-change', active)
+  if (!active) {
+    clearResponses()
+    currentInterruptKey = ''
+  }
+}, { immediate: true })
+
+async function submitIfComplete() {
+  const interrupts = openInterrupts()
+  if (!interrupts.length) return
+  if (!interrupts.every(item => responses[item.id])) return
+
+  const expired = interrupts.find(item => isInterruptExpired(item))
+  if (expired) {
+    clearResponses()
+    throw new Error(`该请求已过期（${expired.expiresAt ?? '未知时间'}），请重新发起。`)
+  }
+
+  const currentAgent = agent.value
+  if (!currentAgent) throw new Error('当前会话运行时不可用，请重试。')
+
+  const resume = buildResumeArray(interrupts, responses)
+  clearResponses()
+  return copilotkit.value.runAgent({ agent: currentAgent, resume })
+}
 
 async function resolve(payload?: unknown, interruptId?: string) {
-  console.debug('[HITL-RESOLVE] before', {
-    interruptId,
-    agentThreadId: agent.value?.threadId,
-    agentPending: agent.value?.pendingInterrupts?.map(item => item.id) ?? [],
-    slotInterrupts: slotProps.value?.interrupts?.map(item => item.id) ?? [],
-    hasInterrupt: hasInterrupt.value,
-  })
-  const result = await nativeResolve(payload, interruptId)
-  console.debug('[HITL-RESOLVE] after', {
-    interruptId,
-    agentThreadId: agent.value?.threadId,
-    agentPending: agent.value?.pendingInterrupts?.map(item => item.id) ?? [],
-    hasInterrupt: hasInterrupt.value,
-  })
-  return result
+  const interrupts = openInterrupts()
+  const id = interruptId ?? interrupts[0]?.id
+  if (!id || !interrupts.some(item => item.id === id)) {
+    throw new Error('当前请求已变化，请重新选择后提交。')
+  }
+  responses[id] = { status: 'resolved', payload }
+  return submitIfComplete()
 }
 
 async function cancel(interruptId?: string) {
-  console.debug('[HITL-CANCEL] before', {
-    interruptId,
-    agentThreadId: agent.value?.threadId,
-    agentPending: agent.value?.pendingInterrupts?.map(item => item.id) ?? [],
-    slotInterrupts: slotProps.value?.interrupts?.map(item => item.id) ?? [],
-    hasInterrupt: hasInterrupt.value,
-  })
-  const result = await nativeCancel(interruptId)
-  console.debug('[HITL-CANCEL] after', {
-    interruptId,
-    agentThreadId: agent.value?.threadId,
-    agentPending: agent.value?.pendingInterrupts?.map(item => item.id) ?? [],
-    hasInterrupt: hasInterrupt.value,
-  })
-  return result
+  const interrupts = openInterrupts()
+  const id = interruptId ?? interrupts[0]?.id
+  if (!id || !interrupts.some(item => item.id === id)) {
+    throw new Error('当前请求已变化，请重新选择后提交。')
+  }
+  responses[id] = { status: 'cancelled' }
+  return submitIfComplete()
 }
-
-onBeforeUnmount(() => coreSubscription.unsubscribe())
 </script>
 
 <template>
