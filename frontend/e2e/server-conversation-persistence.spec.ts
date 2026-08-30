@@ -9,14 +9,9 @@ const json = (route: Route, body: unknown, status = 200) => route.fulfill({
   body: JSON.stringify(body),
 })
 
+// OpenCode V2 returns order=desc pages newest-first. The UI reverses each page
+// before rendering so the chat itself remains oldest-to-newest.
 const history = (sessionId: string, label: string) => [
-  {
-    id: `msg_${sessionId}_user`,
-    metadata: { threadId: sessionId, runId: `${sessionId}-run` },
-    time: { created: 1 },
-    text: `${label}历史问题`,
-    type: 'user',
-  },
   {
     id: `msg_${sessionId}_assistant`,
     time: { created: 2, completed: 3 },
@@ -28,6 +23,13 @@ const history = (sessionId: string, label: string) => [
       { id: `${sessionId}-text`, type: 'text', text: `${label}历史回复` },
     ],
     finish: 'stop',
+  },
+  {
+    id: `msg_${sessionId}_user`,
+    metadata: { threadId: sessionId, runId: `${sessionId}-run` },
+    time: { created: 1 },
+    text: `${label}历史问题`,
+    type: 'user',
   },
 ]
 
@@ -87,7 +89,7 @@ async function mockApis(page: Page, options: {
   })
 }
 
-test('loads OpenCode V2 sessions and hydrates the active conversation from V2 message history without persisting conversations', async ({ page }) => {
+test('loads OpenCode V2 sessions and hydrates the active conversation from the latest V2 message page without persisting conversations', async ({ page }) => {
   const listUrls: URL[] = []
   const messageUrls: URL[] = []
   await page.addInitScript(({ activeKey, legacyKey }) => {
@@ -141,8 +143,8 @@ test('loads OpenCode V2 sessions and hydrates the active conversation from V2 me
   expect(listUrls[0].searchParams.get('order')).toBe('desc')
   expect(listUrls[0].searchParams.get('limit')).toBe('200')
   expect(messageUrls).toHaveLength(1)
-  expect(messageUrls[0].searchParams.get('order')).toBe('asc')
-  expect(messageUrls[0].searchParams.get('limit')).toBe('200')
+  expect(messageUrls[0].searchParams.get('order')).toBe('desc')
+  expect(messageUrls[0].searchParams.get('limit')).toBe('100')
   expect(await page.evaluate(key => localStorage.getItem(key), LEGACY_CONVERSATIONS_KEY)).toBeNull()
 })
 
@@ -194,24 +196,46 @@ test('loads every V2 session page before sorting conversations by remote updated
   expect(await page.evaluate(key => localStorage.getItem(key), LEGACY_CONVERSATIONS_KEY)).toBeNull()
 })
 
-test('loads all V2 message pages with cursor.next', async ({ page }) => {
-  let messageCalls = 0
+test('loads only the latest message page initially and prepends older history when scrolled to the top', async ({ page }) => {
+  const messageUrls: URL[] = []
   await page.addInitScript(activeKey => localStorage.setItem(activeKey, 'session-a'), ACTIVE_KEY)
-  const firstPage = Array.from({ length: 200 }, (_, index) => ({
-    id: `msg_system_${index}`,
-    type: 'system',
-    text: `system ${index}`,
-    time: { created: index },
-  }))
+
+  const latestPage = Array.from({ length: 100 }, (_, index) => {
+    const seq = 200 - index
+    return {
+      id: `msg_latest_${seq}`,
+      type: 'user',
+      text: `最近消息 ${seq}`,
+      time: { created: seq },
+    }
+  })
+  const olderPage = history('session-a-older', '更早')
 
   await mockApis(page, {
     sessions: [{ id: 'session-a', title: '分页会话', time: { created: 1, updated: 2 } }],
-    messagePages: { 'session-a': [firstPage, history('session-a', '分页')] },
-    onMessages: () => { messageCalls += 1 },
+    messagePages: { 'session-a': [latestPage, olderPage] },
+    onMessages: (_id, url) => messageUrls.push(url),
   })
 
   await page.goto('/')
-  await expect(page.getByText('分页历史问题', { exact: true })).toBeVisible()
-  await expect(page.getByText('分页历史回复', { exact: true })).toBeVisible()
-  expect(messageCalls).toBe(2)
+  const scroller = page.getByTestId('copilot-chat-view-scroll')
+  await expect(scroller).toBeVisible()
+  await expect(page.getByText('最近消息 200', { exact: true })).toHaveCount(1)
+  await expect.poll(() => messageUrls.length).toBe(1)
+  expect(messageUrls[0].searchParams.get('order')).toBe('desc')
+  expect(messageUrls[0].searchParams.get('limit')).toBe('100')
+
+  await expect.poll(async () => scroller.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
+  await scroller.evaluate(element => {
+    element.scrollTop = 0
+    element.dispatchEvent(new Event('scroll'))
+  })
+
+  await expect(page.getByText('更早历史问题', { exact: true })).toHaveCount(1)
+  await expect(page.getByText('更早历史回复', { exact: true })).toHaveCount(1)
+  await expect.poll(() => messageUrls.length).toBe(2)
+  expect(messageUrls[1].searchParams.get('cursor')).toBe('message:session-a:1')
+  expect(messageUrls[1].searchParams.has('order')).toBe(false)
+  expect(messageUrls[1].searchParams.get('limit')).toBe('100')
+  await expect.poll(async () => scroller.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
 })
