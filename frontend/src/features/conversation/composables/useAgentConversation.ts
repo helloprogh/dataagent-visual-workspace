@@ -164,6 +164,7 @@ export function useAgentConversation() {
     if (required.size !== provided.size || [...required].some(id => !provided.has(id))) {
       throw new Error('必须一次处理当前 Run 的全部待处理中断')
     }
+    const previousInterrupts = [...pendingInterrupts.value]
     running.value = true
     error.value = ''
     try {
@@ -171,7 +172,7 @@ export function useAgentConversation() {
       await target.runAgent({ resume: entries } as any)
       syncMessages()
     } catch (reason) {
-      pendingInterrupts.value = [...(target as any).pendingInterrupts ?? []]
+      pendingInterrupts.value = previousInterrupts
       error.value = reason instanceof Error ? reason.message : String(reason)
       throw reason
     } finally {
@@ -182,7 +183,7 @@ export function useAgentConversation() {
   async function stop() {
     const id = threadId.value
     const target = agent.value
-    if (target?.isRunning) target.abortRun()
+    target?.abortRun()
     running.value = false
     if (id) await interruptConversation(id)
   }
