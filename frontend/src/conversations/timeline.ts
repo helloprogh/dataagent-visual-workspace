@@ -9,9 +9,11 @@ export interface ConversationTimelineItem extends BubbleListItemProps {
   role: 'user' | 'ai' | 'system'
   placement: 'start' | 'end'
   content: string
+  noStyle?: boolean
   itemType?: ConversationItemType
   message?: Message
   interrupt?: Interrupt
+  interrupts?: Interrupt[]
   artifact?: ArtifactReference
   toolCall?: ToolCall
   toolCallName?: string
@@ -34,7 +36,17 @@ export function messageText(message: Message): string {
     .join('\n')
 }
 
-function messageItem(message: Message): ConversationTimelineItem[] {
+function findToolCall(messages: readonly Message[], toolCallId?: string): ToolCall | undefined {
+  if (!toolCallId) return undefined
+  for (const message of messages) {
+    if (message.role !== 'assistant' || !message.toolCalls?.length) continue
+    const found = message.toolCalls.find(toolCall => toolCall.id === toolCallId)
+    if (found) return found
+  }
+  return undefined
+}
+
+function messageItem(message: Message, interruptedToolIds: ReadonlySet<string>): ConversationTimelineItem[] {
   if (message.role === 'reasoning') {
     return [{
       key: `message:${message.id}`,
@@ -91,32 +103,42 @@ function messageItem(message: Message): ConversationTimelineItem[] {
 
   return [
     base,
-    ...message.toolCalls.map(toolCall => ({
-      key: `tool-call:${message.id}:${toolCall.id}`,
-      role: 'system' as const,
-      placement: 'start' as const,
-      content: toolCall.function.name,
-      itemType: 'tool' as const,
-      message,
-      toolCall,
-      toolCallName: toolCall.function.name,
-      noStyle: true,
-    })),
+    ...message.toolCalls
+      .filter(toolCall => !interruptedToolIds.has(toolCall.id))
+      .map(toolCall => ({
+        key: `tool-call:${message.id}:${toolCall.id}`,
+        role: 'system' as const,
+        placement: 'start' as const,
+        content: toolCall.function.name,
+        itemType: 'tool' as const,
+        message,
+        toolCall,
+        toolCallName: toolCall.function.name,
+        noStyle: true,
+      })),
   ]
 }
 
 export function buildConversationTimeline(messages: readonly Message[], interrupts: readonly Interrupt[]): ConversationTimelineItem[] {
-  const items = messages.flatMap(messageItem)
-  for (const interrupt of interrupts) {
+  const interruptedToolIds = new Set(interrupts.map(item => item.toolCallId).filter((id): id is string => Boolean(id)))
+  const items = messages.flatMap(message => messageItem(message, interruptedToolIds))
+
+  if (interrupts.length) {
+    const primary = interrupts[0]
+    const toolCall = findToolCall(messages, primary.toolCallId)
     items.push({
-      key: `interrupt:${interrupt.id}`,
+      key: `interrupts:${interrupts.map(item => item.id).join(':')}`,
       role: 'system',
       placement: 'start',
-      content: interrupt.message ?? '需要你的确认',
+      content: primary.message ?? '需要你的确认',
       itemType: 'interrupt',
-      interrupt,
+      interrupt: primary,
+      interrupts: [...interrupts],
+      toolCall,
+      toolCallName: toolCall?.function.name,
       noStyle: true,
     })
   }
+
   return items
 }
