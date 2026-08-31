@@ -1,0 +1,10 @@
+.dataagent-shell.dataagent-shell--conversation{position:relative;width:100vw;height:100vh;display:grid;grid-template-columns:248px minmax(0,1fr);overflow:hidden;color:var(--da-text-primary);background:var(--da-surface-0)}
+.dataagent-shell.dataagent-shell--conversation.has-artifact-panel{grid-template-columns:248px minmax(440px,42vw) minmax(420px,1fr)}
+.dataagent-shell.dataagent-shell--conversation.has-artifact-panel .app-main-stage--chat{padding:0;background:var(--da-surface-1)}
+.dataagent-shell.dataagent-shell--conversation.has-artifact-panel .app-main-stage--chat::before{display:none}
+.dataagent-shell.dataagent-shell--conversation.has-artifact-panel .assistant-panel.assistant-panel--center{width:100%;max-width:none;border:0;border-radius:0;box-shadow:none}
+.artifact-reveal-enter-active,.artifact-reveal-leave-active{transition:opacity .18s ease,transform .24s cubic-bezier(.22,1,.36,1)}
+.artifact-reveal-enter-from,.artifact-reveal-leave-to{opacity:0;transform:translateX(24px)}
+@media(max-width:1440px){.dataagent-shell.dataagent-shell--conversation{grid-template-columns:244px minmax(0,1fr)}.dataagent-shell.dataagent-shell--conversation.has-artifact-panel{grid-template-columns:244px minmax(420px,40vw) minmax(380px,1fr)}}
+@media(max-width:1120px){.dataagent-shell.dataagent-shell--conversation{grid-template-columns:224px minmax(0,1fr)}.dataagent-shell.dataagent-shell--conversation.has-artifact-panel{grid-template-columns:224px minmax(400px,44vw) minmax(360px,1fr)}}
+@media(max-width:900px){.dataagent-shell.dataagent-shell--conversation,.dataagent-shell.dataagent-shell--conversation.has-artifact-panel{grid-template-columns:72px minmax(0,1fr)}.dataagent-shell.dataagent-shell--conversation.has-artifact-panel .artifact-panel{position:absolute;z-index:20;top:0;right:0;bottom:0;width:min(720px,calc(100% - 72px));box-shadow:-16px 0 42px rgba(0,0,0,.22)}}
