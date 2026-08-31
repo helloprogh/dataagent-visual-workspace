@@ -79,6 +79,26 @@ test('light mode follows the warm paper design system and keeps CopilotKit synch
   expect(lightTokens.primary.toUpperCase()).toBe('#0075DE')
   expect(lightTokens.muted.toUpperCase()).toBe('#F6F5F4')
 
+  const userBubbleStyle = await copilotSurface.evaluate(element => {
+    const message = document.createElement('div')
+    message.dataset.testid = 'copilot-user-message'
+    const bubble = document.createElement('div')
+    bubble.textContent = '测试用户消息'
+    message.appendChild(bubble)
+    element.appendChild(message)
+    const style = getComputedStyle(bubble)
+    const result = {
+      background: style.backgroundColor,
+      color: style.color,
+      borderColor: style.borderColor,
+    }
+    message.remove()
+    return result
+  })
+  expect(userBubbleStyle.background).toBe('rgb(230, 243, 254)')
+  expect(userBubbleStyle.color).toBe('rgb(17, 17, 17)')
+  expect(userBubbleStyle.borderColor).toBe('rgba(0, 117, 222, 0.14)')
+
   const composer = page.locator('.conversation-composer')
   await expect(composer).toBeVisible()
   expect(await composer.evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(255, 255, 255)')
