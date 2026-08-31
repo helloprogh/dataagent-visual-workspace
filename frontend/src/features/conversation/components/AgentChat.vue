@@ -38,7 +38,7 @@ const {
   stop,
 } = useAgentConversation()
 
-const input = ref('')
+const senderRef = ref<any>(null)
 const selectedModel = ref<ModelSelection | null>(null)
 const messageScroller = ref<HTMLElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -58,7 +58,7 @@ function scrollToBottom() {
 async function handleScroll() {
   const element = messageScroller.value
   if (!element) return
-  followBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 5rem * 16
+  followBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 5 * 16
   if (element.scrollTop > 6 * 16 || !nextCursor.value || loadingOlder.value) return
   previousScrollHeight = element.scrollHeight
   await loadOlder()
@@ -76,8 +76,8 @@ function onFilesSelected(event: Event) {
   target.value = ''
 }
 
-async function submit(value?: string) {
-  const text = (value ?? input.value).trim()
+async function submit() {
+  const text = String(senderRef.value?.getModelValue?.()?.text ?? '').trim()
   if (!selectedModel.value) {
     ElMessage.warning('模型尚未加载完成')
     return
@@ -86,7 +86,7 @@ async function submit(value?: string) {
   try {
     followBottom = true
     const prepared = await send(text, selectedModel.value)
-    input.value = ''
+    senderRef.value?.clear?.()
     if (prepared?.created) {
       emit('materialized', prepared.sessionId, prepared.initialName ?? '新需求')
     }
@@ -205,12 +205,10 @@ onBeforeUnmount(() => {
               @click="chooseFiles"
             >添加文件</el-button>
           </div>
-
-          <el-button v-if="running" type="danger" plain @click="stopRun">停止</el-button>
         </div>
 
         <XSender
-          v-model="input"
+          ref="senderRef"
           variant="updown"
           clearable
           :auto-focus="!sessionId"
@@ -219,6 +217,7 @@ onBeforeUnmount(() => {
           placeholder="描述你的数据需求或业务目标"
           :custom-style="{ maxHeight: '10rem' }"
           @submit="submit"
+          @cancel="stopRun"
         />
 
         <input
