@@ -1,17 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { CopilotKitProvider } from '@copilotkit/vue/v2'
-import { createAgentRuntime } from './copilot/agent'
+import { AGENT_DISPLAY_NAME, AGENT_ID } from './agui/agent'
+import { artifactController } from './artifacts/store'
 import { fetchConversationSessions } from './conversations/history-api'
 import { conversationRepository } from './conversations/local-repository'
 import type { ConversationRecord } from './conversations/types'
 import { applyTheme, readTheme, type AppTheme } from './theme'
-import { workspaceController } from './workspace/store'
-import GenUIBridge from './components/GenUIBridge.vue'
-import WorkspaceCanvas from './components/WorkspaceCanvas.vue'
 import AssistantPanel from './components/AssistantPanel.vue'
 import AppSidebar from './components/AppSidebar.vue'
+import ArtifactPanel from './components/artifacts/ArtifactPanel.vue'
 import HistoryView from './components/HistoryView.vue'
 import SkillManagementView from './components/SkillManagementView.vue'
 import ToolManagementView from './components/ToolManagementView.vue'
@@ -21,15 +19,12 @@ type AppPage = 'chat' | 'history' | 'skills' | 'tools'
 
 const galleryMode = import.meta.env.VITE_COMPONENT_GALLERY === 'true'
   || new URLSearchParams(window.location.search).get('gallery') === 'components'
-const runtime = createAgentRuntime()
 const ACTIVE_CONVERSATION_KEY = 'dataagent.conversations.active.v2.session-thread'
 const conversations = ref<ConversationRecord[]>([])
 const rootConversations = computed(() => conversations.value.filter(item => !item.parentId && item.archivedAt == null))
 const activeId = ref(localStorage.getItem(ACTIVE_CONVERSATION_KEY) ?? '')
 const theme = ref<AppTheme>(readTheme())
 const conversationListLoading = ref(!galleryMode)
-const renderAreaRequested = ref(false)
-const renderAreaDismissed = ref(false)
 const activePage = ref<AppPage>('chat')
 
 function toggleTheme() {
@@ -42,10 +37,9 @@ function refreshConversations() {
 }
 
 function startNewConversation() {
+  artifactController.close()
   activeId.value = ''
   activePage.value = 'chat'
-  renderAreaRequested.value = false
-  renderAreaDismissed.value = false
 }
 
 function ensureConversation() {
@@ -55,9 +49,7 @@ function ensureConversation() {
     return
   }
   const active = activeId.value ? conversationRepository.get(activeId.value) : undefined
-  if (!active || active.parentId || active.archivedAt != null) {
-    activeId.value = rootConversations.value[0].id
-  }
+  if (!active || active.parentId || active.archivedAt != null) activeId.value = rootConversations.value[0].id
 }
 
 let conversationListRequest = 0
@@ -78,17 +70,15 @@ async function loadConversationList(initial = false) {
     if (request !== conversationListRequest) return
     ensureConversation()
     const detail = error instanceof Error ? error.message : String(error)
-    if (rootConversations.value.length) {
-      ElMessage.warning(`对话列表刷新失败，已保留当前页面数据：${detail}`)
-    } else {
-      ElMessage.error(detail)
-    }
+    if (rootConversations.value.length) ElMessage.warning(`对话列表刷新失败，已保留当前页面数据：${detail}`)
+    else ElMessage.error(detail)
   } finally {
     if (initial && request === conversationListRequest) conversationListLoading.value = false
   }
 }
 
 function openHistory() {
+  artifactController.close()
   activePage.value = 'history'
   void loadConversationList()
 }
@@ -97,32 +87,22 @@ if (!galleryMode) {
   refreshConversations()
   void loadConversationList(true)
 }
+
 watch(activeId, id => {
   if (galleryMode) return
-  renderAreaRequested.value = false
-  renderAreaDismissed.value = false
+  artifactController.close()
   if (!id) {
     localStorage.removeItem(ACTIVE_CONVERSATION_KEY)
     return
   }
   localStorage.setItem(ACTIVE_CONVERSATION_KEY, id)
-  workspaceController.activate(id)
 }, { immediate: true })
 
-const activeConversation = computed(() => conversationRepository.get(activeId.value))
-const renderWidgetCount = computed(() => workspaceController.state.document?.widgets.length ?? 0)
-const renderAreaVisible = computed(() => (
-  activePage.value === 'chat'
-  && renderAreaRequested.value
-  && renderWidgetCount.value > 0
-  && !renderAreaDismissed.value
-))
-
-watch(() => workspaceController.state.presentationEpoch, () => {
-  if (workspaceController.state.presentationThreadId !== activeId.value) return
-  renderAreaRequested.value = true
-  renderAreaDismissed.value = false
+watch(activePage, page => {
+  if (page !== 'chat') artifactController.close()
 })
+
+const activeConversation = computed(() => conversationRepository.get(activeId.value))
 
 function materializeConversation(sessionId: string) {
   const id = sessionId.trim()
@@ -134,6 +114,7 @@ function materializeConversation(sessionId: string) {
 }
 
 function selectConversation(id: string) {
+  artifactController.close()
   activeId.value = id
   activePage.value = 'chat'
 }
@@ -165,70 +146,54 @@ function autoRename(name: string) {
 
 <template>
   <ComponentGallery v-if="galleryMode" />
-  <CopilotKitProvider
-    v-else
-    :self-managed-agents="runtime.selfManagedAgents"
-    :show-dev-console="false"
-  >
-    <GenUIBridge>
-      <main class="dataagent-shell dataagent-shell--three-zone" :class="{ 'has-dynamic-workspace': renderAreaVisible }">
-        <AppSidebar
-          :conversations="rootConversations"
-          :active-id="activeId"
-          :active-page="activePage"
-          :theme="theme"
-          @create="startNewConversation"
-          @select="selectConversation"
-          @rename="renameConversation"
-          @open-history="openHistory"
-          @open-skills="activePage = 'skills'"
-          @open-tools="activePage = 'tools'"
-          @toggle-theme="toggleTheme"
-        />
+  <main v-else class="dataagent-shell dataagent-shell--conversation" :class="{ 'has-artifact-panel': artifactController.state.open }">
+    <AppSidebar
+      :conversations="rootConversations"
+      :active-id="activeId"
+      :active-page="activePage"
+      :theme="theme"
+      @create="startNewConversation"
+      @select="selectConversation"
+      @rename="renameConversation"
+      @open-history="openHistory"
+      @open-skills="activePage = 'skills'"
+      @open-tools="activePage = 'tools'"
+      @toggle-theme="toggleTheme"
+    />
 
-        <section class="app-main-stage" :class="{ 'app-main-stage--chat': activePage === 'chat' }">
-          <div v-if="activePage === 'chat' && conversationListLoading" class="conversation-bootstrap-loading">
-            <el-skeleton :rows="7" animated />
-          </div>
+    <section class="app-main-stage" :class="{ 'app-main-stage--chat': activePage === 'chat' }">
+      <div v-if="activePage === 'chat' && conversationListLoading" class="conversation-bootstrap-loading">
+        <el-skeleton :rows="7" animated />
+      </div>
 
-          <AssistantPanel
-            v-else-if="activePage === 'chat'"
-            :active-id="activeId"
-            :agent-id="runtime.agentId"
-            :agent-display-name="runtime.displayName"
-            :active-conversation="activeConversation"
-            @materialized="materializeConversation"
-            @changed="refreshConversations"
-            @auto-rename="autoRename"
-          />
+      <AssistantPanel
+        v-else-if="activePage === 'chat'"
+        :active-id="activeId"
+        :agent-id="AGENT_ID"
+        :agent-display-name="AGENT_DISPLAY_NAME"
+        :active-conversation="activeConversation"
+        @materialized="materializeConversation"
+        @changed="refreshConversations"
+        @auto-rename="autoRename"
+      />
 
-          <HistoryView
-            v-else-if="activePage === 'history'"
-            :conversations="rootConversations"
-            :active-id="activeId"
-            @create="startNewConversation"
-            @select="selectConversation"
-            @rename="renameConversation"
-          />
+      <HistoryView
+        v-else-if="activePage === 'history'"
+        :conversations="rootConversations"
+        :active-id="activeId"
+        @create="startNewConversation"
+        @select="selectConversation"
+        @rename="renameConversation"
+      />
 
-          <SkillManagementView v-else-if="activePage === 'skills'" />
-          <ToolManagementView v-else :thread-id="activeId" />
-        </section>
+      <SkillManagementView v-else-if="activePage === 'skills'" />
+      <ToolManagementView v-else :thread-id="activeId" />
+    </section>
 
-        <transition name="workspace-reveal">
-          <aside v-if="renderAreaVisible" class="dynamic-workspace-shell">
-            <button
-              class="dynamic-workspace-close"
-              type="button"
-              title="收起动态渲染区"
-              @click="renderAreaDismissed = true"
-            >×</button>
-            <WorkspaceCanvas />
-          </aside>
-        </transition>
-      </main>
-    </GenUIBridge>
-  </CopilotKitProvider>
+    <transition name="artifact-reveal">
+      <ArtifactPanel v-if="activePage === 'chat'" />
+    </transition>
+  </main>
 </template>
 
 <style scoped>
