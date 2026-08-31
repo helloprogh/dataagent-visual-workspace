@@ -21,8 +21,6 @@
   "dependencies": {
     "@ag-ui/client": "0.0.59",
     "@milkdown/crepe": "7.22.1",
-    "@milkdown/kit": "7.22.1",
-    "@milkdown/vue": "7.22.1",
     "echarts": "6.1.0",
     "element-plus": "2.14.3",
     "vue": "3.5.28",
