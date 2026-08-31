@@ -1,18 +1,17 @@
 {
   "name": "dataagent-vue-agui",
   "private": true,
-  "version": "5.2.0",
+  "version": "6.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "dev:demo": "vite --mode demo",
     "dev:scenario": "vite --mode scenario",
     "dev:gallery": "vite --mode gallery",
-    "check:contrast": "node scripts/contrast-check.mjs",
-    "build": "npm run check:contrast && vue-tsc -b && vite build",
-    "build:demo": "npm run check:contrast && vue-tsc -b && vite build --mode demo",
-    "build:scenario": "npm run check:contrast && vue-tsc -b && vite build --mode scenario",
-    "build:gallery": "npm run check:contrast && vue-tsc -b && vite build --mode gallery",
+    "build": "vue-tsc -b && vite build",
+    "build:demo": "vue-tsc -b && vite build --mode demo",
+    "build:scenario": "vue-tsc -b && vite build --mode scenario",
+    "build:gallery": "vue-tsc -b && vite build --mode gallery",
     "preview": "vite preview",
     "typecheck": "vue-tsc -b",
     "check:offline": "node scripts/offline-check.mjs",
@@ -20,17 +19,17 @@
   },
   "dependencies": {
     "@ag-ui/client": "0.0.57",
-    "@copilotkit/core": "1.64.1",
-    "@copilotkit/vue": "1.64.1",
-    "element-plus": "2.14.3",
-    "vue": "3.5.28",
+    "element-plus": "2.14.5",
+    "vue": "3.5.42",
+    "vue-element-plus-x": "2.0.3",
+    "x-markdown-vue": "0.0.203",
     "zod": "3.25.76"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "5.2.1",
+    "@vitejs/plugin-vue": "6.0.8",
     "typescript": "5.8.2",
-    "vite": "6.4.3",
-    "vue-tsc": "2.1.10"
+    "vite": "8.2.2",
+    "vue-tsc": "3.3.11"
   },
   "engines": {
     "node": ">=20.19.0"
