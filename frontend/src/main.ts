@@ -1,18 +1,10 @@
 import { createApp } from 'vue'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
-import '@copilotkit/vue/styles.css'
-import './uiux-soft-technical-dark.css'
-import './visual-workspace.css'
-import './layout-shell.css'
-import './app-navigation-pages.css'
-import './opencode-management.css'
-import './composer-model-placement.css'
-import './theme-controls.css'
-import './light-theme.css'
-import './light-component-overrides.css'
-import { initializeTheme } from './theme'
-import App from './App.vue'
+import 'x-markdown-vue/style'
+import App from './app/App.vue'
+import './shared/styles/index.css'
 
-initializeTheme()
-createApp(App).use(ElementPlus).mount('#app')
+createApp(App)
+  .use(ElementPlus)
+  .mount('#app')
