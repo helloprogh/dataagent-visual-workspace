@@ -1,0 +1,60 @@
+name: Refactor Frontend Check
+
+on:
+  push:
+    branches:
+      - refactor/element-plus-x-agui-vite8
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CI: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/element-plus-x-agui-vite8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Refresh lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Commit lockfile when changed
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "package-lock.json is already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "chore: refresh dependency lock"
+          git push origin HEAD:refactor/element-plus-x-agui-vite8
+
+      - name: Install from lockfile
+        run: npm ci --no-audit --no-fund
+
+      - name: Adapter tests
+        run: npm test -w adapter
+
+      - name: Offline project checks
+        run: npm run check:offline -w frontend
+
+      - name: Typecheck frontend
+        run: npm run typecheck -w frontend
+
+      - name: Build frontend
+        run: npm run build -w frontend
