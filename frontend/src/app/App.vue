@@ -113,7 +113,7 @@ onMounted(async () => {
       />
 
       <SkillPage v-else-if="page === 'skills'" />
-      <ToolPage v-else :thread-id="activeId" />
+      <ToolPage v-else :session-id="activeId" />
     </section>
   </main>
 </template>
