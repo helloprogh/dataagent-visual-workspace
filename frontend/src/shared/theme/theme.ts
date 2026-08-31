@@ -12,6 +12,10 @@ function initialTheme(): AppTheme {
 
 export const appTheme = ref<AppTheme>(initialTheme())
 
+export function readTheme(): AppTheme {
+  return appTheme.value
+}
+
 export function applyTheme(theme: AppTheme) {
   appTheme.value = theme
   document.documentElement.dataset.theme = theme
