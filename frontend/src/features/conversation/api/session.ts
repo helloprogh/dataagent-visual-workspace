@@ -60,7 +60,7 @@ export async function uploadConversationFile(file: File, threadId: string) {
     source: {
       type: 'url',
       value: String(uri),
-      mimeType: uploaded?.mimeType ?? uploaded?.mime_type ?? uploaded?.contentType ?? file.type || 'application/octet-stream',
+      mimeType: (uploaded?.mimeType ?? uploaded?.mime_type ?? uploaded?.contentType ?? file.type) || 'application/octet-stream',
     },
     metadata: {
       ...(fileId ? { fileId: String(fileId) } : {}),
