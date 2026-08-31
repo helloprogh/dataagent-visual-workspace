@@ -28,7 +28,7 @@ const emit = defineEmits<{
         <div class="assistant-orb"><span></span></div>
         <div>
           <div class="assistant-name"><b>{{ agentDisplayName }}</b><span>在线</span></div>
-          <small>SA 数据需求开发与交付助手</small>
+          <small>DA 数据分析与交付助手</small>
         </div>
       </div>
     </header>
@@ -54,40 +54,8 @@ const emit = defineEmits<{
     </div>
 
     <footer class="assistant-footer">
-      <span><i></i> 实时连接</span>
+      <span><i></i> AG-UI 实时连接</span>
       <span>对话工作区</span>
     </footer>
   </section>
 </template>
-
-<style scoped>
-/* A real session is never the new-conversation welcome surface. Historical
-   messages can be restored asynchronously by CopilotKit after the local
-   snapshot is read, so message count must not control the existing-session
-   composer position. Keep the input at the normal bottom edge and suppress
-   the welcome content whenever a real conversation already exists. */
-.assistant-panel.assistant-panel--existing :deep(.conversation-welcome){
-  display:none!important;
-}
-.assistant-panel.assistant-panel--existing :deep(.conversation-input-layout--empty){
-  width:100%!important;
-  display:block!important;
-}
-.assistant-panel.assistant-panel--existing :deep(.conversation-chat.is-empty [data-testid="copilot-input-overlay"]){
-  inset:auto 14px 14px 14px!important;
-  width:auto!important;
-  max-width:none!important;
-  height:auto!important;
-  padding:0!important;
-  display:block!important;
-  place-items:initial!important;
-  transform:none!important;
-  pointer-events:auto!important;
-}
-@media(max-width:540px){
-  .assistant-panel.assistant-panel--existing :deep(.conversation-chat.is-empty [data-testid="copilot-input-overlay"]){
-    inset:auto 14px 14px 14px!important;
-    padding:0!important;
-  }
-}
-</style>
