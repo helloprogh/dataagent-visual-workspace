@@ -9,7 +9,7 @@ export type AgentSkill = {
 }
 
 function normalizeSkills(value: unknown): AgentSkill[] {
-  const source = Array.isArray(value)
+  const source: unknown[] = Array.isArray(value)
     ? value
     : value && typeof value === 'object' && Array.isArray((value as any).data)
       ? (value as any).data
@@ -18,13 +18,13 @@ function normalizeSkills(value: unknown): AgentSkill[] {
         : []
   return source
     .filter((item: unknown): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
-    .map(item => ({
+    .map((item: Record<string, unknown>): AgentSkill => ({
       ...item,
       name: String(item.name ?? item.skillName ?? item.id ?? ''),
       description: item.description == null ? undefined : String(item.description),
       id: item.id == null ? undefined : String(item.id),
     }))
-    .filter(item => item.name)
+    .filter((item: AgentSkill) => Boolean(item.name))
 }
 
 export async function listSkills(): Promise<AgentSkill[]> {
