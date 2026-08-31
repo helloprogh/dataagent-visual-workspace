@@ -1,6 +1,6 @@
 import { onBeforeUnmount, ref, shallowRef } from 'vue'
 import type { HttpAgent, Interrupt, Message, ResumeEntry } from '@ag-ui/client'
-import { createAgentClient } from '../../../agui/client'
+import { createAgentClient, createHydrationClient } from '../../../agui/client'
 import { fetchConversationMessagePage } from '../api/history'
 import { createConversation, interruptConversation, uploadConversationFile } from '../api/session'
 import type { ModelSelection } from '../../model/types'
@@ -22,15 +22,25 @@ export function useAgentConversation() {
   const attachments = ref<PendingAttachment[]>([])
   const error = ref('')
   let subscription: { unsubscribe: () => void } | null = null
+  let hydrationSubscription: { unsubscribe: () => void } | null = null
+  let hydrationAgent: HttpAgent | null = null
   let generation = 0
 
   function syncMessages() {
     messages.value = agent.value ? [...agent.value.messages] : []
   }
 
+  function detachHydration() {
+    hydrationSubscription?.unsubscribe()
+    hydrationSubscription = null
+    hydrationAgent?.abortRun()
+    hydrationAgent = null
+  }
+
   function detach() {
     subscription?.unsubscribe()
     subscription = null
+    detachHydration()
     if (agent.value?.isRunning) agent.value.abortRun()
     agent.value = null
     messages.value = []
@@ -55,6 +65,32 @@ export function useAgentConversation() {
     })
   }
 
+  async function hydratePendingInterrupts(sessionId: string, currentGeneration: number) {
+    const client = createHydrationClient(sessionId)
+    hydrationAgent = client
+    hydrationSubscription = client.subscribe({
+      onRunFinishedEvent: ({ event }) => {
+        if (currentGeneration !== generation) return
+        pendingInterrupts.value = event.outcome?.type === 'interrupt'
+          ? [...event.outcome.interrupts]
+          : []
+      },
+      onRunErrorEvent: ({ event }) => {
+        if (currentGeneration === generation) error.value = event.message
+      },
+    })
+
+    try {
+      await client.runAgent({
+        forwardedProps: {
+          dataagent: { mode: 'hydrate' },
+        },
+      } as any)
+    } finally {
+      if (hydrationAgent === client) detachHydration()
+    }
+  }
+
   async function open(sessionId: string) {
     const id = sessionId.trim()
     const currentGeneration = ++generation
@@ -73,6 +109,7 @@ export function useAgentConversation() {
       nextCursor.value = page.nextCursor
       bind(next)
       syncMessages()
+      await hydratePendingInterrupts(id, currentGeneration)
     } catch (reason) {
       if (currentGeneration === generation) error.value = reason instanceof Error ? reason.message : String(reason)
     } finally {
