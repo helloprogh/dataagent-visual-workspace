@@ -1,0 +1,13 @@
+.app-layout { display: grid; grid-template-columns: var(--da-sidebar-width) minmax(0, 1fr); width: 100%; height: 100%; min-height: 0; }
+.app-sidebar { min-width: 0; border-right: 0.0625rem solid var(--da-border); background: var(--da-surface-1); }
+.app-main { min-width: 0; min-height: 0; overflow: hidden; background: var(--da-surface-0); }
+.app-page { width: 100%; height: 100%; min-height: 0; overflow: auto; }
+.app-page__inner { width: min(100%, 70rem); margin: 0 auto; padding: var(--da-space-8); }
+.app-page__header { display: flex; align-items: center; justify-content: space-between; gap: var(--da-space-4); margin-bottom: var(--da-space-6); }
+.app-page__header h1 { margin: 0; color: var(--da-text-emphasis); font-size: var(--da-font-size-xl); font-weight: 650; }
+.empty-state { display: grid; min-height: 18rem; place-items: center; color: var(--da-text-muted); text-align: center; }
+
+@media (max-width: 52rem) {
+  .app-layout { grid-template-columns: 4.5rem minmax(0, 1fr); }
+  .app-page__inner { padding: var(--da-space-5); }
+}
