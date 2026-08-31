@@ -11,165 +11,102 @@ function vueTemplate(source) {
   return source.slice(start, end + '</template>'.length)
 }
 
-test('product styles have one owner per major surface', async () => {
-  const [main, shell, workspace, pages, management, theme] = await Promise.all([
+test('runtime entry uses the new app, feature and shared architecture', async () => {
+  const [main, app, tsconfig] = await Promise.all([
     frontend('main.ts'),
-    frontend('layout-shell.css'),
-    frontend('visual-workspace.css'),
-    frontend('app-navigation-pages.css'),
-    frontend('opencode-management.css'),
-    frontend('uiux-soft-technical-dark.css'),
+    frontend('app/App.vue'),
+    fs.readFile(new URL('../../frontend/tsconfig.app.json', import.meta.url), 'utf8'),
   ])
 
-  assert.doesNotMatch(main, /style\.css|sidebar-hierarchy\.css|skill-delete\.css/)
-  assert.match(main, /visual-workspace\.css/)
+  assert.match(main, /\.\/app\/App\.vue/)
+  assert.match(main, /\.\/shared\/styles\/index\.css/)
+  assert.doesNotMatch(main, /CopilotKit|@copilotkit|visual-workspace|workspace\/|genui\//i)
 
-  assert.match(shell, /\.app-sidebar\s*\{/)
-  assert.match(shell, /\.app-main-stage--chat\s*\{/)
-  assert.doesNotMatch(shell, /\.visual-toolbar|\.workspace-grid|\.widget-frame|\.gen-card/)
+  assert.match(app, /features\/conversation/)
+  assert.match(app, /features\/skill/)
+  assert.match(app, /features\/tool/)
+  assert.doesNotMatch(app, /CopilotKit|WorkspaceCanvas|GenUIBridge|workspaceController/i)
 
-  assert.match(workspace, /\.visual-toolbar\s*\{/)
-  assert.match(workspace, /\.workspace-grid\s*\{/)
-  assert.match(workspace, /\.widget-frame\s*\{/)
-  assert.match(workspace, /\.gen-card\s*\{/)
-
-  assert.doesNotMatch(theme, /\.visual-toolbar|\.workspace-grid|\.widget-frame|\.gen-card/)
-  assert.doesNotMatch(pages, /\.app-sidebar(?:__|\s|\{)/)
-  assert.doesNotMatch(pages, /\.app-main-stage--chat/)
-  assert.match(management, /\.skill-management-simple/)
+  assert.match(tsconfig, /src\/app\/\*\*\/\*\.vue/)
+  assert.match(tsconfig, /src\/agui\/\*\*\/\*\.ts/)
+  assert.match(tsconfig, /src\/features\/\*\*\/\*\.vue/)
+  assert.match(tsconfig, /src\/shared\/\*\*\/\*\.ts/)
+  assert.doesNotMatch(tsconfig, /src\/components|src\/copilot|src\/workspace|src\/genui/)
 })
 
-test('legacy multi-generation style layers are not imported', async () => {
-  const main = await frontend('main.ts')
-  assert.doesNotMatch(main, /style\.css/)
-  assert.doesNotMatch(main, /V4|V5\.1|V5\.2|V5\.3/)
-})
-
-test('product shell does not use a global typography override', async () => {
-  const files = await Promise.all([
-    frontend('layout-shell.css'),
-    frontend('visual-workspace.css'),
-    frontend('app-navigation-pages.css'),
-    frontend('opencode-management.css'),
-    frontend('composer-model-placement.css'),
+test('conversation presentation is Element-Plus-X over direct AG-UI client', async () => {
+  const [agentChat, message, client] = await Promise.all([
+    frontend('features/conversation/components/AgentChat.vue'),
+    frontend('features/conversation/components/ConversationMessage.vue'),
+    frontend('agui/client.ts'),
   ])
 
-  for (const css of files) {
-    assert.doesNotMatch(css, /\.dataagent-shell\s+\*\s*\{[^}]*font-size/i)
+  assert.match(agentChat, /from 'vue-element-plus-x'/)
+  assert.match(agentChat, /<XSender/)
+  assert.match(agentChat, /<Welcome/)
+  assert.doesNotMatch(agentChat, /CopilotChat|useAgent|@copilotkit/i)
+  assert.match(message, /<Bubble/)
+  assert.match(client, /new HttpAgent/)
+  assert.doesNotMatch(client, /CopilotRuntime|selfManagedAgents|@copilotkit/i)
+})
+
+test('workspace and generated workspace UI are not part of the new runtime shell', async () => {
+  const [app, chat, sidebar] = await Promise.all([
+    frontend('app/App.vue'),
+    frontend('features/conversation/components/AgentChat.vue'),
+    frontend('features/conversation/components/ConversationSidebar.vue'),
+  ])
+  const template = vueTemplate(sidebar)
+
+  for (const source of [app, chat, template]) {
+    assert.doesNotMatch(source, /workspace\.render|workspace\.upsert|workspace\.remove|workspace\.agents/i)
+    assert.doesNotMatch(source, /WorkspaceCanvas|GenUIBridge|动态渲染区/i)
   }
 })
 
-test('workspace production typography avoids micro text', async () => {
-  const workspace = await frontend('visual-workspace.css')
-  assert.doesNotMatch(workspace, /font-size\s*:\s*(?:[1-9]|10)px/i)
-})
-
-test('workspace Markdown presentation belongs to the workspace style owner', async () => {
-  const [workspace, markdown] = await Promise.all([
-    frontend('visual-workspace.css'),
-    frontend('components/genui/MarkdownPanel.vue'),
+test('new business styles use design tokens and rem geometry', async () => {
+  const sources = await Promise.all([
+    frontend('app/App.vue'),
+    frontend('features/conversation/components/AgentChat.vue'),
+    frontend('features/conversation/components/ConversationMessage.vue'),
+    frontend('features/conversation/components/ConversationSidebar.vue'),
+    frontend('features/conversation/components/InterruptCard.vue'),
+    frontend('features/conversation/pages/HistoryPage.vue'),
+    frontend('features/model/components/ModelSelector.vue'),
+    frontend('features/skill/pages/SkillPage.vue'),
+    frontend('features/tool/pages/ToolPage.vue'),
+    frontend('shared/styles/tokens.css'),
+    frontend('shared/styles/base.css'),
+    frontend('shared/styles/app.css'),
   ])
 
-  assert.match(workspace, /\.markdown-panel\s*\{/)
-  assert.match(workspace, /\.markdown-content\s*\{/)
-  assert.doesNotMatch(markdown, /<style(?:\s|>)/i)
+  for (const source of sources) {
+    assert.doesNotMatch(source, /(?:^|[^\w-])\d+(?:\.\d+)?px\b/i)
+  }
+  assert.match(sources.join('\n'), /var\(--da-/)
 })
 
-test('composer and attachment presentation each have a single owner', async () => {
-  const [theme, composer, conversation] = await Promise.all([
-    frontend('uiux-soft-technical-dark.css'),
-    frontend('composer-model-placement.css'),
-    frontend('components/conversation/ConversationChat.vue'),
+test('user-facing shell does not expose transport or framework terminology', async () => {
+  const sources = await Promise.all([
+    frontend('app/App.vue'),
+    frontend('features/conversation/components/AgentChat.vue'),
+    frontend('features/conversation/components/ConversationSidebar.vue'),
+    frontend('features/conversation/components/InterruptCard.vue'),
   ])
 
-  assert.match(composer, /\.conversation-composer\s*\{/)
-  assert.match(composer, /\.conversation-composer__controls\s*\{/)
-  assert.doesNotMatch(conversation, /\.conversation-composer\s*\{[^}]*border/i)
-  assert.doesNotMatch(conversation, /\.conversation-composer__controls\s*\{/)
-  assert.match(conversation, /copilot-chat-attachment-item/)
-  assert.doesNotMatch(theme, /copilot-chat-attachment-item|copilot-chat-attachment-document-filename/)
+  for (const source of sources) {
+    assert.doesNotMatch(vueTemplate(source), /AG-UI|CopilotKit|OpenCode/i)
+  }
 })
 
-test('sidebar exposes product copy instead of transport terminology', async () => {
-  const sidebar = await frontend('components/AppSidebar.vue')
-  const template = vueTemplate(sidebar)
-
-  assert.match(template, /服务已连接/)
-  assert.doesNotMatch(template, /AG-UI|CopilotKit|OpenCode/i)
-})
-
-test('sidebar exposes a searchable runtime tool catalog without category controls', async () => {
-  const [app, sidebar, tools] = await Promise.all([
-    frontend('App.vue'),
-    frontend('components/AppSidebar.vue'),
-    frontend('components/ToolManagementView.vue'),
-  ])
-  const sidebarTemplate = vueTemplate(sidebar)
-  const toolsTemplate = vueTemplate(tools)
-
-  assert.match(sidebarTemplate, />工具</)
-  assert.doesNotMatch(sidebarTemplate, /工作空间管理|openWorkspace|open-workspace/)
-  assert.match(app, /ToolManagementView v-else :thread-id="activeId"/)
-  assert.match(toolsTemplate, /搜索工具或能力/)
-  assert.match(tools, /dataAgentWebApi\('\/tools'\)/)
-  assert.doesNotMatch(tools, /tool-filters|activeCategory|const categories/)
-  assert.doesNotMatch(tools, /database-query|python-runtime|visual-renderer/)
-  assert.match(tools, /<style scoped>/)
-})
-
-test('visible controls keep native icons and centered action labels', async () => {
-  const [composer, shell, approval] = await Promise.all([
-    frontend('composer-model-placement.css'),
-    frontend('layout-shell.css'),
-    frontend('components/conversation/AguiInterruptCard.vue'),
+test('tool page exposes the factual runtime capability catalog without workspace UI controls', async () => {
+  const [page, api] = await Promise.all([
+    frontend('features/tool/pages/ToolPage.vue'),
+    frontend('features/tool/api/tool.ts'),
   ])
 
-  assert.doesNotMatch(composer, /copilot-chat-input-add[^}]*>\s*svg\s*\{\s*display\s*:\s*none/i)
-  assert.doesNotMatch(composer, /filter\s*:\s*brightness\(0\)\s*invert\(1\)/i)
-  assert.match(composer, /copilot-chat-input-add[^}]*>svg\s*\{[\s\S]*display:block!important[\s\S]*stroke:currentColor!important[\s\S]*filter:none!important/i)
-  assert.match(shell, /\.app-sidebar__nav-icon\s*\{[\s\S]*display:grid[\s\S]*place-items:center/)
-  assert.match(approval, /approval-request__choices button,[\s\S]*flex:0 0 auto[\s\S]*display:inline-flex[\s\S]*align-items:center[\s\S]*justify-content:center[\s\S]*line-height:1!important/)
-})
-
-test('approval choice controls are not nested inside label elements', async () => {
-  const approval = await frontend('components/conversation/AguiInterruptCard.vue')
-  const template = vueTemplate(approval)
-
-  assert.doesNotMatch(template, /<label[^>]*approval-request__field/)
-  assert.match(template, /class="approval-request__field-label"/)
-  assert.match(template, /class="approval-request__choices" role="group"/)
-  assert.doesNotMatch(approval, /approval-request__footer button\.cancel/)
-})
-
-test('workspace header exposes product language instead of demo implementation labels', async () => {
-  const canvas = await frontend('components/WorkspaceCanvas.vue')
-  const template = vueTemplate(canvas)
-
-  assert.match(template, /分析结果/)
-  assert.doesNotMatch(template, /DYNAMIC RENDER SPACE|Agent driven|RENDER|UPDATED|READY/)
-})
-
-test('workspace presentation is model-driven and empty composer layout is content-driven', async () => {
-  const [app, store, conversation, workspace, shell] = await Promise.all([
-    frontend('App.vue'),
-    frontend('workspace/store.ts'),
-    frontend('components/conversation/ConversationChat.vue'),
-    frontend('visual-workspace.css'),
-    frontend('layout-shell.css'),
-  ])
-
-  assert.match(app, /renderAreaRequested/)
-  assert.match(app, /presentationEpoch/)
-  assert.doesNotMatch(app, /watch\(renderWidgetCount/)
-  assert.match(store, /requestPresentation\(\)/)
-  assert.match(store, /presentationThreadId/)
-  assert.match(conversation, /'is-empty': hydrated && !hasMessages/)
-  assert.match(conversation, /conversation-input-layout--empty/)
-  assert.match(conversation, /conversation-chat\.is-empty[^}]*copilot-input-overlay[^}]*inset:0!important/)
-  assert.doesNotMatch(conversation, /top:calc\(50%\s*[+-]/)
-  assert.doesNotMatch(conversation, /conversation-welcome\{[^}]*position:absolute/)
-  assert.match(conversation, /copilot-chat-view-scroll/)
-  assert.match(conversation, /scrollbar-gutter:stable/)
-  assert.match(workspace, /workspace-scroll::\-webkit-scrollbar-thumb/)
-  assert.match(shell, /workspace-reveal-enter-from[^}]*translateX\(32px\)/)
+  assert.match(page, /搜索工具或能力/)
+  assert.match(page, /MCP/)
+  assert.match(api, /dataAgentWebApi\('\/tools'\)/)
+  assert.doesNotMatch(page, /工作空间管理|WorkspaceCanvas|workspace\.render/i)
 })
