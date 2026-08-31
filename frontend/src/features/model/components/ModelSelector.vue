@@ -29,13 +29,13 @@ async function load() {
     const [catalog, defaultModel] = await Promise.all([listModels(), getDefaultModel()])
     models.value = catalog
     const remembered = props.sessionId ? getSelectedModel(props.sessionId) : null
-    const initial = remembered
-      ?? defaultModel
-      ?? catalog[0]
-      ?? null
+    const initial = remembered ?? defaultModel ?? catalog[0] ?? null
     if (initial) {
       selectedKey.value = keyOf(initial)
-      if (props.draft) emit('selected', initial)
+      // Reading an existing session must never call the switch API. Emit the
+      // effective UI selection so the composer can submit, but only `change`
+      // below mutates an existing session's model.
+      emit('selected', initial)
     }
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : String(error))
@@ -55,6 +55,7 @@ async function change(key: string) {
   changing.value = true
   try {
     await switchSessionModel(props.sessionId, model)
+    emit('selected', model)
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : String(error))
   } finally {
