@@ -54,14 +54,16 @@ function normalizeModel(value: unknown): ModelCatalogItem | null {
 }
 
 export async function listModels(): Promise<ModelCatalogItem[]> {
-  const body = await requestJson<any>(dataAgentWebApi('/model'), {}, '模型列表加载失败')
+  const body = await requestJson<unknown>(dataAgentWebApi('/model'), {}, '模型列表加载失败')
   const root = unwrapData<any>(body)
-  const source = Array.isArray(root) ? root : Array.isArray(root?.models) ? root.models : []
-  return source.map(normalizeModel).filter((item): item is ModelCatalogItem => Boolean(item && item.enabled !== false))
+  const source: unknown[] = Array.isArray(root) ? root : Array.isArray(root?.models) ? root.models : []
+  return source
+    .map(normalizeModel)
+    .filter((item: ModelCatalogItem | null): item is ModelCatalogItem => Boolean(item && item.enabled !== false))
 }
 
 export async function getDefaultModel(): Promise<ModelCatalogItem | null> {
-  const body = await requestJson<any>(dataAgentWebApi('/model/default'), {}, '默认模型加载失败')
+  const body = await requestJson<unknown>(dataAgentWebApi('/model/default'), {}, '默认模型加载失败')
   const root = unwrapData<any>(body)
   return normalizeModel(root?.model ?? root)
 }
