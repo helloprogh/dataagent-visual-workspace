@@ -143,6 +143,14 @@
   --sidebar-ring:rgba(0,117,222,.40);
 }
 
+/* User messages are friendly blue paper notes rather than generic muted-gray blocks. */
+:root[data-theme="light"] .conversation-chat [data-testid="copilot-user-message"]>div:first-child{
+  border:1px solid rgba(0,117,222,.14)!important;
+  background:var(--color-sky-tint)!important;
+  color:var(--color-charcoal)!important;
+  box-shadow:none!important;
+}
+
 :root[data-theme="light"] .conversation-chat.dark{color-scheme:light}
 :root[data-theme="light"] .conversation-chat [data-testid="copilot-chat-view"],
 :root[data-theme="light"] .conversation-chat [data-testid="copilot-chat-message-view"],
