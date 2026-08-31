@@ -1,6 +1,6 @@
 {
   "name": "dataagent-visual-workspace",
-  "version": "5.2.0",
+  "version": "6.0.0",
   "private": true,
   "workspaces": ["frontend", "adapter"],
   "scripts": {
@@ -20,6 +20,6 @@
     "check": "npm test && npm run typecheck && npm run build"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.19.0"
   }
 }
