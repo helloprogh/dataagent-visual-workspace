@@ -3,41 +3,56 @@ import fs from 'node:fs/promises'
 import test from 'node:test'
 
 const readRepo = async path => fs.readFile(new URL(`../../${path}`, import.meta.url), 'utf8')
-const readConversation = path => readRepo(`frontend/src/components/conversation/${path}`)
+const readConversation = path => readRepo(`frontend/src/features/conversation/${path}`)
 const templateOf = source => source.match(/<template>([\s\S]*?)<\/template>/)?.[1] ?? ''
 
-test('conversation HITL uses CopilotKit native interrupt lifecycle through the fully typed message view', async () => {
-  const [chat, controller] = await Promise.all([
-    readConversation('ConversationChat.vue'),
-    readConversation('AguiInterruptController.vue'),
+test('conversation HITL uses direct AG-UI interrupt and resume lifecycle', async () => {
+  const [runtime, card, client] = await Promise.all([
+    readConversation('composables/useAgentConversation.ts'),
+    readConversation('components/InterruptCard.vue'),
+    readRepo('frontend/src/agui/client.ts'),
   ])
 
-  assert.match(controller, /useInterrupt\(\)/)
-  assert.doesNotMatch(chat, /ResumeEntry|pendingInterrupts|decisions|function\s+decide\s*\(/)
-  assert.match(chat, /CopilotChatMessageView/)
-  assert.match(chat, /#message-view=/)
-  assert.match(chat, /<CopilotChatMessageView[\s\S]*?#interrupt=/)
-  assert.match(chat, /:interrupt="interrupt"[\s\S]*:interrupts="interrupts"[\s\S]*:resolve="resolve"/)
-  assert.doesNotMatch(chat, /:cancel="cancel"/)
+  assert.match(client, /new HttpAgent/)
+  assert.match(runtime, /pendingInterrupts/)
+  assert.match(runtime, /outcome\?\.type === 'interrupt'/)
+  assert.match(runtime, /target\.runAgent\(\{ resume: entries \}/)
+  assert.match(runtime, /必须一次处理当前 Run 的全部待处理中断/)
+  assert.doesNotMatch(runtime, /@copilotkit|useInterrupt|CopilotChat/i)
+  assert.match(card, /ResumeEntry/)
 })
 
-test('interrupt choices are rendered from responseSchema instead of a fixed option list', async () => {
-  const card = await readConversation('AguiInterruptCard.vue')
+test('interrupt UI is driven by responseSchema rather than permission-specific choices', async () => {
+  const card = await readConversation('components/InterruptCard.vue')
 
-  assert.match(card, /interrupt\.responseSchema/)
-  assert.match(card, /schema\.enum/)
-  assert.match(card, /schema\.oneOf/)
-  assert.doesNotMatch(card, /['"]once['"]|['"]always['"]|['"]reject['"]/)
-  assert.doesNotMatch(templateOf(card), />取消</)
-  assert.doesNotMatch(card, /props\.cancel|async function cancel/)
+  assert.match(card, /responseSchema/)
+  assert.match(card, /\.enum/)
+  assert.match(card, /\.oneOf/)
+  assert.doesNotMatch(card, /\['once',\s*'always',\s*'reject'\]/)
+  assert.doesNotMatch(templateOf(card), /AG-UI|CopilotKit|OpenCode/i)
 })
 
-test('user-facing interface does not expose protocol or framework terminology', async () => {
+test('pending interrupts are restored through the same AG-UI endpoint hydration run', async () => {
+  const [runtime, client, gateway] = await Promise.all([
+    readConversation('composables/useAgentConversation.ts'),
+    readRepo('frontend/src/agui/client.ts'),
+    readRepo('adapter/src/server-entry.mjs'),
+  ])
+
+  assert.match(client, /mode=hydrate/)
+  assert.match(runtime, /createHydrationClient/)
+  assert.match(runtime, /dataagent:\s*\{ mode: 'hydrate' \}/)
+  assert.match(gateway, /forwardedProps\?\.dataagent\?\.mode/)
+  assert.match(gateway, /pendingInterrupts\(threadId\)/)
+  assert.doesNotMatch(runtime, /\/interrupts?['"`]/)
+})
+
+test('user-facing conversation UI does not expose protocol or framework terminology', async () => {
   const sources = await Promise.all([
-    readConversation('AguiInterruptCard.vue'),
-    readConversation('ReasoningProcessCard.vue'),
-    readRepo('frontend/src/components/genui/ToolStatus.vue'),
-    readRepo('frontend/src/components/AssistantPanel.vue'),
+    readConversation('components/AgentChat.vue'),
+    readConversation('components/InterruptCard.vue'),
+    readConversation('components/ConversationMessage.vue'),
+    readConversation('components/ConversationSidebar.vue'),
   ])
 
   for (const source of sources) {
