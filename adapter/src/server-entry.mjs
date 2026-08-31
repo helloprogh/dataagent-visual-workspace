@@ -1,8 +1,11 @@
 import http from 'node:http'
 import { buildCapabilityCatalog } from './capability-catalog.mjs'
+import { runFinished, runStarted, stateSnapshot } from './agui.mjs'
 import { createServer as createAgentServer } from './server.mjs'
 import { OpenCodeClient } from './opencode-client.mjs'
 import { createOpenCodeManagementHandler } from './opencode-management.mjs'
+import { SessionRegistry } from './session-registry.mjs'
+import { openSse, writeSse } from './sse.mjs'
 
 const port = Number(process.env.ADAPTER_PORT ?? 3001)
 const WEB_PREFIX = '/dataagent/web'
@@ -114,6 +117,30 @@ const runtimeCapabilities = async (client, res, url) => {
   res.end(JSON.stringify({ data: catalog }))
 }
 
+const hydrateAgent = async (req, res) => {
+  const input = await readJsonBody(req)
+  const mode = input?.forwardedProps?.dataagent?.mode
+  if (mode !== 'hydrate') throw new Error('Invalid AG-UI hydration request')
+
+  const threadId = typeof input.threadId === 'string' ? input.threadId.trim() : ''
+  const runId = typeof input.runId === 'string' ? input.runId.trim() : ''
+  if (!threadId || !runId) throw new Error('AG-UI hydration requires threadId and runId')
+
+  // The reference adapter stores pending interrupt correlation on disk. Load a
+  // fresh registry for hydration so this gateway observes the latest commit
+  // written by the streaming adapter before RUN_FINISHED(interrupt) was sent.
+  const registry = new SessionRegistry()
+  const pending = await registry.pendingInterrupts(threadId)
+
+  openSse(res)
+  writeSse(res, runStarted(threadId, runId))
+  writeSse(res, stateSnapshot(input.state ?? {}))
+  writeSse(res, runFinished(threadId, runId, pending.length
+    ? { type: 'interrupt', interrupts: pending }
+    : { type: 'success' }))
+  res.end()
+}
+
 export const createServer = ({ client = new OpenCodeClient({ baseUrl: process.env.OPENCODE_BASE_URL }) } = {}) => {
   const agentServer = createAgentServer()
   const handleManagement = createOpenCodeManagementHandler(client)
@@ -133,6 +160,10 @@ export const createServer = ({ client = new OpenCodeClient({ baseUrl: process.en
       }
 
       if (req.method === 'POST' && url.pathname === `${API_BASE}/agui`) {
+        if (url.searchParams.get('mode') === 'hydrate') {
+          await hydrateAgent(req, res)
+          return
+        }
         req.url = `/agent${url.search}`
         agentServer.emit('request', req, res)
         return
