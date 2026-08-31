@@ -40,6 +40,7 @@
   --da-radius-lg: 0.875rem;
   --da-radius-xl: 1.125rem;
   --da-sidebar-width: 16.5rem;
+  --da-sidebar-collapsed-width: 4.5rem;
   --da-content-max: 56rem;
   --da-shadow-soft: 0 1.125rem 3.375rem rgb(0 0 0 / 38%);
   --da-shadow-raised: 0 1.75rem 5rem rgb(0 0 0 / 58%);
