@@ -5,13 +5,13 @@ import fs from 'node:fs/promises'
 const read = async (path) => fs.readFile(new URL(path, import.meta.url), 'utf8')
 
 const frontendRequestSources = async () => Promise.all([
-  read('../../frontend/src/config/api.ts'),
-  read('../../frontend/src/copilot/agent.ts'),
-  read('../../frontend/src/components/conversation/ConversationChat.vue'),
-  read('../../frontend/src/conversations/history-api.ts'),
-  read('../../frontend/src/conversations/opencode-session.ts'),
-  read('../../frontend/src/model/model-selection.ts'),
-  read('../../frontend/src/opencode/management.ts'),
+  read('../../frontend/src/shared/config/api.ts'),
+  read('../../frontend/src/agui/client.ts'),
+  read('../../frontend/src/features/conversation/api/history.ts'),
+  read('../../frontend/src/features/conversation/api/session.ts'),
+  read('../../frontend/src/features/model/api/model.ts'),
+  read('../../frontend/src/features/skill/api/skill.ts'),
+  read('../../frontend/src/features/tool/api/tool.ts'),
   read('../../frontend/vite.config.ts'),
 ])
 
@@ -34,7 +34,7 @@ test('frontend request paths do not use bare api routes', async () => {
   }
 })
 
-test('frontend request paths are not read from environment variables', async () => {
+test('frontend public request paths are centralized instead of configured by URL env vars', async () => {
   const source = (await frontendRequestSources()).join('\n')
   for (const variable of [
     'VITE_AGUI_URL',
@@ -48,8 +48,8 @@ test('frontend request paths are not read from environment variables', async () 
 })
 
 test('all frontend API bases are hardcoded under dataagent web', async () => {
-  const api = await read('../../frontend/src/config/api.ts')
+  const api = await read('../../frontend/src/shared/config/api.ts')
   assert.match(api, /DATAAGENT_WEB_API_BASE = ['"]\/dataagent\/web\/api['"]/) 
   assert.match(api, /AGUI_URL = `\$\{DATAAGENT_WEB_API_BASE\}\/agui`/)
-  assert.match(api, /AGUI_UPLOAD_URL = `\$\{AGUI_URL\}\/upload`/)
+  assert.match(api, /AGUI_UPLOAD_URL = `\$\{AGUI_URL\}\/file\/upload`/)
 })
