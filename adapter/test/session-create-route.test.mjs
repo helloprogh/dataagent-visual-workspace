@@ -60,9 +60,10 @@ test('conversation list and message history routes proxy OpenCode responses insi
     parts: [{ type: 'text', text: '分析订单' }],
   }]
   const client = {
+    workspaceDirectory: 'D:\\ProjectSpace\\dataagent',
     async json(pathname, init) {
       calls.push({ pathname, method: init.method ?? 'GET' })
-      return pathname === '/api/session' ? sessions : messages
+      return pathname.startsWith('/api/session?') ? sessions : messages
     },
   }
   const server = createServer({ client })
@@ -74,10 +75,10 @@ test('conversation list and message history routes proxy OpenCode responses insi
 
     assert.equal(listResponse.status, 200)
     assert.equal(messageResponse.status, 200)
-    assert.deepEqual(await listResponse.json(), { data: sessions })
-    assert.deepEqual(await messageResponse.json(), { data: messages })
+    assert.deepEqual(await listResponse.json(), { data: sessions, cursor: {} })
+    assert.deepEqual(await messageResponse.json(), { data: messages, cursor: {} })
     assert.deepEqual(calls, [
-      { pathname: '/api/session', method: 'GET' },
+      { pathname: '/api/session?directory=D%3A%5CProjectSpace%5Cdataagent', method: 'GET' },
       { pathname: '/api/session/session-a/message', method: 'GET' },
     ])
   } finally {

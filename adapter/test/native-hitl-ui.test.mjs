@@ -17,6 +17,7 @@ test('conversation HITL uses direct AG-UI interrupt and resume lifecycle', async
   assert.match(runtime, /pendingInterrupts/)
   assert.match(runtime, /outcome\?\.type === 'interrupt'/)
   assert.match(runtime, /target\.runAgent\(\{ resume: entries \}/)
+  assert.match(runtime, /target\.pendingInterrupts\s*=\s*\[\]/)
   assert.match(runtime, /必须一次处理当前 Run 的全部待处理中断/)
   assert.doesNotMatch(runtime, /@copilotkit|useInterrupt|CopilotChat/i)
   assert.match(card, /ResumeEntry/)
@@ -29,6 +30,8 @@ test('interrupt UI is driven by responseSchema rather than permission-specific c
   assert.match(card, /\.enum/)
   assert.match(card, /\.oneOf/)
   assert.doesNotMatch(card, /\['once',\s*'always',\s*'reject'\]/)
+  assert.doesNotMatch(card, /status:\s*['"]cancelled['"]/)
+  assert.doesNotMatch(templateOf(card), /取消本次运行/)
   assert.doesNotMatch(templateOf(card), /AG-UI|CopilotKit|OpenCode/i)
 })
 

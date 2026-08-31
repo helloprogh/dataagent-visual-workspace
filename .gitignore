@@ -10,3 +10,4 @@ dist/
 .incoming-v5.2-*/
 adapter/.data/
 .runtime/
+artifacts/

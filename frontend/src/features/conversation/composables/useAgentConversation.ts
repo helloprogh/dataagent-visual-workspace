@@ -202,14 +202,21 @@ export function useAgentConversation() {
       throw new Error('必须一次处理当前 Run 的全部待处理中断')
     }
     const previousInterrupts = [...pendingInterrupts.value]
+    const previousAgentInterrupts = [...target.pendingInterrupts]
     running.value = true
     error.value = ''
     try {
       pendingInterrupts.value = []
       await target.runAgent({ resume: entries } as any)
+      // A rejected native permission ends with RUN_ERROR in OpenCode even
+      // though the interrupt itself was resolved successfully. AG-UI only
+      // clears its internal queue on RUN_FINISHED, so clear it explicitly once
+      // the resume request has been accepted by the adapter.
+      target.pendingInterrupts = []
       syncMessages()
     } catch (reason) {
       pendingInterrupts.value = previousInterrupts
+      target.pendingInterrupts = previousAgentInterrupts
       error.value = reason instanceof Error ? reason.message : String(reason)
       throw reason
     } finally {

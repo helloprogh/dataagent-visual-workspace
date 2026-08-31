@@ -6,7 +6,7 @@ button, input, textarea, select { font: inherit; }
 button { color: inherit; }
 a { color: inherit; }
 
-.dataagent-shell {
+.dataagent-app {
   --el-color-primary: var(--da-text-emphasis);
   --el-color-success: var(--da-accent-green);
   --el-color-warning: var(--da-accent-yellow);
@@ -29,7 +29,30 @@ a { color: inherit; }
   background: var(--da-surface-0);
 }
 
-.dataagent-shell :where(button, input, textarea, [role='button']):focus-visible {
+.dataagent-app .el-button--primary {
+  --el-button-text-color: var(--da-surface-0);
+  --el-button-bg-color: var(--da-text-emphasis);
+  --el-button-border-color: var(--da-text-emphasis);
+  --el-button-hover-text-color: var(--da-surface-0);
+  --el-button-hover-bg-color: color-mix(in srgb, var(--da-text-emphasis) 88%, var(--da-surface-0));
+  --el-button-hover-border-color: color-mix(in srgb, var(--da-text-emphasis) 88%, var(--da-surface-0));
+  --el-button-active-text-color: var(--da-surface-0);
+  --el-button-active-bg-color: color-mix(in srgb, var(--da-text-emphasis) 78%, var(--da-surface-0));
+  --el-button-active-border-color: color-mix(in srgb, var(--da-text-emphasis) 78%, var(--da-surface-0));
+}
+
+.dataagent-app { scrollbar-width: thin; scrollbar-color: var(--da-border-focus) transparent; }
+.dataagent-app ::-webkit-scrollbar { width: 0.5rem; height: 0.5rem; }
+.dataagent-app ::-webkit-scrollbar-track { background: transparent; }
+.dataagent-app ::-webkit-scrollbar-thumb {
+  border: 0.125rem solid transparent;
+  border-radius: 999rem;
+  background: var(--da-border-focus);
+  background-clip: padding-box;
+}
+.dataagent-app ::-webkit-scrollbar-thumb:hover { background-color: var(--da-text-subtle); }
+
+.dataagent-app :where(button, input, textarea, [role='button']):focus-visible {
   outline: 0.125rem solid var(--da-border-focus);
   outline-offset: 0.125rem;
 }

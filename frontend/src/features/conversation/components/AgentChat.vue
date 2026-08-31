@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { ResumeEntry } from '@ag-ui/client'
 import { ElMessage } from 'element-plus'
 import { Welcome, XSender } from 'vue-element-plus-x'
@@ -46,6 +46,22 @@ let followBottom = true
 let previousScrollHeight = 0
 
 const WELCOME_DESCRIPTION = '描述你的数据业务目标，我将与你逐步澄清需求，并自主完成 Specification、数据方案、数据集成、ETL 开发、治理验证与交付。'
+
+const activeReasoningId = computed(() => {
+  if (!running.value) return ''
+  let latestUserIndex = -1
+  for (let index = messages.value.length - 1; index >= 0; index -= 1) {
+    if (messages.value[index].role === 'user') {
+      latestUserIndex = index
+      break
+    }
+  }
+  for (let index = messages.value.length - 1; index > latestUserIndex; index -= 1) {
+    const message = messages.value[index]
+    if (message.role === 'reasoning') return message.id
+  }
+  return ''
+})
 
 function scrollToBottom() {
   void nextTick().then(() => {
@@ -169,7 +185,7 @@ onBeforeUnmount(() => {
           v-for="message in messages"
           :key="message.id"
           :message="message"
-          :running="running"
+          :running="running && message.id === activeReasoningId"
         />
       </div>
     </div>
@@ -211,7 +227,6 @@ onBeforeUnmount(() => {
           ref="senderRef"
           variant="updown"
           clearable
-          :auto-focus="!sessionId"
           :loading="running"
           :disabled="Boolean(pendingInterrupts.length)"
           placeholder="描述你的数据需求或业务目标"
@@ -234,7 +249,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .agent-chat { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: 100%; height: 100%; min-height: 0; background: var(--da-surface-0); }
-.agent-chat--empty { grid-template-rows: minmax(0, 1fr) auto; }
+.agent-chat--empty { grid-template-rows: auto auto; align-content: center; gap: var(--da-space-6); padding-block: var(--da-space-8); }
 .agent-chat__header { display: flex; align-items: center; justify-content: space-between; gap: var(--da-space-4); min-height: 3.75rem; padding: 0 var(--da-space-6); border-bottom: 0.0625rem solid var(--da-border); background: color-mix(in srgb, var(--da-surface-0) 88%, transparent); }
 .agent-chat__header > div { min-width: 0; display: flex; align-items: baseline; gap: var(--da-space-3); }
 .agent-chat__header b { overflow: hidden; color: var(--da-text-emphasis); text-overflow: ellipsis; white-space: nowrap; }
@@ -247,11 +262,14 @@ onBeforeUnmount(() => {
 .message-list { display: flex; flex-direction: column; gap: var(--da-space-5); }
 .load-older { display: flex; justify-content: center; min-height: 2.25rem; }
 .agent-welcome { display: flex; min-height: 100%; flex-direction: column; align-items: center; justify-content: center; gap: var(--da-space-5); padding: var(--da-space-10) 0; text-align: center; }
-.agent-welcome :deep(.welcome) { width: 100%; max-width: 44rem; padding: 0; background: transparent; }
-.agent-welcome :deep(.welcome-title) { color: var(--da-text-emphasis); font-size: var(--da-font-size-hero); font-weight: 600; letter-spacing: -0.035em; }
-.agent-welcome :deep(.welcome-description) { color: var(--da-text-muted); font-size: var(--da-font-size-md); line-height: 1.75; }
+.agent-welcome :deep(.elx-welcome) { width: 100%; max-width: 44rem; padding: 0; --elx-welcome-filled-bg: transparent; --elx-welcome-filled-border: transparent; --elx-welcome-title-color: var(--da-text-emphasis); --elx-welcome-description-color: var(--da-text-muted); background: transparent; }
+.agent-welcome :deep(.elx-welcome__title) { font-size: var(--da-font-size-hero); font-weight: 600; letter-spacing: -0.035em; }
+.agent-welcome :deep(.elx-welcome__description) { font-size: var(--da-font-size-md); line-height: 1.75; }
 .agent-chat__composer-wrap { z-index: 2; padding: 0 clamp(1rem, 4vw, 3.5rem) var(--da-space-5); background: linear-gradient(180deg, transparent, var(--da-surface-0) 20%); }
 .agent-chat__composer { width: min(100%, var(--da-content-max)); margin: 0 auto; }
+.agent-chat--empty .agent-chat__messages { overflow: visible; padding-block: 0; }
+.agent-chat--empty .agent-welcome { min-height: 0; padding: 0; }
+.agent-chat--empty .agent-chat__composer-wrap { padding-bottom: 0; background: transparent; }
 .composer-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--da-space-3); margin-bottom: var(--da-space-2); }
 .composer-toolbar__left { display: flex; align-items: center; gap: var(--da-space-2); min-width: 0; }
 .attachment-queue { display: flex; flex-wrap: wrap; gap: var(--da-space-2); margin-bottom: var(--da-space-2); }

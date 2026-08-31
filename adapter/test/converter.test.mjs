@@ -81,6 +81,7 @@ test('turns OpenCode permission requests into a standard AG-UI interrupt', () =>
         decision: {
           type: 'string',
           enum: ['once', 'always', 'reject'],
+          'x-enumNames': ['仅本次允许', '始终允许', '拒绝'],
           title: '授权决定',
         },
       },

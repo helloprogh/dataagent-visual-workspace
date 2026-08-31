@@ -19,6 +19,7 @@ export function readTheme(): AppTheme {
 export function applyTheme(theme: AppTheme) {
   appTheme.value = theme
   document.documentElement.dataset.theme = theme
+  document.documentElement.classList.toggle('dark', theme === 'dark')
   localStorage.setItem(STORAGE_KEY, theme)
 }
 

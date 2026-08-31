@@ -62,8 +62,12 @@ const proxyDirectApi = async (client, req, res, url) => {
     && new RegExp(`^${API_BASE}/session/[^/]+/message$`).test(url.pathname)
   if (isConversationList || isConversationMessages) {
     const upstreamPath = url.pathname.slice(WEB_PREFIX.length)
+    const upstreamQuery = new URLSearchParams(url.searchParams)
+    if (isConversationList && !upstreamQuery.has('directory')) {
+      upstreamQuery.set('directory', client.workspaceDirectory)
+    }
     const payload = await client.json(
-      `${upstreamPath}${url.search}`,
+      `${upstreamPath}${upstreamQuery.size ? `?${upstreamQuery}` : ''}`,
       { headers: { Accept: 'application/json' } },
       isConversationList ? 'Unable to list OpenCode sessions' : 'Unable to read OpenCode messages',
     )
@@ -71,7 +75,16 @@ const proxyDirectApi = async (client, req, res, url) => {
       'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'no-store',
     })
-    res.end(JSON.stringify({ data: payload }))
+    // OpenCode service builds prior to cursor pagination return a bare array.
+    // Keep the browser-facing contract stable while preserving a native cursor
+    // object whenever the upstream already provides one.
+    const page = payload && typeof payload === 'object' && !Array.isArray(payload)
+      ? payload
+      : { data: Array.isArray(payload) ? payload : [], cursor: {} }
+    res.end(JSON.stringify({
+      data: Array.isArray(page.data) ? page.data : [],
+      cursor: page.cursor && typeof page.cursor === 'object' ? page.cursor : {},
+    }))
     return
   }
 

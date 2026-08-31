@@ -44,6 +44,19 @@ function choicesOf(schema: Schema) {
   return schema.enum.map((value: any, index: number) => ({ label: String(names[index] ?? value), value }))
 }
 
+function quickChoicesOf(interrupt: Interrupt) {
+  if (props.interrupts.length !== 1) return []
+  const fields = fieldsOf(interrupt)
+  if (!fields.length) {
+    return choicesOf(schemaOf(interrupt)).map(choice => ({ ...choice, payload: choice.value }))
+  }
+  if (fields.length !== 1 || fields[0].schema.type === 'array') return []
+  return choicesOf(fields[0].schema).map(choice => ({
+    ...choice,
+    payload: { [fields[0].name]: choice.value },
+  }))
+}
+
 function payloadOf(interrupt: Interrupt) {
   return fieldsOf(interrupt).length ? { ...(answers[interrupt.id] ?? {}) } : rootAnswers[interrupt.id]
 }
@@ -65,6 +78,7 @@ function complete(interrupt: Interrupt) {
 }
 
 const canSubmit = computed(() => props.interrupts.length > 0 && props.interrupts.every(complete))
+const hasQuickChoices = computed(() => props.interrupts.length === 1 && quickChoicesOf(props.interrupts[0]).length > 0)
 
 function submit() {
   if (!canSubmit.value || props.busy) return
@@ -75,12 +89,13 @@ function submit() {
   } as ResumeEntry)))
 }
 
-function cancel() {
+function submitChoice(interrupt: Interrupt, payload: unknown) {
   if (props.busy) return
-  emit('resume', props.interrupts.map(interrupt => ({
+  emit('resume', [{
     interruptId: interrupt.id,
-    status: 'cancelled',
-  } as ResumeEntry)))
+    status: 'resolved',
+    payload,
+  } as ResumeEntry])
 }
 
 watch(() => props.interrupts, interrupts => {
@@ -110,7 +125,16 @@ watch(() => props.interrupts, interrupts => {
     <article v-for="interrupt in interrupts" :key="interrupt.id" class="interrupt-card__item">
       <p>{{ interrupt.message || 'Agent 需要你的输入后才能继续。' }}</p>
 
-      <template v-if="fieldsOf(interrupt).length">
+      <div v-if="quickChoicesOf(interrupt).length" class="interrupt-choices">
+        <el-button
+          v-for="choice in quickChoicesOf(interrupt)"
+          :key="JSON.stringify(choice.value)"
+          :disabled="busy"
+          @click="submitChoice(interrupt, choice.payload)"
+        >{{ choice.label }}</el-button>
+      </div>
+
+      <template v-else-if="fieldsOf(interrupt).length">
         <div v-for="field in fieldsOf(interrupt)" :key="field.name" class="interrupt-field">
           <label>{{ field.schema.title || field.name }}<em v-if="field.required">*</em></label>
 
@@ -149,8 +173,7 @@ watch(() => props.interrupts, interrupts => {
       </template>
     </article>
 
-    <footer class="interrupt-card__actions">
-      <el-button :disabled="busy" @click="cancel">取消本次运行</el-button>
+    <footer v-if="!hasQuickChoices" class="interrupt-card__actions">
       <el-button type="primary" :loading="busy" :disabled="!canSubmit" @click="submit">继续</el-button>
     </footer>
   </section>

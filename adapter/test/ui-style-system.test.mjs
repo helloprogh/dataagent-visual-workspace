@@ -50,6 +50,28 @@ test('conversation presentation is Element-Plus-X over direct AG-UI client', asy
   assert.doesNotMatch(client, /CopilotRuntime|selfManagedAgents|@copilotkit/i)
 })
 
+test('conversation activity and tool results use product-facing progressive disclosure', async () => {
+  const message = await frontend('features/conversation/components/ConversationMessage.vue')
+  assert.doesNotMatch(message.match(/<template>([\s\S]*?)<\/template>/)?.[1] ?? '', /activityType|JSON\.stringify|Tool Result/)
+  assert.match(message, /任务已进入队列/)
+  assert.match(message, /<details v-else-if="isTool"/)
+})
+
+test('dark theme synchronizes Element Plus and keeps the welcome surface transparent', async () => {
+  const [main, theme, chat] = await Promise.all([
+    frontend('main.ts'),
+    frontend('shared/theme/theme.ts'),
+    frontend('features/conversation/components/AgentChat.vue'),
+  ])
+  assert.match(main, /element-plus\/theme-chalk\/dark\/css-vars\.css/)
+  assert.match(theme, /classList\.toggle\('dark'/)
+  assert.match(chat, /\.elx-welcome/)
+  assert.match(chat, /--elx-welcome-filled-bg:\s*transparent/)
+  const base = await frontend('shared/styles/base.css')
+  assert.match(base, /\.dataagent-app\s*\{/)
+  assert.doesNotMatch(base, /\.dataagent-shell/)
+})
+
 test('workspace and generated workspace UI are not part of the new runtime shell', async () => {
   const [app, chat, sidebar] = await Promise.all([
     frontend('app/App.vue'),

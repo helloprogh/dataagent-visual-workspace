@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { OpenCodeAguiConverter } from '../src/converter.mjs'
+import fs from 'node:fs/promises'
 
 const create = () => new OpenCodeAguiConverter({
   threadId: 'thread-reasoning',
@@ -9,6 +10,12 @@ const create = () => new OpenCodeAguiConverter({
 })
 
 const flatten = (converter, events) => events.flatMap((source) => converter.convert(source))
+
+test('conversation marks only the current run reasoning as active', async () => {
+  const source = await fs.readFile(new URL('../../frontend/src/features/conversation/components/AgentChat.vue', import.meta.url), 'utf8')
+  assert.match(source, /activeReasoningId/)
+  assert.match(source, /message\.id === activeReasoningId/)
+})
 
 test('emits a complete AG-UI reasoning lifecycle before the final assistant text', () => {
   const converter = create()
