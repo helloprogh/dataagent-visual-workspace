@@ -160,9 +160,12 @@ function previewFile(file: any, index: number) {
     </template>
   </Bubble>
 
-  <section v-else-if="isReasoning" class="reasoning-card">
+  <section v-else-if="isReasoning" class="reasoning-card" :class="{ 'reasoning-card--running': running }">
     <details :open="Boolean(running)">
-      <summary><span class="reasoning-dot"></span>{{ running ? '正在思考' : '思考过程' }}</summary>
+      <summary>
+        <span class="reasoning-node" aria-hidden="true"><i></i></span>
+        <span>{{ running ? '正在思考' : '思考过程' }}</span>
+      </summary>
       <div class="reasoning-content">{{ text }}</div>
     </details>
   </section>
@@ -210,14 +213,80 @@ function previewFile(file: any, index: number) {
 .assistant-content :deep(.x-md-core > :first-child) { margin-top: 0; }
 .assistant-content :deep(.x-md-core > :last-child) { margin-bottom: 0; }
 .tool-call-list { display: grid; gap: var(--da-space-2); margin-top: var(--da-space-3); }
-.tool-call, .tool-result-card, .activity-card, .reasoning-card { border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-md); background: var(--da-surface-1); }
+.tool-call, .tool-result-card, .activity-card { border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-md); background: var(--da-surface-1); }
 .tool-call { padding: var(--da-space-2) var(--da-space-3); }
 .tool-call summary { cursor: pointer; color: var(--da-text-secondary); font-size: var(--da-font-size-sm); }
 .tool-call pre, .tool-result-card pre { margin: var(--da-space-2) 0 0; overflow: auto; max-height: 18rem; color: var(--da-text-muted); font-size: var(--da-font-size-xs); white-space: pre-wrap; }
-.reasoning-card { width: min(100%, 48rem); padding: var(--da-space-3) var(--da-space-4); }
-.reasoning-card summary { cursor: pointer; color: var(--da-text-muted); font-size: var(--da-font-size-sm); }
-.reasoning-dot { display: inline-block; width: 0.375rem; height: 0.375rem; margin-right: var(--da-space-2); border-radius: 50%; background: var(--da-accent-orange); }
-.reasoning-content { padding-top: var(--da-space-3); color: var(--da-text-secondary); font-size: var(--da-font-size-sm); line-height: 1.7; white-space: pre-wrap; }
+.reasoning-card {
+  position: relative;
+  width: min(100%, 48rem);
+  padding-left: var(--da-space-6);
+  border: 0;
+  background: transparent;
+}
+.reasoning-card::before {
+  position: absolute;
+  top: 1.125rem;
+  bottom: 0.125rem;
+  left: 0.4375rem;
+  width: 0.0625rem;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--da-accent-orange) 52%, var(--da-border)) 0%, var(--da-border) 74%, transparent 100%);
+  content: '';
+}
+.reasoning-card details { min-width: 0; }
+.reasoning-card summary {
+  position: relative;
+  display: flex;
+  min-height: 1.375rem;
+  align-items: center;
+  gap: var(--da-space-2);
+  color: var(--da-text-muted);
+  cursor: pointer;
+  font-size: var(--da-font-size-xs);
+  font-weight: 550;
+  letter-spacing: 0.04em;
+  list-style: none;
+  transition: color 160ms ease;
+}
+.reasoning-card summary::-webkit-details-marker { display: none; }
+.reasoning-card summary:hover { color: var(--da-text-secondary); }
+.reasoning-card summary::after {
+  margin-left: var(--da-space-1);
+  color: var(--da-text-subtle);
+  content: '展开';
+  font-size: 0.625rem;
+  font-weight: 450;
+  letter-spacing: 0;
+}
+.reasoning-card details[open] summary::after { content: '收起'; }
+.reasoning-node {
+  position: absolute;
+  left: calc(-1 * var(--da-space-6));
+  display: grid;
+  width: 0.9375rem;
+  height: 0.9375rem;
+  place-items: center;
+  border: 0.0625rem solid color-mix(in srgb, var(--da-accent-orange) 62%, var(--da-border));
+  border-radius: 50%;
+  background: var(--da-surface-0);
+}
+.reasoning-node i { width: 0.25rem; height: 0.25rem; border-radius: 50%; background: var(--da-accent-orange); }
+.reasoning-card--running .reasoning-node { animation: reasoning-pulse 1.8s ease-in-out infinite; }
+.reasoning-content {
+  max-width: 44rem;
+  padding: var(--da-space-3) 0 var(--da-space-1);
+  color: var(--da-text-muted);
+  font-size: var(--da-font-size-sm);
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+@keyframes reasoning-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--da-accent-orange) 12%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reasoning-card--running .reasoning-node { animation: none; }
+}
 .tool-result-card, .activity-card { width: min(100%, 48rem); padding: var(--da-space-3) var(--da-space-4); }
 .tool-result-card summary { cursor: pointer; color: var(--da-text-secondary); font-size: var(--da-font-size-sm); }
 .activity-card { display: flex; align-items: center; gap: var(--da-space-3); }
