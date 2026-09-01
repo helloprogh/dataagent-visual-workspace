@@ -54,7 +54,12 @@ const activity = computed(() => {
       : status === 'retry'
         ? String(content.attempt ? `第 ${content.attempt} 次重试` : '')
         : ''
-    return { title: labels[status] ?? '任务状态已更新', detail, tone: status === 'retry' ? 'warning' : status === 'completed' ? 'success' : 'active' }
+    return {
+      title: labels[status] ?? '任务状态已更新',
+      detail,
+      tone: status === 'retry' ? 'warning' : status === 'completed' ? 'success' : 'active',
+      visible: status !== 'completed',
+    }
   }
   if (type === 'dataagent.tool') {
     const name = String(content.name ?? '工具')
@@ -62,9 +67,10 @@ const activity = computed(() => {
       title: status === 'completed' ? `${name} 执行完成` : status === 'error' ? `${name} 执行失败` : `${name} 正在执行`,
       detail: '',
       tone: status === 'error' ? 'warning' : status === 'completed' ? 'success' : 'active',
+      visible: true,
     }
   }
-  return { title: '运行状态已更新', detail: '', tone: 'active' }
+  return { title: '运行状态已更新', detail: '', tone: 'active', visible: true }
 })
 
 function previewFile(file: any, index: number) {
@@ -188,7 +194,7 @@ function previewFile(file: any, index: number) {
     <pre>{{ text }}</pre>
   </details>
 
-  <section v-else-if="isActivity" class="activity-card">
+  <section v-else-if="isActivity && activity.visible" class="activity-card">
     <i :class="`activity-card__dot activity-card__dot--${activity.tone}`"></i>
     <div>
       <b>{{ activity.title }}</b>

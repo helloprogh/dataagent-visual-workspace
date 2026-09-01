@@ -55,6 +55,8 @@ test('conversation activity and tool results use product-facing progressive disc
   assert.doesNotMatch(message.match(/<template>([\s\S]*?)<\/template>/)?.[1] ?? '', /activityType|JSON\.stringify|Tool Result/)
   assert.match(message, /任务已进入队列/)
   assert.match(message, /<details v-else-if="isTool"/)
+  assert.match(message, /visible:\s*status !== 'completed'/)
+  assert.match(message, /isActivity && activity\.visible/)
   assert.match(message, /reasoning-card--running/)
   assert.match(message, /\.reasoning-card\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent;/s)
   assert.match(message, /@keyframes reasoning-pulse/)
