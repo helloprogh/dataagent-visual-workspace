@@ -4,8 +4,10 @@ import type { Message } from '@ag-ui/client'
 import { Bubble } from 'vue-element-plus-x'
 import { MarkdownRenderer } from 'x-markdown-vue'
 import { appTheme } from '../../../shared/theme/theme'
+import { fileKindLabel, formatFileSize, type ConversationFilePreview } from '../types/filePreview'
 
 const props = defineProps<{ message: Message; running?: boolean }>()
+const emit = defineEmits<{ preview: [file: ConversationFilePreview] }>()
 const raw = computed(() => props.message as any)
 const role = computed(() => String(raw.value.role ?? ''))
 
@@ -64,6 +66,21 @@ const activity = computed(() => {
   }
   return { title: '运行状态已更新', detail: '', tone: 'active' }
 })
+
+function previewFile(file: any, index: number) {
+  const url = String(file?.metadata?.clientPreviewUrl ?? file?.source?.value ?? '').trim()
+  if (!url) return
+  emit('preview', {
+    id: String(file?.metadata?.fileId ?? `${props.message.id}-${index}`),
+    name: String(file?.metadata?.filename ?? `附件 ${index + 1}`),
+    url,
+    mimeType: String(file?.source?.mimeType ?? file?.mimeType ?? 'application/octet-stream'),
+    ...(Number(file?.metadata?.size) > 0 ? { size: Number(file.metadata.size) } : {}),
+    ...(String(file?.metadata?.approvalInterruptId ?? file?.metadata?.approval?.interruptId ?? '').trim()
+      ? { approvalInterruptId: String(file.metadata.approvalInterruptId ?? file.metadata.approval.interruptId).trim() }
+      : {}),
+  })
+}
 </script>
 
 <template>
@@ -80,13 +97,20 @@ const activity = computed(() => {
       <div class="user-content">
         <p v-if="text">{{ text }}</p>
         <div v-if="files.length" class="attachment-list">
-          <a
+          <button
             v-for="(file, index) in files"
             :key="index"
-            :href="file.source?.value"
-            target="_blank"
-            rel="noreferrer"
-          >{{ file.metadata?.filename || `附件 ${index + 1}` }}</a>
+            type="button"
+            class="attachment-card"
+            @click="previewFile(file, index)"
+          >
+            <span class="attachment-card__mark">{{ fileKindLabel({ name: file.metadata?.filename || `附件 ${index + 1}`, mimeType: file.source?.mimeType || '' }).slice(0, 2) }}</span>
+            <span class="attachment-card__body">
+              <b>{{ file.metadata?.filename || `附件 ${index + 1}` }}</b>
+              <small>{{ [fileKindLabel({ name: file.metadata?.filename || `附件 ${index + 1}`, mimeType: file.source?.mimeType || '' }), formatFileSize(file.metadata?.size)].filter(Boolean).join(' · ') }}</small>
+            </span>
+            <span class="attachment-card__action">预览 →</span>
+          </button>
         </div>
       </div>
     </template>
@@ -107,7 +131,25 @@ const activity = computed(() => {
           :markdown="text"
           :sanitize="true"
           :is-dark="appTheme === 'dark'"
+          :enable-shiki="false"
+          :enable-mermaid="false"
         />
+        <div v-if="files.length" class="attachment-list">
+          <button
+            v-for="(file, index) in files"
+            :key="index"
+            type="button"
+            class="attachment-card"
+            @click="previewFile(file, index)"
+          >
+            <span class="attachment-card__mark">{{ fileKindLabel({ name: file.metadata?.filename || `附件 ${index + 1}`, mimeType: file.source?.mimeType || '' }).slice(0, 2) }}</span>
+            <span class="attachment-card__body">
+              <b>{{ file.metadata?.filename || `附件 ${index + 1}` }}</b>
+              <small>{{ [fileKindLabel({ name: file.metadata?.filename || `附件 ${index + 1}`, mimeType: file.source?.mimeType || '' }), formatFileSize(file.metadata?.size)].filter(Boolean).join(' · ') }}</small>
+            </span>
+            <span class="attachment-card__action">预览 →</span>
+          </button>
+        </div>
         <div v-if="toolCalls.length" class="tool-call-list">
           <details v-for="call in toolCalls" :key="call.id" class="tool-call">
             <summary>{{ call.function?.name || 'Tool' }}</summary>
@@ -149,8 +191,15 @@ const activity = computed(() => {
 }
 .user-content { max-width: 38rem; color: var(--da-text-emphasis); }
 .user-content p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.attachment-list { display: flex; flex-wrap: wrap; gap: var(--da-space-2); margin-top: var(--da-space-2); }
-.attachment-list a { padding: var(--da-space-2) var(--da-space-3); border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-sm); color: var(--da-text-secondary); text-decoration: none; background: var(--da-surface-2); }
+.attachment-list { display: grid; gap: var(--da-space-2); margin-top: var(--da-space-3); }
+.attachment-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; width: min(100%, 32rem); align-items: center; gap: var(--da-space-3); padding: var(--da-space-3); border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-md); color: var(--da-text-primary); background: var(--da-surface-2); cursor: pointer; text-align: left; transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease; }
+.attachment-card:hover { border-color: var(--da-border-strong); background: var(--da-surface-3); transform: translateY(-0.0625rem); }
+.attachment-card__mark { display: grid; width: 2rem; height: 2rem; place-items: center; border: 0.0625rem solid var(--da-border-strong); border-radius: var(--da-radius-sm); color: var(--da-accent-orange); background: var(--da-surface-1); font-size: 0.625rem; font-weight: 700; letter-spacing: 0.04em; }
+.attachment-card__body { display: grid; min-width: 0; gap: 0.125rem; }
+.attachment-card__body b { overflow: hidden; color: var(--da-text-emphasis); font-size: var(--da-font-size-sm); font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-card__body small { color: var(--da-text-muted); font-size: var(--da-font-size-xs); }
+.attachment-card__action { color: var(--da-text-muted); font-size: var(--da-font-size-xs); white-space: nowrap; }
+.attachment-card:hover .attachment-card__action { color: var(--da-text-emphasis); }
 .assistant-content { width: min(100%, 48rem); color: var(--da-text-primary); }
 .assistant-content :deep(.x-md-renderer) {
   padding: 0 !important;

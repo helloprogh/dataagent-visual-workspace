@@ -8,6 +8,7 @@ import type { ModelSelection } from '../../model/types'
 export type PendingAttachment = {
   id: string
   file: File
+  previewUrl: string
 }
 
 export function useAgentConversation() {
@@ -25,6 +26,7 @@ export function useAgentConversation() {
   let hydrationSubscription: { unsubscribe: () => void } | null = null
   let hydrationAgent: HttpAgent | null = null
   let generation = 0
+  const previewUrls = new Set<string>()
 
   function syncMessages() {
     messages.value = agent.value ? [...agent.value.messages] : []
@@ -46,6 +48,9 @@ export function useAgentConversation() {
     messages.value = []
     pendingInterrupts.value = []
     nextCursor.value = undefined
+    previewUrls.forEach(url => URL.revokeObjectURL(url))
+    previewUrls.clear()
+    attachments.value = []
   }
 
   function bind(next: HttpAgent) {
@@ -139,13 +144,23 @@ export function useAgentConversation() {
 
   function stageFiles(files: FileList | File[]) {
     const source = Array.from(files)
+    const pending = source.map(file => {
+      const previewUrl = URL.createObjectURL(file)
+      previewUrls.add(previewUrl)
+      return { id: crypto.randomUUID(), file, previewUrl }
+    })
     attachments.value = [
       ...attachments.value,
-      ...source.map(file => ({ id: crypto.randomUUID(), file })),
+      ...pending,
     ]
   }
 
   function removeAttachment(id: string) {
+    const removed = attachments.value.find(item => item.id === id)
+    if (removed) {
+      URL.revokeObjectURL(removed.previewUrl)
+      previewUrls.delete(removed.previewUrl)
+    }
     attachments.value = attachments.value.filter(item => item.id !== id)
   }
 
@@ -167,7 +182,13 @@ export function useAgentConversation() {
     try {
       const prepared = await ensureAgent(model, value)
       const uploaded = []
-      for (const item of attachments.value) uploaded.push(await uploadConversationFile(item.file, prepared.sessionId))
+      for (const item of attachments.value) {
+        const file = await uploadConversationFile(item.file, prepared.sessionId)
+        uploaded.push({
+          ...file,
+          metadata: { ...file.metadata, clientPreviewUrl: item.previewUrl },
+        })
+      }
       const content = uploaded.length
         ? [
             ...(value ? [{ type: 'text', text: value }] : []),

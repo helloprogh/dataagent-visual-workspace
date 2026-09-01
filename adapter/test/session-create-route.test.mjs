@@ -85,3 +85,44 @@ test('conversation list and message history routes proxy OpenCode responses insi
     await close(server)
   }
 })
+
+test('legacy OpenCode runtime prompts are restored to clean user text and file parts', async () => {
+  const runtimeText = [
+    '<ag-ui-runtime>',
+    'Runtime context',
+    JSON.stringify({ attachments: [{
+      fileId: 'D:\\uploads\\brief.bin',
+      filename: 'brief.md',
+      source: '/dataagent/web/api/agui/file/00000000-0000-0000-0000-000000000001',
+      mimeType: 'text/markdown',
+      size: 42,
+    }] }, null, 2),
+    '</ag-ui-runtime>',
+    '',
+    '请审核这份文件',
+  ].join('\n')
+  const client = {
+    workspaceDirectory: 'D:\\ProjectSpace\\dataagent',
+    async json() {
+      return [{ id: 'message-file', type: 'user', text: runtimeText, metadata: { aguiRunId: 'legacy-run' } }]
+    },
+  }
+  const server = createServer({ client })
+  const address = await listen(server)
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${address.port}/dataagent/web/api/session/session-legacy-preview/message`)
+    assert.equal(response.status, 200)
+    const body = await response.json()
+    assert.equal(body.data[0].text, '请审核这份文件')
+    assert.deepEqual(body.data[0].files, [{
+      uri: '/dataagent/web/api/agui/file/00000000-0000-0000-0000-000000000001',
+      mime: 'text/markdown',
+      name: 'brief.md',
+      size: 42,
+      fileId: 'D:\\uploads\\brief.bin',
+    }])
+  } finally {
+    await close(server)
+  }
+})

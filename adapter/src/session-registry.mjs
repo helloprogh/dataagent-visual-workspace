@@ -73,6 +73,28 @@ export class SessionRegistry {
     return record?.lastResume
   }
 
+  async setUserMessage(threadId, runId, message) {
+    await this.ready
+    const record = await this.get(threadId)
+    const messages = record.userMessages && typeof record.userMessages === 'object'
+      ? record.userMessages
+      : {}
+    messages[runId] = { ...message, updatedAt: Date.now() }
+    const recent = Object.entries(messages)
+      .sort(([, left], [, right]) => Number(right?.updatedAt ?? 0) - Number(left?.updatedAt ?? 0))
+      .slice(0, 200)
+    record.userMessages = Object.fromEntries(recent)
+    record.updatedAt = Date.now()
+    await this.save()
+  }
+
+  async userMessages(threadId) {
+    const record = await this.get(threadId)
+    return record?.userMessages && typeof record.userMessages === 'object'
+      ? record.userMessages
+      : {}
+  }
+
   async delete(threadId) {
     await this.ready
     this.sessions.delete(threadId)

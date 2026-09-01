@@ -115,7 +115,14 @@ function normalizeFile(value: unknown, messageId: string): UnknownRecord {
   return {
     type,
     source: { type: 'url', value: uri, mimeType },
-    ...(filename ? { metadata: { filename } } : {}),
+    metadata: {
+      ...(filename ? { filename } : {}),
+      ...(optionalString(value.fileId) ? { fileId: optionalString(value.fileId) } : {}),
+      ...(typeof value.size === 'number' && value.size > 0 ? { size: value.size } : {}),
+      ...(isRecord(value.approval) && optionalString(value.approval.interruptId)
+        ? { approvalInterruptId: optionalString(value.approval.interruptId) }
+        : {}),
+    },
   }
 }
 

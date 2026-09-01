@@ -57,6 +57,23 @@ test('conversation activity and tool results use product-facing progressive disc
   assert.match(message, /<details v-else-if="isTool"/)
 })
 
+test('conversation files open a pushed preview panel and approvals stay backend-schema driven', async () => {
+  const [chat, message, preview, interrupt] = await Promise.all([
+    frontend('features/conversation/components/AgentChat.vue'),
+    frontend('features/conversation/components/ConversationMessage.vue'),
+    frontend('features/conversation/components/FilePreviewPanel.vue'),
+    frontend('features/conversation/components/InterruptCard.vue'),
+  ])
+  assert.match(message, /class="attachment-card"/)
+  assert.match(message, /approvalInterruptId/)
+  assert.match(chat, /agent-chat-layout--preview/)
+  assert.match(chat, /previewInterrupts/)
+  assert.match(preview, /<MarkdownRenderer/)
+  assert.match(preview, /<InterruptCard/)
+  assert.match(interrupt, /responseSchema/)
+  assert.doesNotMatch(vueTemplate(preview), /取消本次运行/)
+})
+
 test('dark theme synchronizes Element Plus and keeps the welcome surface transparent', async () => {
   const [main, theme, chat] = await Promise.all([
     frontend('main.ts'),
@@ -93,6 +110,7 @@ test('new business styles use design tokens and rem geometry', async () => {
     frontend('features/conversation/components/ConversationMessage.vue'),
     frontend('features/conversation/components/ConversationSidebar.vue'),
     frontend('features/conversation/components/InterruptCard.vue'),
+    frontend('features/conversation/components/FilePreviewPanel.vue'),
     frontend('features/conversation/pages/HistoryPage.vue'),
     frontend('features/model/components/ModelSelector.vue'),
     frontend('features/skill/pages/SkillPage.vue'),

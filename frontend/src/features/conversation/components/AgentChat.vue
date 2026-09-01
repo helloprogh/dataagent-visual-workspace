@@ -8,7 +8,9 @@ import ModelSelector from '../../model/components/ModelSelector.vue'
 import { useAgentConversation } from '../composables/useAgentConversation'
 import AgentMark from './AgentMark.vue'
 import ConversationMessage from './ConversationMessage.vue'
+import FilePreviewPanel from './FilePreviewPanel.vue'
 import InterruptCard from './InterruptCard.vue'
+import type { ConversationFilePreview } from '../types/filePreview'
 
 const props = defineProps<{
   sessionId?: string
@@ -21,6 +23,7 @@ const emit = defineEmits<{
 }>()
 
 const {
+  threadId,
   messages,
   running,
   hydrating,
@@ -42,6 +45,8 @@ const senderRef = ref<any>(null)
 const selectedModel = ref<ModelSelection | null>(null)
 const messageScroller = ref<HTMLElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
+const activePreview = ref<ConversationFilePreview | null>(null)
+const previewApprovalSubmitted = ref(false)
 let followBottom = true
 let previousScrollHeight = 0
 
@@ -61,6 +66,17 @@ const activeReasoningId = computed(() => {
     if (message.role === 'reasoning') return message.id
   }
   return ''
+})
+
+const previewInterrupts = computed(() => {
+  const interruptId = activePreview.value?.approvalInterruptId
+  if (!interruptId) return []
+  return pendingInterrupts.value.filter(interrupt => interrupt.id === interruptId)
+})
+
+const composerInterrupts = computed(() => {
+  const previewIds = new Set(previewInterrupts.value.map(interrupt => interrupt.id))
+  return pendingInterrupts.value.filter(interrupt => !previewIds.has(interrupt.id))
 })
 
 function scrollToBottom() {
@@ -117,9 +133,25 @@ async function resumeRun(entries: ResumeEntry[]) {
   try {
     await resume(entries)
     emit('changed')
+    return true
   } catch (reason) {
     ElMessage.error(reason instanceof Error ? reason.message : String(reason))
+    return false
   }
+}
+
+function openFilePreview(file: ConversationFilePreview) {
+  activePreview.value = file
+  previewApprovalSubmitted.value = false
+}
+
+function closeFilePreview() {
+  activePreview.value = null
+  previewApprovalSubmitted.value = false
+}
+
+async function resumeFileApproval(entries: ResumeEntry[]) {
+  if (await resumeRun(entries)) previewApprovalSubmitted.value = true
 }
 
 async function stopRun() {
@@ -131,6 +163,8 @@ async function stopRun() {
 }
 
 watch(() => props.sessionId, id => {
+  if ((id ?? '') === threadId.value) return
+  closeFilePreview()
   selectedModel.value = null
   void open(id ?? '')
 }, { immediate: true })
@@ -150,6 +184,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <section class="agent-chat-layout" :class="{ 'agent-chat-layout--preview': activePreview }">
   <section class="agent-chat" :class="{ 'agent-chat--empty': !sessionId && !messages.length }">
     <header v-if="sessionId" class="agent-chat__header">
       <div>
@@ -186,14 +221,15 @@ onBeforeUnmount(() => {
           :key="message.id"
           :message="message"
           :running="running && message.id === activeReasoningId"
+          @preview="openFilePreview"
         />
       </div>
     </div>
 
     <div class="agent-chat__composer-wrap">
       <InterruptCard
-        v-if="pendingInterrupts.length"
-        :interrupts="pendingInterrupts"
+        v-if="composerInterrupts.length"
+        :interrupts="composerInterrupts"
         :busy="running"
         @resume="resumeRun"
       />
@@ -245,16 +281,29 @@ onBeforeUnmount(() => {
       </div>
     </div>
   </section>
+
+  <FilePreviewPanel
+    v-if="activePreview"
+    :file="activePreview"
+    :interrupts="previewInterrupts"
+    :busy="running"
+    :approval-submitted="previewApprovalSubmitted"
+    @close="closeFilePreview"
+    @resume="resumeFileApproval"
+  />
+  </section>
 </template>
 
 <style scoped>
-.agent-chat { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: 100%; height: 100%; min-height: 0; background: var(--da-surface-0); }
+.agent-chat-layout { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; height: 100%; min-height: 0; overflow: hidden; transition: grid-template-columns 220ms ease; }
+.agent-chat-layout--preview { grid-template-columns: minmax(28rem, 1fr) clamp(22rem, 38vw, 36rem); }
+.agent-chat { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; background: var(--da-surface-0); }
 .agent-chat--empty { grid-template-rows: auto auto; align-content: center; gap: var(--da-space-6); padding-block: var(--da-space-8); }
 .agent-chat__header { display: flex; align-items: center; justify-content: space-between; gap: var(--da-space-4); min-height: 3.75rem; padding: 0 var(--da-space-6); border-bottom: 0.0625rem solid var(--da-border); background: color-mix(in srgb, var(--da-surface-0) 88%, transparent); }
 .agent-chat__header > div { min-width: 0; display: flex; align-items: baseline; gap: var(--da-space-3); }
 .agent-chat__header b { overflow: hidden; color: var(--da-text-emphasis); text-overflow: ellipsis; white-space: nowrap; }
 .agent-chat__header small { overflow: hidden; max-width: 18rem; color: var(--da-text-subtle); font-size: var(--da-font-size-xs); text-overflow: ellipsis; white-space: nowrap; }
-.agent-chat__header > span { display: inline-flex; align-items: center; gap: var(--da-space-2); color: var(--da-text-muted); font-size: var(--da-font-size-xs); }
+.agent-chat__header > span { display: inline-flex; flex: 0 0 auto; align-items: center; gap: var(--da-space-2); color: var(--da-text-muted); font-size: var(--da-font-size-xs); white-space: nowrap; }
 .agent-chat__header > span i { width: 0.375rem; height: 0.375rem; border-radius: 50%; background: var(--da-accent-green); }
 .agent-chat__header > span.active i { background: var(--da-accent-orange); box-shadow: 0 0 0.75rem var(--da-accent-orange-glow); }
 .agent-chat__messages { min-height: 0; overflow: auto; padding: var(--da-space-6) clamp(1rem, 4vw, 3.5rem) var(--da-space-8); scrollbar-gutter: stable; }
@@ -265,8 +314,8 @@ onBeforeUnmount(() => {
 .agent-welcome :deep(.elx-welcome) { width: 100%; max-width: 44rem; padding: 0; --elx-welcome-filled-bg: transparent; --elx-welcome-filled-border: transparent; --elx-welcome-title-color: var(--da-text-emphasis); --elx-welcome-description-color: var(--da-text-muted); background: transparent; }
 .agent-welcome :deep(.elx-welcome__title) { font-size: var(--da-font-size-hero); font-weight: 600; letter-spacing: -0.035em; }
 .agent-welcome :deep(.elx-welcome__description) { font-size: var(--da-font-size-md); line-height: 1.75; }
-.agent-chat__composer-wrap { z-index: 2; padding: 0 clamp(1rem, 4vw, 3.5rem) var(--da-space-5); background: linear-gradient(180deg, transparent, var(--da-surface-0) 20%); }
-.agent-chat__composer { width: min(100%, var(--da-content-max)); margin: 0 auto; }
+.agent-chat__composer-wrap { z-index: 2; min-width: 0; padding: 0 clamp(1rem, 4vw, 3.5rem) var(--da-space-5); background: linear-gradient(180deg, transparent, var(--da-surface-0) 20%); }
+.agent-chat__composer { width: min(100%, var(--da-content-max)); min-width: 0; margin: 0 auto; }
 .agent-chat--empty .agent-chat__messages { overflow: visible; padding-block: 0; }
 .agent-chat--empty .agent-welcome { min-height: 0; padding: 0; }
 .agent-chat--empty .agent-chat__composer-wrap { padding-bottom: 0; background: transparent; }
@@ -280,8 +329,11 @@ onBeforeUnmount(() => {
 .attachment-chip button:hover { color: var(--da-text-emphasis); background: var(--da-surface-3); }
 .file-input { display: none; }
 .agent-chat__composer :deep(.x-sender), .agent-chat__composer :deep(.elx-xsender) { border-color: var(--da-border-strong); background: var(--da-surface-1); box-shadow: var(--da-shadow-soft); }
+.agent-chat-layout--preview .agent-chat__header small { display: none; }
 
 @media (max-width: 48rem) {
+  .agent-chat-layout--preview { position: relative; display: block; }
+  .agent-chat-layout--preview > :deep(.file-preview-panel) { position: absolute; inset: 0; z-index: 10; }
   .agent-chat__header { padding-inline: var(--da-space-4); }
   .agent-chat__header small { display: none; }
   .agent-chat__messages { padding-inline: var(--da-space-4); }

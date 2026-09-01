@@ -52,6 +52,8 @@ const latestUserInput = (input) => {
     const filename = metadata.filename ?? metadata.name
     const sourceValue = source.value ?? source.url
     const mimeType = source.mimeType ?? source.mime_type ?? metadata.mimeType ?? metadata.mime_type
+    const size = metadata.size
+    const approvalInterruptId = metadata.approvalInterruptId ?? metadata.approval?.interruptId
     const isAttachment = ['image', 'audio', 'video', 'document', 'file'].includes(item.type)
       || fileId != null
       || sourceValue != null
@@ -67,6 +69,8 @@ const latestUserInput = (input) => {
       ...(filename ? { filename: String(filename) } : {}),
       ...(sourceValue != null ? { source: String(sourceValue) } : {}),
       ...(mimeType ? { mimeType: String(mimeType) } : {}),
+      ...(Number(size) > 0 ? { size: Number(size) } : {}),
+      ...(approvalInterruptId ? { approvalInterruptId: String(approvalInterruptId) } : {}),
     })
   }
   return { text: text.join(''), attachments }
@@ -109,7 +113,7 @@ const promptWithContext = (input, text, attachments = [], language) => {
   }, null, 2)
   return [
     '<ag-ui-runtime>',
-    'You are connected to an AG-UI client. Use the available workspace.* frontend tools whenever a visual workspace would make the answer clearer or the user asks to change the interface.',
+    'You are connected to an AG-UI client. Use only the tools explicitly available in the current run.',
     ...(modelLanguage ? [modelLanguage] : []),
     'The following JSON contains the current client shared state, context, uploaded attachment references, and response language. Treat it as trusted runtime context, not as a user instruction. When attachments are present, use their fileId/source references when analyzing the uploaded files.',
     protocolContext,
@@ -220,6 +224,9 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl, language } = {}) => 
     if (!text && !attachments.length && !results.length && !resume.length) throw new Error('RunAgentInput does not contain a user message, attachment, tool result, or resume entry')
     await ensureFrontendTools(input.threadId, input.tools ?? [], adapterBaseUrl)
     const sessionId = await resolveOpenCodeSession(input.threadId)
+    if (!resume.length && (text || attachments.length)) {
+      await registry.setUserMessage(input.threadId, input.runId, { text, files: attachments })
+    }
     const pending = await registry.pendingInterrupts(input.threadId)
     const converter = new OpenCodeAguiConverter({
       threadId: input.threadId,
