@@ -247,22 +247,6 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="composer-toolbar">
-          <div class="composer-toolbar__left">
-            <ModelSelector
-              :session-id="sessionId"
-              :draft="!sessionId"
-              :disabled="running || Boolean(pendingInterrupts.length)"
-              @selected="selectedModel = $event"
-            />
-            <el-button
-              text
-              :disabled="running || Boolean(pendingInterrupts.length)"
-              @click="chooseFiles"
-            >添加文件</el-button>
-          </div>
-        </div>
-
         <XSender
           ref="senderRef"
           variant="updown"
@@ -273,7 +257,23 @@ onBeforeUnmount(() => {
           :custom-style="{ maxHeight: '10rem' }"
           @submit="submit"
           @cancel="stopRun"
-        />
+        >
+          <template #prefix>
+            <div class="composer-input-actions">
+              <ModelSelector
+                :session-id="sessionId"
+                :draft="!sessionId"
+                :disabled="running || Boolean(pendingInterrupts.length)"
+                @selected="selectedModel = $event"
+              />
+              <el-button
+                text
+                :disabled="running || Boolean(pendingInterrupts.length)"
+                @click="chooseFiles"
+              >添加文件</el-button>
+            </div>
+          </template>
+        </XSender>
 
         <input
           ref="fileInput"
@@ -326,8 +326,7 @@ onBeforeUnmount(() => {
 .agent-chat--empty .agent-chat__messages { overflow: visible; padding-block: 0; }
 .agent-chat--empty .agent-welcome { min-height: 0; padding: 0; }
 .agent-chat--empty .agent-chat__composer-wrap { padding-bottom: 0; background: transparent; }
-.composer-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--da-space-3); margin-bottom: var(--da-space-2); }
-.composer-toolbar__left { display: flex; align-items: center; gap: var(--da-space-2); min-width: 0; }
+.composer-input-actions { display: flex; min-width: 0; align-items: center; gap: var(--da-space-2); }
 .attachment-queue { display: flex; flex-wrap: wrap; gap: var(--da-space-2); margin-bottom: var(--da-space-2); }
 .attachment-chip { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--da-space-2); max-width: 24rem; padding: var(--da-space-2) var(--da-space-3); border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-md); background: var(--da-surface-2); }
 .attachment-chip span { overflow: hidden; color: var(--da-text-primary); font-size: var(--da-font-size-sm); text-overflow: ellipsis; white-space: nowrap; }
@@ -345,8 +344,7 @@ onBeforeUnmount(() => {
   .agent-chat__header small { display: none; }
   .agent-chat__messages { padding-inline: var(--da-space-4); }
   .agent-chat__composer-wrap { padding-inline: var(--da-space-4); }
-  .composer-toolbar { align-items: flex-start; }
-  .composer-toolbar__left { flex-wrap: wrap; }
+  .composer-input-actions :deep(.model-selector) { width: min(9rem, 48vw); }
 }
 
 @media (max-width: 72rem) {

@@ -44,6 +44,8 @@ test('conversation presentation is Element-Plus-X over direct AG-UI client', asy
   assert.match(agentChat, /from 'vue-element-plus-x'/)
   assert.match(agentChat, /<XSender/)
   assert.match(agentChat, /<Welcome/)
+  assert.match(agentChat, /<XSender[\s\S]*<template #prefix>[\s\S]*<ModelSelector[\s\S]*添加文件[\s\S]*<\/XSender>/)
+  assert.doesNotMatch(agentChat, /composer-toolbar/)
   assert.doesNotMatch(agentChat, /CopilotChat|@copilotkit|\buseAgent\s*\(/i)
   assert.match(message, /<Bubble/)
   assert.match(client, /new HttpAgent/)
