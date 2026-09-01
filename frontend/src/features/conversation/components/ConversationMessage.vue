@@ -152,7 +152,13 @@ function previewFile(file: any, index: number) {
         </div>
         <div v-if="toolCalls.length" class="tool-call-list">
           <details v-for="call in toolCalls" :key="call.id" class="tool-call">
-            <summary>{{ call.function?.name || 'Tool' }}</summary>
+            <summary>
+              <span class="tool-mark" aria-hidden="true">
+                <svg viewBox="0 0 16 16"><path d="M3.25 4.75 6.5 8l-3.25 3.25M8 11.25h4.75" /></svg>
+              </span>
+              <span>{{ call.function?.name || 'Tool' }}</span>
+              <span class="disclosure-icon" aria-hidden="true"></span>
+            </summary>
             <pre>{{ call.function?.arguments || '{}' }}</pre>
           </details>
         </div>
@@ -165,13 +171,20 @@ function previewFile(file: any, index: number) {
       <summary>
         <span class="reasoning-node" aria-hidden="true"><i></i></span>
         <span>{{ running ? '正在思考' : '思考过程' }}</span>
+        <span class="disclosure-icon" aria-hidden="true"></span>
       </summary>
       <div class="reasoning-content">{{ text }}</div>
     </details>
   </section>
 
   <details v-else-if="isTool" class="tool-result-card">
-    <summary>{{ raw.error ? '工具执行失败' : '工具结果' }}</summary>
+    <summary>
+      <span class="tool-mark" :class="raw.error ? 'tool-mark--error' : 'tool-mark--success'" aria-hidden="true">
+        <svg viewBox="0 0 16 16"><path d="M3.25 4.75 6.5 8l-3.25 3.25M8 11.25h4.75" /></svg>
+      </span>
+      <span>{{ raw.error ? '工具执行失败' : '工具结果' }}</span>
+      <span class="disclosure-icon" aria-hidden="true"></span>
+    </summary>
     <pre>{{ text }}</pre>
   </details>
 
@@ -212,11 +225,59 @@ function previewFile(file: any, index: number) {
 .assistant-content :deep(.x-md-core) { color: inherit; line-height: 1.75; }
 .assistant-content :deep(.x-md-core > :first-child) { margin-top: 0; }
 .assistant-content :deep(.x-md-core > :last-child) { margin-bottom: 0; }
-.tool-call-list { display: grid; gap: var(--da-space-2); margin-top: var(--da-space-3); }
-.tool-call, .tool-result-card, .activity-card { border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-md); background: var(--da-surface-1); }
-.tool-call { padding: var(--da-space-2) var(--da-space-3); }
-.tool-call summary { cursor: pointer; color: var(--da-text-secondary); font-size: var(--da-font-size-sm); }
-.tool-call pre, .tool-result-card pre { margin: var(--da-space-2) 0 0; overflow: auto; max-height: 18rem; color: var(--da-text-muted); font-size: var(--da-font-size-xs); white-space: pre-wrap; }
+.tool-call-list { display: grid; gap: var(--da-space-1); margin-top: var(--da-space-3); }
+.tool-call, .tool-result-card { width: min(100%, 48rem); border: 0; background: transparent; }
+.tool-call summary, .tool-result-card summary {
+  display: flex;
+  width: fit-content;
+  min-height: 1.75rem;
+  align-items: center;
+  gap: var(--da-space-2);
+  padding: var(--da-space-1) var(--da-space-2);
+  border-radius: var(--da-radius-sm);
+  color: var(--da-text-muted);
+  cursor: pointer;
+  font-size: var(--da-font-size-xs);
+  list-style: none;
+  transition: color 160ms ease, background-color 160ms ease;
+}
+.tool-call summary::-webkit-details-marker, .tool-result-card summary::-webkit-details-marker { display: none; }
+.tool-call summary:hover, .tool-result-card summary:hover { color: var(--da-text-secondary); background: var(--da-surface-1); }
+.tool-call pre, .tool-result-card pre {
+  max-height: 14rem;
+  margin: var(--da-space-1) 0 0 var(--da-space-2);
+  overflow: auto;
+  padding: var(--da-space-2) 0 var(--da-space-2) var(--da-space-4);
+  border-left: 0.0625rem solid var(--da-border);
+  color: var(--da-text-muted);
+  font-size: var(--da-font-size-xs);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.tool-mark { display: grid; width: 1rem; height: 1rem; flex: 0 0 auto; place-items: center; color: var(--da-accent-blue); }
+.tool-mark svg { width: 0.875rem; height: 0.875rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.4; }
+.tool-mark--success { color: var(--da-accent-green); }
+.tool-mark--error { color: var(--da-accent-orange); }
+.disclosure-icon {
+  position: relative;
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: 0 0 auto;
+  color: var(--da-text-subtle);
+  transition: transform 160ms ease, color 160ms ease;
+}
+.disclosure-icon::before {
+  position: absolute;
+  top: 0.1875rem;
+  left: 0.125rem;
+  width: 0.3125rem;
+  height: 0.3125rem;
+  border-top: 0.0625rem solid currentColor;
+  border-right: 0.0625rem solid currentColor;
+  content: '';
+  transform: rotate(45deg);
+}
+.tool-call[open] .disclosure-icon, .tool-result-card[open] .disclosure-icon, .reasoning-card details[open] .disclosure-icon { transform: rotate(90deg); }
 .reasoning-card {
   position: relative;
   width: min(100%, 48rem);
@@ -250,15 +311,6 @@ function previewFile(file: any, index: number) {
 }
 .reasoning-card summary::-webkit-details-marker { display: none; }
 .reasoning-card summary:hover { color: var(--da-text-secondary); }
-.reasoning-card summary::after {
-  margin-left: var(--da-space-1);
-  color: var(--da-text-subtle);
-  content: '展开';
-  font-size: 0.625rem;
-  font-weight: 450;
-  letter-spacing: 0;
-}
-.reasoning-card details[open] summary::after { content: '收起'; }
 .reasoning-node {
   position: absolute;
   left: calc(-1 * var(--da-space-6));
@@ -287,8 +339,7 @@ function previewFile(file: any, index: number) {
 @media (prefers-reduced-motion: reduce) {
   .reasoning-card--running .reasoning-node { animation: none; }
 }
-.tool-result-card, .activity-card { width: min(100%, 48rem); padding: var(--da-space-3) var(--da-space-4); }
-.tool-result-card summary { cursor: pointer; color: var(--da-text-secondary); font-size: var(--da-font-size-sm); }
+.activity-card { width: min(100%, 48rem); padding: var(--da-space-3) var(--da-space-4); border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-md); background: var(--da-surface-1); }
 .activity-card { display: flex; align-items: center; gap: var(--da-space-3); }
 .activity-card__dot { width: 0.5rem; height: 0.5rem; flex: 0 0 auto; border-radius: 50%; background: var(--da-text-subtle); }
 .activity-card__dot--active { background: var(--da-accent-blue); box-shadow: 0 0 0.75rem color-mix(in srgb, var(--da-accent-blue) 45%, transparent); }

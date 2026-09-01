@@ -58,6 +58,10 @@ test('conversation activity and tool results use product-facing progressive disc
   assert.match(message, /reasoning-card--running/)
   assert.match(message, /\.reasoning-card\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent;/s)
   assert.match(message, /@keyframes reasoning-pulse/)
+  assert.match(message, /class="disclosure-icon"/)
+  assert.match(message, /\.tool-call, \.tool-result-card\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent;/s)
+  assert.match(message, /\.tool-call\[open\] \.disclosure-icon/)
+  assert.doesNotMatch(message, /content:\s*'展开'|content:\s*'收起'/)
   assert.doesNotMatch(message, /\.tool-call, \.tool-result-card, \.activity-card, \.reasoning-card/)
 })
 
