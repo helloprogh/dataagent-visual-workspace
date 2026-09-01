@@ -205,10 +205,12 @@ onBeforeUnmount(() => {
 
       <div v-else-if="!messages.length" class="agent-welcome">
         <div class="agent-welcome__brand">
-          <AgentMark />
+          <div class="agent-welcome__title">
+            <AgentMark />
+            <h1>DATA AGENT</h1>
+          </div>
           <Welcome
             variant="borderless"
-            title="DATA AGENT"
             :description="WELCOME_DESCRIPTION"
           />
         </div>
@@ -313,10 +315,12 @@ onBeforeUnmount(() => {
 .message-list { display: flex; flex-direction: column; gap: var(--da-space-5); }
 .load-older { display: flex; justify-content: center; min-height: 2.25rem; }
 .agent-welcome { display: flex; min-height: 100%; align-items: center; justify-content: center; padding: var(--da-space-10) 0; }
-.agent-welcome__brand { display: grid; grid-template-columns: auto minmax(0, 1fr); width: min(100%, 64rem); align-items: start; gap: var(--da-space-4); }
-.agent-welcome :deep(.elx-welcome) { width: 100%; min-width: 0; padding: 0; text-align: left; --elx-welcome-filled-bg: transparent; --elx-welcome-filled-border: transparent; --elx-welcome-title-color: var(--da-text-emphasis); --elx-welcome-description-color: var(--da-text-muted); background: transparent; }
-.agent-welcome :deep(.elx-welcome__title) { display: flex; min-height: 3rem; align-items: center; font-size: var(--da-font-size-hero); font-weight: 600; letter-spacing: -0.035em; }
-.agent-welcome :deep(.elx-welcome__description) { font-size: var(--da-font-size-md); line-height: 1.75; white-space: nowrap; }
+.agent-welcome__brand { display: flex; width: min(100%, 64rem); flex-direction: column; align-items: center; gap: var(--da-space-3); text-align: center; }
+.agent-welcome__title { display: flex; align-items: center; justify-content: center; gap: var(--da-space-4); }
+.agent-welcome__title h1 { margin: 0; color: var(--da-text-emphasis); font-size: var(--da-font-size-hero); font-weight: 600; letter-spacing: -0.035em; }
+.agent-welcome :deep(.elx-welcome) { width: 100%; min-width: 0; justify-content: center; padding: 0; --elx-welcome-filled-bg: transparent; --elx-welcome-filled-border: transparent; --elx-welcome-description-color: var(--da-text-muted); background: transparent; }
+.agent-welcome :deep(.elx-welcome__content) { flex: 0 1 auto; }
+.agent-welcome :deep(.elx-welcome__description) { font-size: var(--da-font-size-md); line-height: 1.75; text-align: center; white-space: nowrap; }
 .agent-chat__composer-wrap { z-index: 2; min-width: 0; padding: 0 clamp(1rem, 4vw, 3.5rem) var(--da-space-5); background: linear-gradient(180deg, transparent, var(--da-surface-0) 20%); }
 .agent-chat__composer { width: min(100%, var(--da-content-max)); min-width: 0; margin: 0 auto; }
 .agent-chat--empty .agent-chat__messages { overflow: visible; padding-block: 0; }
