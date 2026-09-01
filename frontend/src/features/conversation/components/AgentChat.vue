@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { ResumeEntry } from '@ag-ui/client'
+import type { Message, ResumeEntry } from '@ag-ui/client'
 import { ElMessage } from 'element-plus'
 import { Welcome, XSender } from 'vue-element-plus-x'
 import type { ModelSelection } from '../../model/types'
@@ -8,6 +8,7 @@ import ModelSelector from '../../model/components/ModelSelector.vue'
 import { useAgentConversation } from '../composables/useAgentConversation'
 import AgentMark from './AgentMark.vue'
 import ConversationMessage from './ConversationMessage.vue'
+import ConversationProcessGroup from './ConversationProcessGroup.vue'
 import FilePreviewPanel from './FilePreviewPanel.vue'
 import InterruptCard from './InterruptCard.vue'
 import type { ConversationFilePreview } from '../types/filePreview'
@@ -51,6 +52,67 @@ let followBottom = true
 let previousScrollHeight = 0
 
 const WELCOME_DESCRIPTION = '描述你的数据业务目标，我将与你逐步澄清需求，并自主完成 Specification、数据方案、数据集成、ETL 开发、治理验证与交付。'
+
+type PresentationItem =
+  | { kind: 'message'; key: string; message: Message }
+  | { kind: 'process'; key: string; messages: Message[] }
+
+function messageText(message: Message) {
+  const content = (message as any).content
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content
+    .filter((part: any) => part?.type === 'text')
+    .map((part: any) => String(part.text ?? part.content ?? ''))
+    .join('')
+}
+
+function isProcessMessage(message: Message) {
+  const raw = message as any
+  const role = String(raw.role ?? '')
+  if (['reasoning', 'tool', 'activity'].includes(role)) return true
+  return role === 'assistant'
+    && Array.isArray(raw.toolCalls)
+    && raw.toolCalls.length > 0
+    && !messageText(message).trim()
+}
+
+const presentationItems = computed<PresentationItem[]>(() => {
+  const result: PresentationItem[] = []
+  let processMessages: Message[] = []
+  const flushProcess = () => {
+    if (!processMessages.length) return
+    result.push({ kind: 'process', key: `process-${processMessages[0].id}`, messages: processMessages })
+    processMessages = []
+  }
+
+  for (const message of messages.value) {
+    if (isProcessMessage(message)) {
+      processMessages.push(message)
+      continue
+    }
+    flushProcess()
+    result.push({ kind: 'message', key: `message-${message.id}`, message })
+  }
+  flushProcess()
+  return result
+})
+
+const currentRunMessageIds = computed(() => {
+  if (!running.value) return new Set<string>()
+  let latestUserIndex = -1
+  for (let index = messages.value.length - 1; index >= 0; index -= 1) {
+    if (messages.value[index].role === 'user') {
+      latestUserIndex = index
+      break
+    }
+  }
+  return new Set(messages.value.slice(latestUserIndex + 1).map(message => message.id))
+})
+
+function isRunningProcess(processMessages: Message[]) {
+  return running.value && processMessages.some(message => currentRunMessageIds.value.has(message.id))
+}
 
 const activeReasoningId = computed(() => {
   if (!running.value) return ''
@@ -220,13 +282,21 @@ onBeforeUnmount(() => {
         <div v-if="nextCursor" class="load-older">
           <el-button text :loading="loadingOlder" @click="loadOlder">加载更早消息</el-button>
         </div>
-        <ConversationMessage
-          v-for="message in messages"
-          :key="message.id"
-          :message="message"
-          :running="running && message.id === activeReasoningId"
-          @preview="openFilePreview"
-        />
+        <template v-for="item in presentationItems" :key="item.key">
+          <ConversationProcessGroup
+            v-if="item.kind === 'process'"
+            :messages="item.messages"
+            :running="isRunningProcess(item.messages)"
+            :active-reasoning-id="activeReasoningId"
+            @preview="openFilePreview"
+          />
+          <ConversationMessage
+            v-else
+            :message="item.message"
+            :running="running && item.message.id === activeReasoningId"
+            @preview="openFilePreview"
+          />
+        </template>
       </div>
     </div>
 
@@ -260,17 +330,17 @@ onBeforeUnmount(() => {
         >
           <template #prefix>
             <div class="composer-input-actions">
+              <el-button
+                text
+                :disabled="running || Boolean(pendingInterrupts.length)"
+                @click="chooseFiles"
+              >添加文件</el-button>
               <ModelSelector
                 :session-id="sessionId"
                 :draft="!sessionId"
                 :disabled="running || Boolean(pendingInterrupts.length)"
                 @selected="selectedModel = $event"
               />
-              <el-button
-                text
-                :disabled="running || Boolean(pendingInterrupts.length)"
-                @click="chooseFiles"
-              >添加文件</el-button>
             </div>
           </template>
         </XSender>
@@ -326,7 +396,9 @@ onBeforeUnmount(() => {
 .agent-chat--empty .agent-chat__messages { overflow: visible; padding-block: 0; }
 .agent-chat--empty .agent-welcome { min-height: 0; padding: 0; }
 .agent-chat--empty .agent-chat__composer-wrap { padding-bottom: 0; background: transparent; }
-.composer-input-actions { display: flex; min-width: 0; align-items: center; gap: var(--da-space-2); }
+.agent-chat__composer :deep(.elx-x-sender .elx-x-sender__content.elx-x-sender__content--variant-updown .elx-x-sender__updown-action-list .elx-x-sender__prefix) { min-width: 0; flex: 1; padding-right: 0; }
+.composer-input-actions { display: flex; width: 100%; min-width: 0; align-items: center; gap: var(--da-space-2); }
+.composer-input-actions :deep(.model-selector) { margin-left: auto; }
 .attachment-queue { display: flex; flex-wrap: wrap; gap: var(--da-space-2); margin-bottom: var(--da-space-2); }
 .attachment-chip { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--da-space-2); max-width: 24rem; padding: var(--da-space-2) var(--da-space-3); border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-md); background: var(--da-surface-2); }
 .attachment-chip span { overflow: hidden; color: var(--da-text-primary); font-size: var(--da-font-size-sm); text-overflow: ellipsis; white-space: nowrap; }

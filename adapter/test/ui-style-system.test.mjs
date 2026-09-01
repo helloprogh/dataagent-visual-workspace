@@ -35,16 +35,22 @@ test('runtime entry uses the new app, feature and shared architecture', async ()
 })
 
 test('conversation presentation is Element-Plus-X over direct AG-UI client', async () => {
-  const [agentChat, message, client] = await Promise.all([
+  const [agentChat, message, processGroup, client] = await Promise.all([
     frontend('features/conversation/components/AgentChat.vue'),
     frontend('features/conversation/components/ConversationMessage.vue'),
+    frontend('features/conversation/components/ConversationProcessGroup.vue'),
     frontend('agui/client.ts'),
   ])
 
   assert.match(agentChat, /from 'vue-element-plus-x'/)
   assert.match(agentChat, /<XSender/)
   assert.match(agentChat, /<Welcome/)
-  assert.match(agentChat, /<XSender[\s\S]*<template #prefix>[\s\S]*<ModelSelector[\s\S]*添加文件[\s\S]*<\/XSender>/)
+  assert.match(agentChat, /<XSender[\s\S]*<template #prefix>[\s\S]*添加文件[\s\S]*<ModelSelector[\s\S]*<\/XSender>/)
+  assert.match(agentChat, /presentationItems/)
+  assert.match(agentChat, /<ConversationProcessGroup/)
+  assert.match(agentChat, /\.composer-input-actions :deep\(\.model-selector\) \{ margin-left: auto; \}/)
+  assert.match(processGroup, /<details class="process-group"/)
+  assert.match(processGroup, /<ConversationMessage/)
   assert.doesNotMatch(agentChat, /composer-toolbar/)
   assert.doesNotMatch(agentChat, /CopilotChat|@copilotkit|\buseAgent\s*\(/i)
   assert.match(message, /<Bubble/)
