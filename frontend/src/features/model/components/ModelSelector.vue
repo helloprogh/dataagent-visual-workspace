@@ -88,7 +88,7 @@ onMounted(load)
       :label="model.name"
     >
       <span class="model-option__name">{{ model.name }}</span>
-      <small>{{ model.providerID }}</small>
+      <small class="model-option__provider">{{ model.providerID }}</small>
     </el-option>
   </el-select>
 </template>
@@ -108,7 +108,7 @@ onMounted(load)
   white-space: nowrap;
 }
 
-.model-selector small {
+.model-option__provider {
   margin-left: var(--da-space-3);
   color: var(--da-text-subtle);
   font-size: var(--da-font-size-xs);
