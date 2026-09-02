@@ -63,8 +63,11 @@ async function renameConversation(id: string) {
 }
 
 function toggleTheme() {
+  const root = document.documentElement
+  root.classList.add('da-theme-anim')
   theme.value = theme.value === 'dark' ? 'light' : 'dark'
   applyTheme(theme.value)
+  window.setTimeout(() => root.classList.remove('da-theme-anim'), 320)
 }
 
 onMounted(async () => {
@@ -90,30 +93,34 @@ onMounted(async () => {
     </aside>
 
     <section class="dataagent-app__main">
-      <div v-if="loading && page === 'chat'" class="app-loading">
-        <el-skeleton :rows="7" animated />
-      </div>
+      <Transition name="da-page" mode="out-in">
+        <div v-if="loading && page === 'chat'" key="loading" class="app-loading">
+          <el-skeleton :rows="7" animated />
+        </div>
 
-      <AgentChat
-        v-else-if="page === 'chat'"
-        :session-id="activeSession?.id"
-        :display-name="activeSession?.displayName"
-        @materialized="onMaterialized"
-        @changed="refresh()"
-      />
+        <AgentChat
+          v-else-if="page === 'chat'"
+          key="chat"
+          :session-id="activeSession?.id"
+          :display-name="activeSession?.displayName"
+          @materialized="onMaterialized"
+          @changed="refresh()"
+        />
 
-      <HistoryPage
-        v-else-if="page === 'history'"
-        :sessions="rootSessions"
-        :active-id="activeId"
-        @create="newConversation"
-        @select="openConversation"
-        @rename="renameConversation"
-        @refresh="refresh()"
-      />
+        <HistoryPage
+          v-else-if="page === 'history'"
+          key="history"
+          :sessions="rootSessions"
+          :active-id="activeId"
+          @create="newConversation"
+          @select="openConversation"
+          @rename="renameConversation"
+          @refresh="refresh()"
+        />
 
-      <SkillPage v-else-if="page === 'skills'" />
-      <ToolPage v-else :session-id="activeId" />
+        <SkillPage v-else-if="page === 'skills'" key="skills" />
+        <ToolPage v-else key="tools" :session-id="activeId" />
+      </Transition>
     </section>
   </main>
 </template>
@@ -155,6 +162,45 @@ onMounted(async () => {
   border: 0.0625rem solid var(--da-border);
   border-radius: var(--da-radius-lg);
   background: var(--da-surface-1);
+}
+
+.da-page-enter-active,
+.da-page-leave-active {
+  transition: opacity 180ms ease, transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.da-page-enter-from {
+  opacity: 0;
+  transform: translateY(0.375rem);
+}
+
+.da-page-leave-to {
+  opacity: 0;
+  transform: translateY(-0.25rem);
+}
+
+html.da-theme-anim,
+html.da-theme-anim body,
+html.da-theme-anim .dataagent-app {
+  transition: background-color 260ms ease, border-color 260ms ease, color 260ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .da-page-enter-active,
+  .da-page-leave-active {
+    transition: opacity 1ms ease;
+  }
+
+  .da-page-enter-from,
+  .da-page-leave-to {
+    transform: none;
+  }
+
+  html.da-theme-anim,
+  html.da-theme-anim body,
+  html.da-theme-anim .dataagent-app {
+    transition: none;
+  }
 }
 
 @media (max-width: 52rem) {

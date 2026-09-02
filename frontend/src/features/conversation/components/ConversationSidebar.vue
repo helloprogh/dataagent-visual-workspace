@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { ConversationPage, ConversationSession } from '../types'
 import type { AppTheme } from '../../../shared/theme/theme'
 import AgentMark from './AgentMark.vue'
+import { presentSessions } from '../presentation'
 
 const props = defineProps<{
   sessions: ConversationSession[]
@@ -26,12 +27,8 @@ const visibleSessions = computed(() => {
   const source = keyword
     ? props.sessions.filter(session => session.displayName.toLocaleLowerCase().includes(keyword))
     : props.sessions
-  return source.slice(0, 20)
+  return presentSessions(source.slice(0, 20))
 })
-
-function sessionName(session: ConversationSession) {
-  return /^AG-UI session$/i.test(session.displayName.trim()) ? '未命名需求' : session.displayName
-}
 
 function relativeTime(timestamp: number) {
   const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000))
@@ -49,7 +46,7 @@ function relativeTime(timestamp: number) {
 <template>
   <aside class="conversation-sidebar">
     <div class="sidebar-brand">
-      <AgentMark />
+      <AgentMark size="compact" />
       <div><b>DATA AGENT</b><small>数据交付工作台</small></div>
       <span class="sidebar-brand__edition">WORKSPACE</span>
     </div>
@@ -82,7 +79,7 @@ function relativeTime(timestamp: number) {
         >
           <span class="session-item__mark" aria-hidden="true"></span>
           <span class="session-item__copy">
-            <span class="session-item__name">{{ sessionName(session) }}</span>
+            <span class="session-item__name">{{ session.presentationName }}</span>
             <small>{{ relativeTime(session.updatedAt) }}</small>
           </span>
         </button>
@@ -120,8 +117,6 @@ function relativeTime(timestamp: number) {
 <style scoped>
 .conversation-sidebar { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; width: 100%; height: 100%; min-height: 0; padding: var(--da-space-4); color: var(--da-text-primary); background: linear-gradient(180deg, var(--da-surface-sidebar) 0%, var(--da-surface-1) 38%); }
 .sidebar-brand { display: flex; align-items: center; gap: var(--da-space-3); min-height: 3rem; margin-bottom: var(--da-space-4); }
-.sidebar-brand :deep(.agent-mark) { width: 2rem; height: 2rem; border-radius: var(--da-radius-md); box-shadow: 0 0 0 0.0625rem var(--da-accent-primary-soft), 0 0.375rem 1rem var(--da-accent-orange-glow), var(--da-shadow-card); }
-.sidebar-brand :deep(.agent-mark svg) { width: 1.35rem; height: 1.35rem; }
 .sidebar-brand > div { display: flex; min-width: 0; flex-direction: column; gap: 0.125rem; }
 .sidebar-brand b { color: var(--da-text-emphasis); font-size: var(--da-font-size-sm); letter-spacing: 0.04em; }
 .sidebar-brand small { color: var(--da-text-subtle); font-size: var(--da-font-size-xs); }

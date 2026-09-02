@@ -18,6 +18,7 @@ const changing = ref(false)
 
 const disabled = computed(() => Boolean(props.disabled || loading.value || changing.value))
 const modelByKey = computed(() => new Map(models.value.map(model => [`${model.providerID}::${model.id}`, model])))
+const selectedModelName = computed(() => modelByKey.value.get(selectedKey.value)?.name ?? '选择模型')
 
 function keyOf(model: ModelSelection) {
   return `${model.providerID}::${model.id}`
@@ -79,6 +80,7 @@ onMounted(load)
     :loading="loading"
     placeholder="选择模型"
     aria-label="选择模型"
+    :title="selectedModelName"
     @update:model-value="change"
   >
     <el-option
@@ -95,9 +97,9 @@ onMounted(load)
 
 <style scoped>
 .model-selector {
-  width: auto;
-  min-width: 7.5rem;
-  max-width: 13rem;
+  width: 16rem;
+  min-width: 9rem;
+  max-width: 17rem;
 }
 
 .model-option__name {

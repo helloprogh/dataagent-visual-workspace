@@ -34,6 +34,20 @@ const isReasoning = computed(() => role.value === 'reasoning')
 const isTool = computed(() => role.value === 'tool')
 const isActivity = computed(() => role.value === 'activity')
 
+function toolDisplayName(name: unknown) {
+  const value = String(name ?? '').trim()
+  const labels: Record<string, string> = {
+    read: '读取文件',
+    write: '保存文件',
+    edit: '修改文件',
+    glob: '查找文件',
+    grep: '搜索内容',
+    bash: '执行任务',
+    task: '协同处理',
+  }
+  return labels[value.toLowerCase()] ?? (value.startsWith('mcp_') ? '调用外部能力' : value || '执行工具')
+}
+
 const activity = computed(() => {
   const content = raw.value.content && typeof raw.value.content === 'object' && !Array.isArray(raw.value.content)
     ? raw.value.content
@@ -62,7 +76,7 @@ const activity = computed(() => {
     }
   }
   if (type === 'dataagent.tool') {
-    const name = String(content.name ?? '工具')
+    const name = toolDisplayName(content.name)
     return {
       title: status === 'completed' ? `${name} 执行完成` : status === 'error' ? `${name} 执行失败` : `${name} 正在执行`,
       detail: '',
@@ -162,7 +176,7 @@ function previewFile(file: any, index: number) {
               <span class="tool-mark" aria-hidden="true">
                 <svg viewBox="0 0 16 16"><path d="M3.25 4.75 6.5 8l-3.25 3.25M8 11.25h4.75" /></svg>
               </span>
-              <span>{{ call.function?.name || 'Tool' }}</span>
+              <span>{{ toolDisplayName(call.function?.name) }}</span>
               <span class="disclosure-icon" aria-hidden="true"></span>
             </summary>
             <pre>{{ call.function?.arguments || '{}' }}</pre>

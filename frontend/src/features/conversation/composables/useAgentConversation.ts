@@ -26,6 +26,7 @@ export function useAgentConversation() {
   let hydrationSubscription: { unsubscribe: () => void } | null = null
   let hydrationAgent: HttpAgent | null = null
   let generation = 0
+  let ignoreCancellationErrorsUntil = 0
   const previewUrls = new Set<string>()
 
   function syncMessages() {
@@ -65,6 +66,7 @@ export function useAgentConversation() {
           : []
       },
       onRunErrorEvent: ({ event }) => {
+        if (Date.now() < ignoreCancellationErrorsUntil && /abort|aborted|cancelled|canceled|interrupt|中止|取消/i.test(event.message)) return
         error.value = event.message
       },
     })
@@ -248,6 +250,8 @@ export function useAgentConversation() {
   async function stop() {
     const id = threadId.value
     const target = agent.value
+    ignoreCancellationErrorsUntil = Date.now() + 5000
+    error.value = ''
     target?.abortRun()
     running.value = false
     if (id) await interruptConversation(id)

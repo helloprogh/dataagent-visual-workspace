@@ -150,6 +150,7 @@ a { color: inherit; }
 }
 
 .dataagent-app .composer-input-actions > .el-button {
+  display: grid;
   width: 2rem;
   min-width: 2rem;
   height: 2rem;
@@ -159,14 +160,7 @@ a { color: inherit; }
   border-radius: 50%;
   color: var(--da-text-muted);
   background: transparent;
-  font-size: 0;
-}
-
-.dataagent-app .composer-input-actions > .el-button::before {
-  content: '+';
-  font-size: 1.25rem;
-  font-weight: 350;
-  line-height: 1;
+  place-items: center;
 }
 
 .dataagent-app .composer-input-actions > .el-button:hover:not(.is-disabled) {
@@ -176,8 +170,8 @@ a { color: inherit; }
 }
 
 .dataagent-app .model-selector {
-  width: auto;
-  max-width: 13rem;
+  width: 16rem;
+  max-width: 17rem;
   margin-left: auto;
 }
 
@@ -197,7 +191,7 @@ a { color: inherit; }
 
 .dataagent-app .model-selector .el-select__selected-item {
   overflow: hidden;
-  max-width: 10rem;
+  max-width: 14rem;
   color: var(--da-text-muted);
   font-size: var(--da-font-size-xs);
   text-overflow: ellipsis;

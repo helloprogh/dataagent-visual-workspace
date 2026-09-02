@@ -9,9 +9,11 @@ import { useAgentConversation } from '../composables/useAgentConversation'
 import AgentMark from './AgentMark.vue'
 import ConversationMessage from './ConversationMessage.vue'
 import ConversationProcessGroup from './ConversationProcessGroup.vue'
+import DeliverablesPanel from './DeliverablesPanel.vue'
 import FilePreviewPanel from './FilePreviewPanel.vue'
 import InterruptCard from './InterruptCard.vue'
 import type { ConversationFilePreview } from '../types/filePreview'
+import { userFacingSessionName } from '../presentation'
 
 const props = defineProps<{
   sessionId?: string
@@ -47,6 +49,7 @@ const selectedModel = ref<ModelSelection | null>(null)
 const messageScroller = ref<HTMLElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 const activePreview = ref<ConversationFilePreview | null>(null)
+const deliverablesOpen = ref(false)
 const previewApprovalSubmitted = ref(false)
 const showJumpToLatest = ref(false)
 let followBottom = true
@@ -59,9 +62,13 @@ const STARTER_PROMPTS = [
   { icon: '✓', title: '质量排查', description: '定位问题并验证修复结果', prompt: '检查数据链路中的质量问题，定位根因并给出修复与验证步骤。' },
 ]
 
-type PresentationItem =
+type TaskChild =
   | { kind: 'message'; key: string; message: Message }
   | { kind: 'process'; key: string; messages: Message[] }
+
+type PresentationItem =
+  | TaskChild
+  | { kind: 'turn'; key: string; user: Message; children: TaskChild[] }
 
 function messageText(message: Message) {
   const content = (message as any).content
@@ -94,23 +101,66 @@ function isHiddenActivityMessage(message: Message) {
 
 const presentationItems = computed<PresentationItem[]>(() => {
   const result: PresentationItem[] = []
-  let processMessages: Message[] = []
-  const flushProcess = () => {
-    if (!processMessages.length) return
-    result.push({ kind: 'process', key: `process-${processMessages[0].id}`, messages: processMessages })
-    processMessages = []
+  let turn: Extract<PresentationItem, { kind: 'turn' }> | null = null
+
+  const append = (target: TaskChild[], message: Message) => {
+    if (isProcessMessage(message)) {
+      const last = target[target.length - 1]
+      if (last?.kind === 'process') last.messages.push(message)
+      else target.push({ kind: 'process', key: `process-${message.id}`, messages: [message] })
+      return
+    }
+    target.push({ kind: 'message', key: `message-${message.id}`, message })
   }
 
   for (const message of messages.value) {
     if (isHiddenActivityMessage(message)) continue
-    if (isProcessMessage(message)) {
-      processMessages.push(message)
+    if (message.role === 'user') {
+      if (turn) result.push(turn)
+      turn = { kind: 'turn', key: `turn-${message.id}`, user: message, children: [] }
       continue
     }
-    flushProcess()
-    result.push({ kind: 'message', key: `message-${message.id}`, message })
+    if (turn) append(turn.children, message)
+    else append(result as TaskChild[], message)
   }
-  flushProcess()
+  if (turn) result.push(turn)
+  return result
+})
+
+function previewFromPart(message: Message, part: any, index: number): ConversationFilePreview | null {
+  if (!['image', 'audio', 'video', 'document', 'file'].includes(part?.type)) return null
+  const url = String(part?.metadata?.clientPreviewUrl ?? part?.source?.value ?? '').trim()
+  if (!url) return null
+  return {
+    id: String(part?.metadata?.fileId ?? `${message.id}-${index}`),
+    name: String(part?.metadata?.filename ?? `文件 ${index + 1}`),
+    url,
+    mimeType: String(part?.source?.mimeType ?? part?.mimeType ?? 'application/octet-stream'),
+    ...(Number(part?.metadata?.size) > 0 ? { size: Number(part.metadata.size) } : {}),
+    ...(String(part?.metadata?.approvalInterruptId ?? part?.metadata?.approval?.interruptId ?? '').trim()
+      ? { approvalInterruptId: String(part.metadata.approvalInterruptId ?? part.metadata.approval.interruptId).trim() }
+      : {}),
+    category: message.role === 'user' ? 'input' : 'output',
+  }
+}
+
+const deliverables = computed(() => {
+  const result: ConversationFilePreview[] = []
+  const known = new Set<string>()
+  for (const message of messages.value) {
+    const content = (message as any).content
+    if (!Array.isArray(content)) continue
+    content.forEach((part, index) => {
+      const file = previewFromPart(message, part, index)
+      if (!file || known.has(file.id)) return
+      known.add(file.id)
+      result.push(file)
+    })
+  }
+  for (const item of attachments.value) {
+    if (known.has(item.id)) continue
+    result.push({ id: item.id, name: item.file.name, url: item.previewUrl, mimeType: item.file.type || 'application/octet-stream', size: item.file.size, category: 'input' })
+  }
   return result
 })
 
@@ -227,8 +277,20 @@ function useStarterPrompt(prompt: string) {
 }
 
 function openFilePreview(file: ConversationFilePreview) {
+  deliverablesOpen.value = false
   activePreview.value = file
   previewApprovalSubmitted.value = false
+}
+
+function openDeliverable(file: ConversationFilePreview) {
+  deliverablesOpen.value = true
+  activePreview.value = file
+  previewApprovalSubmitted.value = false
+}
+
+function toggleDeliverables() {
+  activePreview.value = null
+  deliverablesOpen.value = !deliverablesOpen.value
 }
 
 function closeFilePreview() {
@@ -243,14 +305,16 @@ async function resumeFileApproval(entries: ResumeEntry[]) {
 async function stopRun() {
   try {
     await stop()
-  } catch (reason) {
-    ElMessage.error(`对话已停止显示，但后端中断失败：${reason instanceof Error ? reason.message : String(reason)}`)
+    ElMessage.success('已停止生成')
+  } catch {
+    ElMessage.warning('已停止生成，状态将在稍后同步')
   }
 }
 
 watch(() => props.sessionId, id => {
   if ((id ?? '') === threadId.value) return
   closeFilePreview()
+  deliverablesOpen.value = false
   selectedModel.value = null
   void open(id ?? '')
 }, { immediate: true })
@@ -270,15 +334,21 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="agent-chat-layout" :class="{ 'agent-chat-layout--preview': activePreview }">
+  <section class="agent-chat-layout" :class="{ 'agent-chat-layout--preview': activePreview || deliverablesOpen }">
   <section class="agent-chat" :class="{ 'agent-chat--empty': !sessionId && !messages.length }">
     <header v-if="sessionId" class="agent-chat__header">
       <div>
         <small>当前任务</small>
-        <b>{{ displayName || '新需求' }}</b>
+        <b>{{ userFacingSessionName(displayName) }}</b>
         <small>{{ sessionId }}</small>
       </div>
-      <span :class="{ active: running }"><i></i>{{ running ? '执行中' : '已就绪' }}</span>
+      <div class="agent-chat__header-actions">
+        <button type="button" :class="{ active: deliverablesOpen || activePreview }" @click="toggleDeliverables">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 6.5h4l1.4 1.8h7.6v7.2h-13z"/><path d="M5.5 4.5h4l1.2 2"/></svg>
+          交付物 <small>{{ deliverables.length + pendingInterrupts.length }}</small>
+        </button>
+        <span :class="{ active: running }"><i></i>{{ running ? '执行中' : '已就绪' }}</span>
+      </div>
     </header>
 
     <div
@@ -321,19 +391,34 @@ onBeforeUnmount(() => {
           <el-button text :loading="loadingOlder" @click="loadOlder">加载更早消息</el-button>
         </div>
         <template v-for="item in presentationItems" :key="item.key">
+          <section v-if="item.kind === 'turn'" class="conversation-turn">
+            <ConversationMessage :message="item.user" @preview="openFilePreview" />
+            <div class="conversation-turn__response">
+              <template v-for="child in item.children" :key="child.key">
+                <ConversationProcessGroup
+                  v-if="child.kind === 'process'"
+                  :messages="child.messages"
+                  :running="isRunningProcess(child.messages)"
+                  :active-reasoning-id="activeReasoningId"
+                  @preview="openFilePreview"
+                />
+                <ConversationMessage
+                  v-else
+                  :message="child.message"
+                  :running="running && child.message.id === activeReasoningId"
+                  @preview="openFilePreview"
+                />
+              </template>
+            </div>
+          </section>
           <ConversationProcessGroup
-            v-if="item.kind === 'process'"
+            v-else-if="item.kind === 'process'"
             :messages="item.messages"
             :running="isRunningProcess(item.messages)"
             :active-reasoning-id="activeReasoningId"
             @preview="openFilePreview"
           />
-          <ConversationMessage
-            v-else
-            :message="item.message"
-            :running="running && item.message.id === activeReasoningId"
-            @preview="openFilePreview"
-          />
+          <ConversationMessage v-else :message="item.message" @preview="openFilePreview" />
         </template>
       </div>
     </div>
@@ -374,10 +459,13 @@ onBeforeUnmount(() => {
           <template #prefix>
             <div class="composer-input-actions">
               <el-button
+                class="composer-file-button"
                 text
+                title="添加文件"
+                aria-label="添加文件"
                 :disabled="running || Boolean(pendingInterrupts.length)"
                 @click="chooseFiles"
-              >添加文件</el-button>
+              ><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 10.5 11 6a2.1 2.1 0 0 1 3 3l-6.1 6.1a3.4 3.4 0 0 1-4.8-4.8l6.3-6.2"/></svg></el-button>
               <ModelSelector
                 :session-id="sessionId"
                 :draft="!sessionId"
@@ -412,6 +500,13 @@ onBeforeUnmount(() => {
     @close="closeFilePreview"
     @resume="resumeFileApproval"
   />
+  <DeliverablesPanel
+    v-else-if="deliverablesOpen"
+    :files="deliverables"
+    :pending-approvals="pendingInterrupts.length"
+    @close="deliverablesOpen = false"
+    @select="openDeliverable"
+  />
   </section>
 </template>
 
@@ -429,9 +524,19 @@ onBeforeUnmount(() => {
 .agent-chat__header > span { display: inline-flex; flex: 0 0 auto; align-items: center; gap: var(--da-space-2); color: var(--da-text-muted); font-size: var(--da-font-size-xs); white-space: nowrap; }
 .agent-chat__header > span i { width: 0.375rem; height: 0.375rem; border-radius: 50%; background: var(--da-accent-green); }
 .agent-chat__header > span.active i { background: var(--da-accent-orange); box-shadow: 0 0 0.75rem var(--da-accent-orange-glow); }
+.agent-chat__header-actions { display: flex; flex: 0 0 auto; align-items: center; gap: var(--da-space-2); }
+.agent-chat__header-actions > button { display: inline-flex; min-height: 1.875rem; align-items: center; gap: 0.375rem; padding: 0 var(--da-space-2); border: 0.0625rem solid transparent; border-radius: 999rem; color: var(--da-text-muted); background: transparent; cursor: pointer; font-size: var(--da-font-size-xs); }
+.agent-chat__header-actions > button:hover, .agent-chat__header-actions > button.active { border-color: var(--da-border); color: var(--da-text-emphasis); background: var(--da-surface-2); }
+.agent-chat__header-actions svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.35; }
+.agent-chat__header-actions button small { display: inline-grid; min-width: 1.125rem; height: 1.125rem; place-items: center; border-radius: 999rem; color: var(--da-text-secondary); background: var(--da-surface-3); font-size: 0.625rem; }
+.agent-chat__header-actions > span { display: inline-flex; min-height: 1.875rem; align-items: center; gap: var(--da-space-2); padding-inline: var(--da-space-2); border: 0.0625rem solid var(--da-border); border-radius: 999rem; color: var(--da-text-muted); background: color-mix(in srgb, var(--da-surface-2) 68%, transparent); font-size: var(--da-font-size-xs); }
+.agent-chat__header-actions > span i { width: 0.375rem; height: 0.375rem; border-radius: 50%; background: var(--da-accent-green); }
+.agent-chat__header-actions > span.active i { background: var(--da-accent-orange); box-shadow: 0 0 0.75rem var(--da-accent-orange-glow); }
 .agent-chat__messages { min-height: 0; overflow: auto; padding: var(--da-space-6) clamp(1rem, 4vw, 3.5rem) var(--da-space-8); scrollbar-gutter: stable; }
 .agent-chat__loading, .message-list, .agent-welcome { width: min(100%, var(--da-content-max)); margin: 0 auto; }
 .message-list { display: flex; flex-direction: column; gap: var(--da-space-5); }
+.conversation-turn { display: flex; min-width: 0; flex-direction: column; gap: var(--da-space-3); }
+.conversation-turn__response { display: flex; min-width: 0; flex-direction: column; gap: var(--da-space-3); }
 .load-older { display: flex; justify-content: center; min-height: 2.25rem; }
 .agent-welcome { display: flex; min-height: 100%; align-items: center; justify-content: center; padding: var(--da-space-10) 0; }
 .agent-welcome__brand { display: flex; width: min(100%, 64rem); flex-direction: column; align-items: center; gap: var(--da-space-3); text-align: center; }
@@ -461,6 +566,7 @@ onBeforeUnmount(() => {
 .agent-chat__composer :deep(.elx-x-sender .elx-x-sender__content.elx-x-sender__content--variant-updown .elx-x-sender__updown-action-list .elx-x-sender__prefix) { min-width: 0; flex: 1; padding-right: 0; }
 .composer-input-actions { display: flex; width: 100%; min-width: 0; align-items: center; gap: var(--da-space-2); }
 .composer-input-actions :deep(.model-selector) { margin-left: auto; }
+.composer-file-button svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.45; }
 .attachment-queue { display: flex; flex-wrap: wrap; gap: var(--da-space-2); margin-bottom: var(--da-space-2); }
 .attachment-chip { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--da-space-2); max-width: 24rem; padding: var(--da-space-2) var(--da-space-3); border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-md); background: var(--da-surface-2); }
 .attachment-chip span { overflow: hidden; color: var(--da-text-primary); font-size: var(--da-font-size-sm); text-overflow: ellipsis; white-space: nowrap; }

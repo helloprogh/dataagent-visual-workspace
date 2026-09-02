@@ -5,6 +5,7 @@ export type ConversationFilePreview = {
   mimeType: string
   size?: number
   approvalInterruptId?: string
+  category?: 'input' | 'output'
 }
 
 export function fileKindLabel(file: Pick<ConversationFilePreview, 'name' | 'mimeType'>) {
