@@ -46,7 +46,7 @@ function relativeTime(timestamp: number) {
 <template>
   <aside class="conversation-sidebar">
     <div class="sidebar-brand">
-      <AgentMark size="compact" />
+      <span class="sidebar-brand__mark"><AgentMark /></span>
       <div><b>DATA AGENT</b><small>数据交付工作台</small></div>
       <span class="sidebar-brand__edition">WORKSPACE</span>
     </div>
@@ -117,6 +117,8 @@ function relativeTime(timestamp: number) {
 <style scoped>
 .conversation-sidebar { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; width: 100%; height: 100%; min-height: 0; padding: var(--da-space-4); color: var(--da-text-primary); background: linear-gradient(180deg, var(--da-surface-sidebar) 0%, var(--da-surface-1) 38%); }
 .sidebar-brand { display: flex; align-items: center; gap: var(--da-space-3); min-height: 3rem; margin-bottom: var(--da-space-4); }
+.sidebar-brand__mark { position: relative; width: 2.25rem; height: 2.25rem; flex: 0 0 auto; }
+.sidebar-brand__mark :deep(.agent-mark) { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.75); transform-origin: center; }
 .sidebar-brand > div { display: flex; min-width: 0; flex-direction: column; gap: 0.125rem; }
 .sidebar-brand b { color: var(--da-text-emphasis); font-size: var(--da-font-size-sm); letter-spacing: 0.04em; }
 .sidebar-brand small { color: var(--da-text-subtle); font-size: var(--da-font-size-xs); }

@@ -465,7 +465,7 @@ onBeforeUnmount(() => {
                 aria-label="添加文件"
                 :disabled="running || Boolean(pendingInterrupts.length)"
                 @click="chooseFiles"
-              ><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 10.5 11 6a2.1 2.1 0 0 1 3 3l-6.1 6.1a3.4 3.4 0 0 1-4.8-4.8l6.3-6.2"/></svg></el-button>
+              ><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10"/></svg></el-button>
               <ModelSelector
                 :session-id="sessionId"
                 :draft="!sessionId"

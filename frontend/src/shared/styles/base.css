@@ -156,10 +156,10 @@ a { color: inherit; }
   height: 2rem;
   margin: 0;
   padding: 0;
-  border: 0.0625rem solid transparent;
+  border: 0.0625rem solid var(--da-border);
   border-radius: 50%;
   color: var(--da-text-muted);
-  background: transparent;
+  background: color-mix(in srgb, var(--da-surface-3) 55%, transparent);
   place-items: center;
 }
 
