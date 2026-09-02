@@ -29,8 +29,8 @@ function timeLabel(timestamp: number) {
     <div class="app-page__inner">
       <header class="app-page__header">
         <div>
-          <h1>历史会话</h1>
-          <p>服务端会话是历史事实源，进入会话后再按需加载消息。</p>
+          <h1>历史需求</h1>
+          <p>继续之前的数据需求，或回顾已经完成的分析与交付记录。</p>
         </div>
         <div class="history-page__actions">
           <el-button @click="emit('refresh')">刷新</el-button>
@@ -51,13 +51,12 @@ function timeLabel(timestamp: number) {
               <b>{{ session.displayName }}</b>
               <small>{{ timeLabel(session.updatedAt) }}</small>
             </span>
-            <code>{{ session.id }}</code>
           </button>
           <el-button text @click="emit('rename', session.id)">重命名</el-button>
         </article>
 
         <div v-if="!props.sessions.length" class="empty-state">
-          暂无历史会话
+          暂无历史需求
         </div>
       </div>
     </div>
@@ -88,19 +87,24 @@ function timeLabel(timestamp: number) {
   align-items: center;
   gap: var(--da-space-2);
   padding: var(--da-space-2) var(--da-space-3);
+  transition: background-color 140ms ease;
 }
 
 .history-item + .history-item {
   border-top: 0.0625rem solid var(--da-border);
 }
 
-.history-item.active {
+.history-item:hover {
   background: var(--da-surface-2);
+}
+
+.history-item.active {
+  background: var(--da-accent-primary-soft);
 }
 
 .history-item__main {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(8rem, auto);
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: var(--da-space-3);
   min-width: 0;
@@ -120,7 +124,8 @@ function timeLabel(timestamp: number) {
 }
 
 .history-item.active .history-item__mark {
-  background: var(--da-accent-orange);
+  background: var(--da-accent-primary);
+  box-shadow: 0 0 0 0.1875rem var(--da-accent-primary-soft);
 }
 
 .history-item__copy {
@@ -137,25 +142,8 @@ function timeLabel(timestamp: number) {
   white-space: nowrap;
 }
 
-.history-item__copy small,
-.history-item code {
+.history-item__copy small {
   color: var(--da-text-muted);
   font-size: var(--da-font-size-xs);
-}
-
-.history-item code {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-@media (max-width: 48rem) {
-  .history-item__main {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .history-item code {
-    display: none;
-  }
 }
 </style>
