@@ -406,7 +406,8 @@ onBeforeUnmount(() => {
 .attachment-chip button { width: 1.5rem; height: 1.5rem; padding: 0; border: 0; border-radius: 50%; color: var(--da-text-muted); background: transparent; cursor: pointer; }
 .attachment-chip button:hover { color: var(--da-text-emphasis); background: var(--da-surface-3); }
 .file-input { display: none; }
-.agent-chat__composer :deep(.x-sender), .agent-chat__composer :deep(.elx-xsender) { border-color: var(--da-border-strong); background: var(--da-surface-1); box-shadow: var(--da-shadow-soft); }
+.agent-chat__composer :deep(.x-sender), .agent-chat__composer :deep(.elx-xsender), .agent-chat__composer :deep(.elx-x-sender) { border-color: var(--da-border-strong); background: var(--da-surface-1); box-shadow: var(--da-shadow-soft); }
+.agent-chat__composer :deep([contenteditable='true']), .agent-chat__composer :deep(.chat-write-wrap), .agent-chat__composer :deep(.chat-write-input) { color: var(--da-text-primary); caret-color: var(--da-text-emphasis); }
 .agent-chat-layout--preview .agent-chat__header small { display: none; }
 
 @media (max-width: 48rem) {

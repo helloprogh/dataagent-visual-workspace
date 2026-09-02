@@ -68,7 +68,8 @@ const stepCount = computed(() => props.messages.reduce((total, message) => {
 .process-group--running .process-group__mark i:nth-child(3) { animation-delay: 240ms; }
 .process-group__chevron { width: 0.375rem; height: 0.375rem; margin-left: 0.125rem; border-right: 0.0625rem solid currentColor; border-bottom: 0.0625rem solid currentColor; transform: rotate(45deg); transition: transform 160ms ease; }
 .process-group[open] > summary .process-group__chevron { transform: rotate(225deg); }
-.process-group__content { display: grid; gap: var(--da-space-3); padding: var(--da-space-2) 0 var(--da-space-1) var(--da-space-5); }
+.process-group__content { display: grid; gap: var(--da-space-1); padding: var(--da-space-1) 0 var(--da-space-1) var(--da-space-4); }
+.process-group__content :deep(.tool-call-list) { margin-top: 0; }
 
 @keyframes process-pulse {
   0%, 100% { opacity: 0.35; transform: translateY(0); }
