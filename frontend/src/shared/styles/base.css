@@ -7,7 +7,7 @@ button { color: inherit; }
 a { color: inherit; }
 
 .dataagent-app {
-  --el-color-primary: var(--da-text-emphasis);
+  --el-color-primary: var(--da-accent-primary);
   --el-color-success: var(--da-accent-green);
   --el-color-warning: var(--da-accent-yellow);
   --el-color-danger: var(--da-accent-red);
@@ -30,15 +30,15 @@ a { color: inherit; }
 }
 
 .dataagent-app .el-button--primary {
-  --el-button-text-color: var(--da-surface-0);
-  --el-button-bg-color: var(--da-text-emphasis);
-  --el-button-border-color: var(--da-text-emphasis);
-  --el-button-hover-text-color: var(--da-surface-0);
-  --el-button-hover-bg-color: color-mix(in srgb, var(--da-text-emphasis) 88%, var(--da-surface-0));
-  --el-button-hover-border-color: color-mix(in srgb, var(--da-text-emphasis) 88%, var(--da-surface-0));
-  --el-button-active-text-color: var(--da-surface-0);
-  --el-button-active-bg-color: color-mix(in srgb, var(--da-text-emphasis) 78%, var(--da-surface-0));
-  --el-button-active-border-color: color-mix(in srgb, var(--da-text-emphasis) 78%, var(--da-surface-0));
+  --el-button-text-color: #fff;
+  --el-button-bg-color: var(--da-accent-primary);
+  --el-button-border-color: var(--da-accent-primary);
+  --el-button-hover-text-color: #fff;
+  --el-button-hover-bg-color: var(--da-accent-primary-hover);
+  --el-button-hover-border-color: var(--da-accent-primary-hover);
+  --el-button-active-text-color: #fff;
+  --el-button-active-bg-color: color-mix(in srgb, var(--da-accent-primary) 86%, #000);
+  --el-button-active-border-color: color-mix(in srgb, var(--da-accent-primary) 86%, #000);
 }
 
 .dataagent-app { scrollbar-width: thin; scrollbar-color: var(--da-border-focus) transparent; }
