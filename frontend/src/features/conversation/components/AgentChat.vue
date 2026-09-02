@@ -48,10 +48,16 @@ const messageScroller = ref<HTMLElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 const activePreview = ref<ConversationFilePreview | null>(null)
 const previewApprovalSubmitted = ref(false)
+const showJumpToLatest = ref(false)
 let followBottom = true
 let previousScrollHeight = 0
 
 const WELCOME_DESCRIPTION = '从业务目标到数据方案、集成开发、质量验证与交付，让每一个需求都有清晰过程和可复用结果。'
+const STARTER_PROMPTS = [
+  { icon: '↗', title: '分析数据', description: '发现指标、异常与业务机会', prompt: '分析我上传的数据，识别关键指标、异常和业务机会，并给出可执行结论。' },
+  { icon: '◇', title: '搭建流程', description: '形成端到端可验证方案', prompt: '梳理当前数据需求，设计端到端处理流程并生成可验证的交付方案。' },
+  { icon: '✓', title: '质量排查', description: '定位问题并验证修复结果', prompt: '检查数据链路中的质量问题，定位根因并给出修复与验证步骤。' },
+]
 
 type PresentationItem =
   | { kind: 'message'; key: string; message: Message }
@@ -156,6 +162,8 @@ function scrollToBottom() {
     const element = messageScroller.value
     if (!element) return
     element.scrollTop = element.scrollHeight
+    followBottom = true
+    showJumpToLatest.value = false
   })
 }
 
@@ -163,6 +171,7 @@ async function handleScroll() {
   const element = messageScroller.value
   if (!element) return
   followBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 5 * 16
+  showJumpToLatest.value = !followBottom && Boolean(messages.value.length)
   if (element.scrollTop > 6 * 16 || !nextCursor.value || loadingOlder.value) return
   previousScrollHeight = element.scrollHeight
   await loadOlder()
@@ -210,6 +219,11 @@ async function resumeRun(entries: ResumeEntry[]) {
     ElMessage.error(reason instanceof Error ? reason.message : String(reason))
     return false
   }
+}
+
+function useStarterPrompt(prompt: string) {
+  senderRef.value?.setText?.(prompt)
+  void nextTick(() => senderRef.value?.focus?.('last'))
 }
 
 function openFilePreview(file: ConversationFilePreview) {
@@ -287,6 +301,18 @@ onBeforeUnmount(() => {
             variant="borderless"
             :description="WELCOME_DESCRIPTION"
           />
+          <div class="starter-prompts" aria-label="常用需求模板">
+            <button
+              v-for="item in STARTER_PROMPTS"
+              :key="item.title"
+              type="button"
+              @click="useStarterPrompt(item.prompt)"
+            >
+              <span aria-hidden="true">{{ item.icon }}</span>
+              <b>{{ item.title }}</b>
+              <small>{{ item.description }}</small>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -312,6 +338,12 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+    <Transition name="jump-latest">
+      <button v-if="showJumpToLatest" class="jump-latest" type="button" @click="scrollToBottom">
+        <span aria-hidden="true">↓</span> 回到最新
+      </button>
+    </Transition>
+
     <div class="agent-chat__composer-wrap">
       <InterruptCard
         v-if="composerInterrupts.length"
@@ -332,7 +364,6 @@ onBeforeUnmount(() => {
         <XSender
           ref="senderRef"
           variant="updown"
-          clearable
           :loading="running"
           :disabled="Boolean(pendingInterrupts.length)"
           placeholder="描述你的数据需求或业务目标"
@@ -387,7 +418,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .agent-chat-layout { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; height: 100%; min-height: 0; overflow: hidden; transition: grid-template-columns 220ms ease; }
 .agent-chat-layout--preview { grid-template-columns: minmax(28rem, 1fr) clamp(22rem, 38vw, 36rem); }
-.agent-chat { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; background: var(--da-surface-0); }
+.agent-chat { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; background: var(--da-surface-0); }
 .agent-chat--empty { grid-template-rows: auto auto; align-content: center; gap: var(--da-space-6); padding-block: var(--da-space-8); }
 .agent-chat__header { display: flex; align-items: center; justify-content: space-between; gap: var(--da-space-4); min-height: 3.75rem; padding: 0 var(--da-space-6); border-bottom: 0.0625rem solid var(--da-border); background: color-mix(in srgb, var(--da-surface-0) 88%, transparent); }
 .agent-chat__header > div { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0 var(--da-space-3); }
@@ -410,6 +441,18 @@ onBeforeUnmount(() => {
 .agent-welcome :deep(.elx-welcome) { width: 100%; min-width: 0; justify-content: center; padding: 0; --elx-welcome-filled-bg: transparent; --elx-welcome-filled-border: transparent; --elx-welcome-description-color: var(--da-text-muted); background: transparent; }
 .agent-welcome :deep(.elx-welcome__content) { flex: 0 1 auto; }
 .agent-welcome :deep(.elx-welcome__description) { font-size: var(--da-font-size-md); line-height: 1.75; text-align: center; white-space: nowrap; }
+.starter-prompts { display: grid; width: min(100%, 46rem); grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--da-space-3); margin-top: var(--da-space-5); }
+.starter-prompts button { position: relative; display: grid; min-width: 0; gap: 0.25rem; padding: var(--da-space-4); border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-lg); color: var(--da-text-muted); background: color-mix(in srgb, var(--da-surface-2) 72%, transparent); cursor: pointer; text-align: left; transition: transform 180ms ease, border-color 180ms ease, color 180ms ease, background-color 180ms ease, box-shadow 180ms ease; }
+.starter-prompts button > span { position: absolute; top: var(--da-space-3); right: var(--da-space-3); color: var(--da-brand-cyan); font-size: var(--da-font-size-sm); transition: transform 180ms ease; }
+.starter-prompts button b { color: var(--da-text-primary); font-size: var(--da-font-size-sm); font-weight: 600; }
+.starter-prompts button small { overflow: hidden; font-size: var(--da-font-size-xs); line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
+.starter-prompts button:hover { border-color: color-mix(in srgb, var(--da-accent-primary) 38%, var(--da-border)); color: var(--da-text-secondary); background: var(--da-surface-2); box-shadow: 0 0.75rem 2rem var(--da-brand-glow); transform: translateY(-0.125rem); }
+.starter-prompts button:hover > span { transform: translate(0.125rem, -0.125rem); }
+.starter-prompts button:active { transform: translateY(0); }
+.jump-latest { position: absolute; z-index: 4; bottom: 7.25rem; left: 50%; display: inline-flex; min-height: 2rem; align-items: center; gap: var(--da-space-2); padding: 0 var(--da-space-3); border: 0.0625rem solid var(--da-border-strong); border-radius: 999rem; color: var(--da-text-secondary); background: color-mix(in srgb, var(--da-surface-2) 92%, transparent); box-shadow: var(--da-shadow-card); cursor: pointer; font-size: var(--da-font-size-xs); transform: translateX(-50%); backdrop-filter: blur(0.75rem); }
+.jump-latest:hover { border-color: var(--da-border-focus); color: var(--da-text-emphasis); }
+.jump-latest-enter-active, .jump-latest-leave-active { transition: opacity 160ms ease, transform 160ms ease; }
+.jump-latest-enter-from, .jump-latest-leave-to { opacity: 0; transform: translate(-50%, 0.5rem); }
 .agent-chat__composer-wrap { z-index: 2; min-width: 0; padding: 0 clamp(1rem, 4vw, 3.5rem) var(--da-space-5); background: linear-gradient(180deg, transparent, var(--da-surface-0) 20%); }
 .agent-chat__composer { width: min(100%, var(--da-content-max)); min-width: 0; margin: 0 auto; }
 .agent-chat--empty .agent-chat__messages { overflow: visible; padding-block: 0; }
@@ -442,9 +485,16 @@ onBeforeUnmount(() => {
   .agent-chat__composer-wrap { padding-inline: var(--da-space-4); }
   .composer-input-actions :deep(.model-selector) { width: min(9rem, 48vw); }
   .composer-assurance small { display: none; }
+  .starter-prompts { grid-template-columns: 1fr; }
+  .starter-prompts button { padding-block: var(--da-space-3); }
 }
 
 @media (max-width: 72rem) {
   .agent-welcome :deep(.elx-welcome__description) { white-space: normal; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .starter-prompts button, .starter-prompts button > span,
+  .jump-latest-enter-active, .jump-latest-leave-active { transition: none; }
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { Message } from '@ag-ui/client'
 import ConversationMessage from './ConversationMessage.vue'
 import type { ConversationFilePreview } from '../types/filePreview'
@@ -13,33 +13,45 @@ const props = defineProps<{
 const emit = defineEmits<{ preview: [file: ConversationFilePreview] }>()
 
 const stepCount = computed(() => props.messages.length)
+const expanded = ref(Boolean(props.running))
+
+watch(() => props.running, value => {
+  if (value) expanded.value = true
+})
 </script>
 
 <template>
-  <details class="process-group" :class="{ 'process-group--running': running }" :open="Boolean(running)">
-    <summary class="process-group__header">
+  <section class="process-group" :class="{ 'process-group--running': running, 'process-group--expanded': expanded }">
+    <button
+      type="button"
+      class="process-group__header"
+      :aria-expanded="expanded"
+      @click="expanded = !expanded"
+    >
       <span class="process-group__mark" aria-hidden="true"><i></i><i></i><i></i></span>
       <span>{{ running ? '正在执行' : '已完成' }}</span>
       <small>{{ stepCount ? `${stepCount} 步` : '准备中' }}</small>
       <span class="process-group__chevron" aria-hidden="true"></span>
-    </summary>
+    </button>
 
-    <div class="process-group__steps">
-      <div
-        v-for="message in messages"
-        :key="message.id"
-        class="process-step"
-      >
-        <div class="process-step__content">
-          <ConversationMessage
-            :message="message"
-            :running="running && message.id === activeReasoningId"
-            @preview="emit('preview', $event)"
-          />
+    <div class="process-group__body" :aria-hidden="!expanded">
+      <div class="process-group__steps">
+        <div
+          v-for="message in messages"
+          :key="message.id"
+          class="process-step"
+        >
+          <div class="process-step__content">
+            <ConversationMessage
+              :message="message"
+              :running="running && message.id === activeReasoningId"
+              @preview="emit('preview', $event)"
+            />
+          </div>
         </div>
       </div>
     </div>
-  </details>
+  </section>
 </template>
 
 <style scoped>
@@ -55,16 +67,16 @@ const stepCount = computed(() => props.messages.length)
   align-items: center;
   gap: var(--da-space-2);
   padding: 0 var(--da-space-1);
+  border: 0;
   border-radius: var(--da-radius-sm);
   color: var(--da-text-secondary);
   cursor: pointer;
   font-size: var(--da-font-size-sm);
   font-weight: 550;
-  list-style: none;
+  background: transparent;
   transition: color 160ms ease, background-color 160ms ease;
 }
 
-.process-group__header::-webkit-details-marker { display: none; }
 .process-group__header:hover { color: var(--da-text-emphasis); background: var(--da-surface-1); }
 .process-group:not(.process-group--running) .process-group__mark { color: var(--da-accent-green); border-color: color-mix(in srgb, var(--da-accent-green) 26%, var(--da-border)); }
 
@@ -126,12 +138,26 @@ const stepCount = computed(() => props.messages.length)
   transform: rotate(45deg);
 }
 
-.process-group[open] > .process-group__header .process-group__chevron { transform: rotate(90deg); }
+.process-group--expanded > .process-group__header .process-group__chevron { transform: rotate(90deg); }
+
+.process-group__body {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 200ms ease, opacity 160ms ease;
+}
+
+.process-group--expanded .process-group__body {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
 
 .process-group__steps {
   display: grid;
+  min-height: 0;
   gap: 0.125rem;
   margin-top: 0.125rem;
+  overflow: hidden;
   padding-left: var(--da-space-2);
 }
 
@@ -187,5 +213,6 @@ const stepCount = computed(() => props.messages.length)
 
 @media (prefers-reduced-motion: reduce) {
   .process-group--running .process-group__mark i { animation: none; }
+  .process-group__body, .process-group__chevron { transition: none; }
 }
 </style>
