@@ -98,11 +98,15 @@ onBeforeUnmount(() => {
     <div class="file-preview-panel__body">
       <section v-if="interrupts.length || approvalSubmitted" class="file-preview-panel__approval">
         <div class="file-preview-panel__approval-heading">
-          <span>文件审批</span>
+          <div>
+            <i aria-hidden="true"></i>
+            <span>文件审批</span>
+          </div>
           <small>{{ approvalSubmitted ? '已提交' : '等待你的决定' }}</small>
         </div>
         <InterruptCard
           v-if="interrupts.length"
+          variant="embedded"
           :interrupts="interrupts"
           :busy="busy"
           @resume="emit('resume', $event)"
@@ -158,22 +162,23 @@ onBeforeUnmount(() => {
 .file-preview-panel__identity > div { display: grid; min-width: 0; gap: 0.125rem; }
 .file-preview-panel__identity b { overflow: hidden; color: var(--da-text-emphasis); font-size: var(--da-font-size-sm); text-overflow: ellipsis; white-space: nowrap; }
 .file-preview-panel__identity small { color: var(--da-text-muted); font-size: var(--da-font-size-xs); }
-.file-preview-panel__mark { display: grid; width: 2rem; height: 2rem; flex: 0 0 auto; place-items: center; border: 0.0625rem solid var(--da-border-strong); border-radius: var(--da-radius-sm); color: var(--da-accent-orange); background: var(--da-surface-2); font-size: 0.625rem; font-weight: 700; letter-spacing: 0.04em; }
+.file-preview-panel__mark { display: grid; width: 2rem; height: 2rem; flex: 0 0 auto; place-items: center; border: 0.0625rem solid var(--da-border-strong); border-radius: var(--da-radius-sm); color: var(--da-accent-orange); background: var(--da-surface-2); font-size: var(--da-font-size-xs); font-weight: 700; letter-spacing: 0.04em; }
 .file-preview-panel__actions { display: flex; align-items: center; gap: var(--da-space-1); }
 .file-preview-panel__actions :is(a, button) { display: grid; width: 2rem; height: 2rem; padding: 0; place-items: center; border: 0; border-radius: var(--da-radius-sm); color: var(--da-text-muted); background: transparent; cursor: pointer; text-decoration: none; }
 .file-preview-panel__actions :is(a, button):hover { color: var(--da-text-emphasis); background: var(--da-surface-3); }
 .file-preview-panel__body { min-height: 0; overflow: auto; padding: var(--da-space-5); }
-.file-preview-panel__approval { margin-bottom: var(--da-space-5); padding-bottom: var(--da-space-5); border-bottom: 0.0625rem solid var(--da-border); }
+.file-preview-panel__approval { margin-bottom: var(--da-space-5); padding: var(--da-space-4); border: 0.0625rem solid color-mix(in srgb, var(--da-accent-yellow) 28%, var(--da-border)); border-radius: var(--da-radius-md); background: color-mix(in srgb, var(--da-accent-yellow) 4%, var(--da-surface-2)); }
 .file-preview-panel__approval-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--da-space-3); margin-bottom: var(--da-space-3); }
+.file-preview-panel__approval-heading > div { display: flex; align-items: center; gap: var(--da-space-2); }
+.file-preview-panel__approval-heading i { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--da-accent-yellow); box-shadow: 0 0 0.75rem color-mix(in srgb, var(--da-accent-yellow) 32%, transparent); }
 .file-preview-panel__approval-heading span { color: var(--da-text-emphasis); font-size: var(--da-font-size-sm); font-weight: 600; }
 .file-preview-panel__approval-heading small, .file-preview-panel__approval > p { color: var(--da-text-muted); font-size: var(--da-font-size-xs); }
 .file-preview-panel__approval > p { margin: 0; }
-.file-preview-panel__approval :deep(.interrupt-card) { width: 100%; margin: 0; }
 .file-preview-panel__body > img { display: block; width: 100%; height: auto; border-radius: var(--da-radius-md); background: var(--da-surface-0); object-fit: contain; }
 .file-preview-panel__body > iframe { width: 100%; height: 100%; min-height: 30rem; border: 0; border-radius: var(--da-radius-md); background: white; }
 .file-preview-panel__markdown :deep(.x-md-renderer) { padding: 0 !important; color: var(--da-text-primary) !important; background: transparent !important; }
 .file-preview-panel__markdown :deep(.x-md-core) { color: inherit; line-height: 1.75; }
-.file-preview-panel__text pre { margin: 0; color: var(--da-text-primary); font: 0.8125rem/1.7 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.file-preview-panel__text pre { margin: 0; color: var(--da-text-primary); font: var(--da-font-size-sm)/1.7 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .file-preview-panel__state { display: grid; min-height: 18rem; place-content: center; justify-items: center; gap: var(--da-space-3); color: var(--da-text-muted); text-align: center; }
 .file-preview-panel__state strong { color: var(--da-text-primary); }
 .file-preview-panel__state p { max-width: 22rem; margin: 0; line-height: 1.6; }
