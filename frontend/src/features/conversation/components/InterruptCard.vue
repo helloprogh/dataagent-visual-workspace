@@ -2,7 +2,14 @@
 import { computed, reactive, watch } from 'vue'
 import type { Interrupt, ResumeEntry } from '@ag-ui/client'
 
-const props = defineProps<{ interrupts: Interrupt[]; busy?: boolean }>()
+const props = withDefaults(defineProps<{
+  interrupts: Interrupt[]
+  busy?: boolean
+  variant?: 'default' | 'embedded'
+}>(), {
+  busy: false,
+  variant: 'default',
+})
 const emit = defineEmits<{ resume: [entries: ResumeEntry[]] }>()
 
 type Schema = Record<string, any>
@@ -113,7 +120,12 @@ watch(() => props.interrupts, interrupts => {
 </script>
 
 <template>
-  <section class="interrupt-card" role="alert" aria-live="polite">
+  <section
+    class="interrupt-card"
+    :class="`interrupt-card--${variant}`"
+    role="alert"
+    aria-live="polite"
+  >
     <header class="interrupt-card__header">
       <div>
         <b>{{ title }}</b>
@@ -180,8 +192,25 @@ watch(() => props.interrupts, interrupts => {
 </template>
 
 <style scoped>
-.interrupt-card { width: min(100%, var(--da-content-max)); margin: var(--da-space-3) auto; overflow: hidden; border: 0.0625rem solid var(--da-border-strong); border-radius: var(--da-radius-lg); background: var(--da-surface-2); box-shadow: inset 0.1875rem 0 color-mix(in srgb, var(--da-accent-yellow) 55%, transparent); }
-.interrupt-card__header { display: flex; align-items: center; justify-content: space-between; gap: var(--da-space-3); padding: var(--da-space-3) var(--da-space-4); border-bottom: 0.0625rem solid var(--da-border); }
+.interrupt-card {
+  width: min(100%, var(--da-content-max));
+  margin: var(--da-space-3) auto;
+  overflow: hidden;
+  border: 0.0625rem solid var(--da-border-strong);
+  border-radius: var(--da-radius-lg);
+  background: var(--da-surface-2);
+  box-shadow: inset 0.1875rem 0 color-mix(in srgb, var(--da-accent-yellow) 55%, transparent);
+}
+
+.interrupt-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--da-space-3);
+  padding: var(--da-space-3) var(--da-space-4);
+  border-bottom: 0.0625rem solid var(--da-border);
+}
+
 .interrupt-card__header div { display: flex; align-items: baseline; gap: var(--da-space-2); }
 .interrupt-card__header b { color: var(--da-text-emphasis); }
 .interrupt-card__header span, .interrupt-card__header small { color: var(--da-text-muted); font-size: var(--da-font-size-xs); }
@@ -193,4 +222,25 @@ watch(() => props.interrupts, interrupts => {
 .interrupt-field em { margin-left: var(--da-space-1); color: var(--da-accent-red); font-style: normal; }
 .interrupt-choices { display: flex; flex-wrap: wrap; gap: var(--da-space-2); }
 .interrupt-card__actions { display: flex; justify-content: flex-end; gap: var(--da-space-2); padding: var(--da-space-3) var(--da-space-4); border-top: 0.0625rem solid var(--da-border); }
+
+.interrupt-card--embedded {
+  width: 100%;
+  margin: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.interrupt-card--embedded .interrupt-card__header { display: none; }
+.interrupt-card--embedded .interrupt-card__item { padding: 0; }
+.interrupt-card--embedded .interrupt-card__item + .interrupt-card__item {
+  margin-top: var(--da-space-4);
+  padding-top: var(--da-space-4);
+}
+.interrupt-card--embedded .interrupt-card__actions {
+  padding: var(--da-space-3) 0 0;
+  border-top: 0;
+}
 </style>
