@@ -50,8 +50,27 @@ a { color: inherit; }
   border-color: var(--da-bubble-user-border) !important;
 }
 
+.dataagent-app .agent-chat__header {
+  min-height: 3.375rem;
+  padding-inline: clamp(1rem, 3vw, 2rem);
+  background: color-mix(in srgb, var(--da-surface-0) 94%, transparent);
+}
+
+.dataagent-app .agent-chat__header b {
+  font-size: var(--da-font-size-sm);
+  font-weight: 600;
+}
+
 .dataagent-app .agent-chat__header small {
   display: none;
+}
+
+.dataagent-app .agent-chat__header > span {
+  min-height: 1.75rem;
+  padding-inline: var(--da-space-2);
+  border: 0.0625rem solid var(--da-border);
+  border-radius: 999rem;
+  background: color-mix(in srgb, var(--da-surface-2) 68%, transparent);
 }
 
 .dataagent-app .agent-welcome .elx-welcome__content {
@@ -66,11 +85,182 @@ a { color: inherit; }
   grid-template-columns: minmax(28rem, 1fr) clamp(26rem, 44vw, 48rem);
 }
 
+/* Composer: make text input primary and auxiliary controls quiet. */
+.dataagent-app .agent-chat__composer-wrap {
+  padding-bottom: var(--da-space-4);
+  background: linear-gradient(180deg, transparent 0%, var(--da-surface-0) 28%, var(--da-surface-0) 100%);
+}
+
+.dataagent-app .agent-chat__composer .elx-x-sender,
+.dataagent-app .agent-chat__composer .elx-xsender,
+.dataagent-app .agent-chat__composer .x-sender {
+  overflow: hidden;
+  border-color: var(--da-border) !important;
+  border-radius: var(--da-radius-xl) !important;
+  background: var(--da-surface-2) !important;
+  box-shadow: 0 0.375rem 1.5rem rgb(0 0 0 / 10%) !important;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.dataagent-app .agent-chat__composer .elx-x-sender:focus-within,
+.dataagent-app .agent-chat__composer .elx-xsender:focus-within,
+.dataagent-app .agent-chat__composer .x-sender:focus-within {
+  border-color: color-mix(in srgb, var(--da-accent-primary) 42%, var(--da-border-strong)) !important;
+  box-shadow: 0 0 0 0.1875rem var(--da-accent-primary-soft), 0 0.5rem 1.75rem rgb(0 0 0 / 12%) !important;
+}
+
+.dataagent-app .agent-chat__composer :where([contenteditable='true'], .chat-write-wrap, .chat-write-input) {
+  min-height: 2.75rem;
+  color: var(--da-text-primary);
+  caret-color: var(--da-accent-primary);
+  line-height: 1.65;
+}
+
+.dataagent-app .agent-chat__composer :where([contenteditable='true'], .chat-write-input)::placeholder {
+  color: var(--da-text-subtle);
+}
+
+.dataagent-app .composer-input-actions {
+  min-height: 2.125rem;
+  gap: var(--da-space-1);
+}
+
+.dataagent-app .composer-input-actions > .el-button {
+  width: 2rem;
+  min-width: 2rem;
+  height: 2rem;
+  margin: 0;
+  padding: 0;
+  border: 0.0625rem solid transparent;
+  border-radius: 50%;
+  color: var(--da-text-muted);
+  background: transparent;
+  font-size: 0;
+}
+
+.dataagent-app .composer-input-actions > .el-button::before {
+  content: '+';
+  font-size: 1.25rem;
+  font-weight: 350;
+  line-height: 1;
+}
+
+.dataagent-app .composer-input-actions > .el-button:hover:not(.is-disabled) {
+  border-color: var(--da-border);
+  color: var(--da-text-emphasis);
+  background: var(--da-surface-3);
+}
+
+.dataagent-app .model-selector {
+  width: auto;
+  max-width: 13rem;
+  margin-left: auto;
+}
+
 .dataagent-app .model-selector .el-select__wrapper {
   min-height: 2rem;
+  padding: 0 var(--da-space-2);
+  border-radius: 999rem;
+  background: transparent;
+  box-shadow: none;
+}
+
+.dataagent-app .model-selector .el-select__wrapper:hover,
+.dataagent-app .model-selector .el-select__wrapper.is-focused {
+  background: var(--da-surface-3);
+  box-shadow: 0 0 0 0.0625rem var(--da-border) inset;
+}
+
+.dataagent-app .model-selector .el-select__selected-item {
+  overflow: hidden;
+  max-width: 10rem;
+  color: var(--da-text-muted);
+  font-size: var(--da-font-size-xs);
+  text-overflow: ellipsis;
+}
+
+.dataagent-app .attachment-queue {
+  margin-bottom: var(--da-space-2);
+}
+
+.dataagent-app .attachment-chip {
+  min-height: 2.25rem;
+  padding: var(--da-space-1) var(--da-space-2) var(--da-space-1) var(--da-space-3);
+  border-color: var(--da-border);
   border-radius: 999rem;
   background: var(--da-surface-2);
-  box-shadow: 0 0 0 0.0625rem var(--da-border) inset;
+}
+
+.dataagent-app .attachment-chip button {
+  width: 1.625rem;
+  height: 1.625rem;
+}
+
+/* Execution details: readable timeline first, debug payload second. */
+.dataagent-app .process-step__content .reasoning-card summary,
+.dataagent-app .process-step__content .tool-call summary,
+.dataagent-app .process-step__content .tool-result-card summary {
+  width: fit-content;
+  min-height: 1.75rem;
+  padding: var(--da-space-1) var(--da-space-2);
+  border-radius: var(--da-radius-sm);
+  color: var(--da-text-muted);
+  font-size: var(--da-font-size-xs);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.dataagent-app .process-step__content .reasoning-card summary:hover,
+.dataagent-app .process-step__content .tool-call summary:hover,
+.dataagent-app .process-step__content .tool-result-card summary:hover {
+  color: var(--da-text-secondary);
+  background: var(--da-surface-2);
+}
+
+.dataagent-app .process-step__content .reasoning-content {
+  max-width: 44rem;
+  max-height: 10rem;
+  margin: var(--da-space-1) 0 var(--da-space-2);
+  overflow: auto;
+  padding: var(--da-space-3);
+  border: 0.0625rem solid var(--da-border);
+  border-radius: var(--da-radius-md);
+  color: var(--da-text-muted);
+  background: color-mix(in srgb, var(--da-surface-2) 72%, transparent);
+  font-size: var(--da-font-size-xs);
+  line-height: 1.7;
+}
+
+.dataagent-app .tool-call pre,
+.dataagent-app .tool-result-card pre {
+  max-height: 12rem;
+  margin: var(--da-space-1) 0 var(--da-space-2) !important;
+  overflow: auto;
+  padding: var(--da-space-3) !important;
+  border: 0.0625rem solid var(--da-border) !important;
+  border-radius: var(--da-radius-md);
+  color: var(--da-text-muted);
+  background: var(--da-surface-code);
+  font-size: var(--da-font-size-xs);
+  line-height: 1.65;
+}
+
+.dataagent-app .tool-mark {
+  color: var(--da-text-subtle);
+}
+
+.dataagent-app .tool-mark--success { color: var(--da-accent-green); }
+.dataagent-app .tool-mark--error { color: var(--da-accent-red); }
+
+.dataagent-app .process-step--done .process-step__content {
+  opacity: 0.82;
+  transition: opacity 160ms ease;
+}
+
+.dataagent-app .process-step--done .process-step__content:hover,
+.dataagent-app .process-step--active .process-step__content,
+.dataagent-app .process-step--error .process-step__content {
+  opacity: 1;
 }
 
 .dataagent-app { scrollbar-width: thin; scrollbar-color: var(--da-border-focus) transparent; }
@@ -87,4 +277,21 @@ a { color: inherit; }
 .dataagent-app :where(button, input, textarea, [role='button']):focus-visible {
   outline: 0.125rem solid var(--da-border-focus);
   outline-offset: 0.125rem;
+}
+
+@media (max-width: 48rem) {
+  .dataagent-app .model-selector {
+    max-width: min(10rem, 46vw);
+  }
+
+  .dataagent-app .agent-chat__composer-wrap {
+    padding-bottom: var(--da-space-3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dataagent-app .agent-chat__composer :is(.elx-x-sender, .elx-xsender, .x-sender),
+  .dataagent-app .process-step__content {
+    transition: none;
+  }
 }
