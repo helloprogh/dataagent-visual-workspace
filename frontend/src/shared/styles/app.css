@@ -2,12 +2,60 @@
 .app-sidebar { min-width: 0; border-right: 0.0625rem solid var(--da-border); background: var(--da-surface-1); }
 .app-main { min-width: 0; min-height: 0; overflow: hidden; background: var(--da-surface-0); }
 .app-page { width: 100%; height: 100%; min-height: 0; overflow: auto; }
-.app-page__inner { width: min(100%, 70rem); margin: 0 auto; padding: var(--da-space-8); }
-.app-page__header { display: flex; align-items: center; justify-content: space-between; gap: var(--da-space-4); margin-bottom: var(--da-space-6); }
-.app-page__header h1 { margin: 0; color: var(--da-text-emphasis); font-size: var(--da-font-size-xl); font-weight: 650; }
-.empty-state { display: grid; min-height: 18rem; place-items: center; color: var(--da-text-muted); text-align: center; }
+.app-page__inner { width: min(100%, 70rem); margin: 0 auto; padding: 2.5rem var(--da-space-8) var(--da-space-8); }
+
+.app-page__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--da-space-6);
+  margin-bottom: var(--da-space-6);
+  padding-bottom: var(--da-space-5);
+  border-bottom: 0.0625rem solid var(--da-border);
+}
+
+.app-page__header > div:first-child { min-width: 0; }
+
+.app-page__header h1 {
+  margin: 0;
+  color: var(--da-text-emphasis);
+  font-size: var(--da-font-size-xl);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.app-page__header p {
+  margin: 0.375rem 0 0;
+  color: var(--da-text-muted);
+  font-size: var(--da-font-size-sm);
+  line-height: 1.6;
+}
+
+.app-page__eyebrow {
+  display: block;
+  margin-bottom: var(--da-space-2);
+  color: var(--da-accent-primary);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: var(--da-font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.empty-state {
+  display: grid;
+  min-height: 16rem;
+  place-items: center;
+  padding: var(--da-space-8);
+  border: 0.0625rem dashed var(--da-border-strong);
+  border-radius: var(--da-radius-lg);
+  color: var(--da-text-muted);
+  background: color-mix(in srgb, var(--da-surface-1) 60%, transparent);
+  text-align: center;
+}
 
 @media (max-width: 52rem) {
   .app-layout { grid-template-columns: 4.5rem minmax(0, 1fr); }
   .app-page__inner { padding: var(--da-space-5); }
+  .app-page__header { flex-direction: column; align-items: stretch; gap: var(--da-space-3); }
 }

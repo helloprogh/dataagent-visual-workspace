@@ -141,6 +141,11 @@ onMounted(async () => {
 .dataagent-app__main {
   position: relative;
   overflow: hidden;
+  background:
+    radial-gradient(52rem 28rem at 75% -10%, var(--da-brand-glow), transparent 66%),
+    radial-gradient(36rem 24rem at 100% 18%, var(--da-accent-orange-glow), transparent 72%),
+    linear-gradient(180deg, color-mix(in srgb, var(--da-surface-1) 55%, transparent) 0%, transparent 14rem),
+    var(--da-surface-0);
 }
 
 .app-loading {

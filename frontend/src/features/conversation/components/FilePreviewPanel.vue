@@ -175,7 +175,7 @@ onBeforeUnmount(() => {
 .file-preview-panel__approval-heading small, .file-preview-panel__approval > p { color: var(--da-text-muted); font-size: var(--da-font-size-xs); }
 .file-preview-panel__approval > p { margin: 0; }
 .file-preview-panel__body > img { display: block; width: 100%; height: auto; border-radius: var(--da-radius-md); background: var(--da-surface-0); object-fit: contain; }
-.file-preview-panel__body > iframe { width: 100%; height: 100%; min-height: 30rem; border: 0; border-radius: var(--da-radius-md); background: white; }
+.file-preview-panel__body > iframe { width: 100%; height: 100%; min-height: 24rem; border: 0; border-radius: var(--da-radius-md); background: white; }
 .file-preview-panel__markdown :deep(.x-md-renderer) { padding: 0 !important; color: var(--da-text-primary) !important; background: transparent !important; }
 .file-preview-panel__markdown :deep(.x-md-core) { color: inherit; line-height: 1.75; }
 .file-preview-panel__text pre { margin: 0; color: var(--da-text-primary); font: var(--da-font-size-sm)/1.7 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }

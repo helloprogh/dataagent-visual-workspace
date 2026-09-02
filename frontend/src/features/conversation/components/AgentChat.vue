@@ -51,7 +51,7 @@ const previewApprovalSubmitted = ref(false)
 let followBottom = true
 let previousScrollHeight = 0
 
-const WELCOME_DESCRIPTION = '描述你的数据业务目标，我将与你逐步澄清需求，并自主完成 Specification、数据方案、数据集成、ETL 开发、治理验证与交付。'
+const WELCOME_DESCRIPTION = '从业务目标到数据方案、集成开发、质量验证与交付，让每一个需求都有清晰过程和可复用结果。'
 
 type PresentationItem =
   | { kind: 'message'; key: string; message: Message }
@@ -77,6 +77,15 @@ function isProcessMessage(message: Message) {
     && !messageText(message).trim()
 }
 
+function isHiddenActivityMessage(message: Message) {
+  const raw = message as any
+  if (String(raw.role ?? '') !== 'activity' || String(raw.activityType ?? '') !== 'dataagent.task') return false
+  const content = raw.content && typeof raw.content === 'object' && !Array.isArray(raw.content)
+    ? raw.content
+    : {}
+  return String(content.status ?? '') === 'completed'
+}
+
 const presentationItems = computed<PresentationItem[]>(() => {
   const result: PresentationItem[] = []
   let processMessages: Message[] = []
@@ -87,6 +96,7 @@ const presentationItems = computed<PresentationItem[]>(() => {
   }
 
   for (const message of messages.value) {
+    if (isHiddenActivityMessage(message)) continue
     if (isProcessMessage(message)) {
       processMessages.push(message)
       continue
@@ -250,10 +260,11 @@ onBeforeUnmount(() => {
   <section class="agent-chat" :class="{ 'agent-chat--empty': !sessionId && !messages.length }">
     <header v-if="sessionId" class="agent-chat__header">
       <div>
+        <small>当前任务</small>
         <b>{{ displayName || '新需求' }}</b>
         <small>{{ sessionId }}</small>
       </div>
-      <span :class="{ active: running }"><i></i>{{ running ? '执行中' : '在线' }}</span>
+      <span :class="{ active: running }"><i></i>{{ running ? '执行中' : '已就绪' }}</span>
     </header>
 
     <div
@@ -267,6 +278,7 @@ onBeforeUnmount(() => {
 
       <div v-else-if="!messages.length" class="agent-welcome">
         <div class="agent-welcome__brand">
+          <span class="agent-welcome__eyebrow">DATA DELIVERY WORKSPACE</span>
           <div class="agent-welcome__title">
             <AgentMark />
             <h1>DATA AGENT</h1>
@@ -352,6 +364,10 @@ onBeforeUnmount(() => {
           multiple
           @change="onFilesSelected"
         />
+        <div class="composer-assurance">
+          <span><i></i> DATA AGENT WORKFLOW</span>
+          <small>Agent 可能调用工具，请核对关键交付结果</small>
+        </div>
       </div>
     </div>
   </section>
@@ -374,9 +390,11 @@ onBeforeUnmount(() => {
 .agent-chat { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; background: var(--da-surface-0); }
 .agent-chat--empty { grid-template-rows: auto auto; align-content: center; gap: var(--da-space-6); padding-block: var(--da-space-8); }
 .agent-chat__header { display: flex; align-items: center; justify-content: space-between; gap: var(--da-space-4); min-height: 3.75rem; padding: 0 var(--da-space-6); border-bottom: 0.0625rem solid var(--da-border); background: color-mix(in srgb, var(--da-surface-0) 88%, transparent); }
-.agent-chat__header > div { min-width: 0; display: flex; align-items: baseline; gap: var(--da-space-3); }
+.agent-chat__header > div { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0 var(--da-space-3); }
+.agent-chat__header > div > small:first-child { display: block; grid-row: 1; color: var(--da-accent-primary); font-size: 0.625rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.agent-chat__header > div > b { grid-row: 2; }
 .agent-chat__header b { overflow: hidden; color: var(--da-text-emphasis); text-overflow: ellipsis; white-space: nowrap; }
-.agent-chat__header small { overflow: hidden; max-width: 18rem; color: var(--da-text-subtle); font-size: var(--da-font-size-xs); text-overflow: ellipsis; white-space: nowrap; }
+.agent-chat__header > div > small:last-child { display: none; }
 .agent-chat__header > span { display: inline-flex; flex: 0 0 auto; align-items: center; gap: var(--da-space-2); color: var(--da-text-muted); font-size: var(--da-font-size-xs); white-space: nowrap; }
 .agent-chat__header > span i { width: 0.375rem; height: 0.375rem; border-radius: 50%; background: var(--da-accent-green); }
 .agent-chat__header > span.active i { background: var(--da-accent-orange); box-shadow: 0 0 0.75rem var(--da-accent-orange-glow); }
@@ -386,6 +404,7 @@ onBeforeUnmount(() => {
 .load-older { display: flex; justify-content: center; min-height: 2.25rem; }
 .agent-welcome { display: flex; min-height: 100%; align-items: center; justify-content: center; padding: var(--da-space-10) 0; }
 .agent-welcome__brand { display: flex; width: min(100%, 64rem); flex-direction: column; align-items: center; gap: var(--da-space-3); text-align: center; }
+.agent-welcome__eyebrow { color: var(--da-brand-cyan); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.16em; }
 .agent-welcome__title { display: flex; align-items: center; justify-content: center; gap: var(--da-space-4); }
 .agent-welcome__title h1 { margin: 0; color: var(--da-text-emphasis); font-size: var(--da-font-size-hero); font-weight: 600; letter-spacing: -0.035em; }
 .agent-welcome :deep(.elx-welcome) { width: 100%; min-width: 0; justify-content: center; padding: 0; --elx-welcome-filled-bg: transparent; --elx-welcome-filled-border: transparent; --elx-welcome-description-color: var(--da-text-muted); background: transparent; }
@@ -406,6 +425,10 @@ onBeforeUnmount(() => {
 .attachment-chip button { width: 1.5rem; height: 1.5rem; padding: 0; border: 0; border-radius: 50%; color: var(--da-text-muted); background: transparent; cursor: pointer; }
 .attachment-chip button:hover { color: var(--da-text-emphasis); background: var(--da-surface-3); }
 .file-input { display: none; }
+.composer-assurance { display: flex; align-items: center; justify-content: space-between; gap: var(--da-space-3); padding: var(--da-space-2) var(--da-space-2) 0; color: var(--da-text-subtle); font-size: 0.6875rem; }
+.composer-assurance span { display: inline-flex; align-items: center; gap: var(--da-space-2); color: var(--da-text-muted); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-weight: 600; letter-spacing: 0.06em; }
+.composer-assurance i { width: 0.3125rem; height: 0.3125rem; border-radius: 50%; background: var(--da-accent-green); box-shadow: 0 0 0.5rem var(--da-accent-green-soft); }
+.composer-assurance small { color: inherit; font-size: inherit; }
 .agent-chat__composer :deep(.x-sender), .agent-chat__composer :deep(.elx-xsender), .agent-chat__composer :deep(.elx-x-sender) { border-color: var(--da-border-strong); background: var(--da-surface-1); box-shadow: var(--da-shadow-soft); }
 .agent-chat__composer :deep([contenteditable='true']), .agent-chat__composer :deep(.chat-write-wrap), .agent-chat__composer :deep(.chat-write-input) { color: var(--da-text-primary); caret-color: var(--da-text-emphasis); }
 .agent-chat-layout--preview .agent-chat__header small { display: none; }
@@ -418,6 +441,7 @@ onBeforeUnmount(() => {
   .agent-chat__messages { padding-inline: var(--da-space-4); }
   .agent-chat__composer-wrap { padding-inline: var(--da-space-4); }
   .composer-input-actions :deep(.model-selector) { width: min(9rem, 48vw); }
+  .composer-assurance small { display: none; }
 }
 
 @media (max-width: 72rem) {

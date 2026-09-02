@@ -12,44 +12,24 @@ const props = defineProps<{
 
 const emit = defineEmits<{ preview: [file: ConversationFilePreview] }>()
 
-const stepCount = computed(() => props.messages.reduce((total, message) => {
-  const raw = message as any
-  if (raw.role === 'assistant' && Array.isArray(raw.toolCalls)) {
-    return total + Math.max(1, raw.toolCalls.length)
-  }
-  return total + (['reasoning', 'tool', 'activity'].includes(String(raw.role ?? '')) ? 1 : 0)
-}, 0))
-
-function stepTone(message: Message, index: number) {
-  const raw = message as any
-  const content = raw.content && typeof raw.content === 'object' && !Array.isArray(raw.content)
-    ? raw.content
-    : {}
-  const status = String(content.status ?? '')
-  if (raw.error || ['error', 'failed', 'retry'].includes(status)) return 'error'
-  if (props.running && (message.id === props.activeReasoningId || index === props.messages.length - 1)) return 'active'
-  return 'done'
-}
+const stepCount = computed(() => props.messages.length)
 </script>
 
 <template>
-  <section class="process-group" :class="{ 'process-group--running': running }" aria-label="执行过程">
-    <header class="process-group__header">
+  <details class="process-group" :class="{ 'process-group--running': running }" :open="Boolean(running)">
+    <summary class="process-group__header">
       <span class="process-group__mark" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span>{{ running ? '正在执行' : '执行过程' }}</span>
-      <small>{{ stepCount ? `${stepCount} 个步骤` : '准备中' }}</small>
-    </header>
+      <span>{{ running ? '正在执行' : '已完成' }}</span>
+      <small>{{ stepCount ? `${stepCount} 步` : '准备中' }}</small>
+      <span class="process-group__chevron" aria-hidden="true"></span>
+    </summary>
 
-    <div class="process-group__timeline">
+    <div class="process-group__steps">
       <div
-        v-for="(message, index) in messages"
+        v-for="message in messages"
         :key="message.id"
         class="process-step"
-        :class="`process-step--${stepTone(message, index)}`"
       >
-        <span class="process-step__rail" aria-hidden="true">
-          <i></i>
-        </span>
         <div class="process-step__content">
           <ConversationMessage
             :message="message"
@@ -59,24 +39,34 @@ function stepTone(message: Message, index: number) {
         </div>
       </div>
     </div>
-  </section>
+  </details>
 </template>
 
 <style scoped>
 .process-group {
   width: min(100%, 48rem);
-  padding: var(--da-space-2) 0 var(--da-space-1);
+  padding: var(--da-space-1) 0;
 }
 
 .process-group__header {
   display: flex;
-  min-height: 2rem;
+  width: fit-content;
+  min-height: 1.75rem;
   align-items: center;
   gap: var(--da-space-2);
+  padding: 0 var(--da-space-1);
+  border-radius: var(--da-radius-sm);
   color: var(--da-text-secondary);
+  cursor: pointer;
   font-size: var(--da-font-size-sm);
   font-weight: 550;
+  list-style: none;
+  transition: color 160ms ease, background-color 160ms ease;
 }
+
+.process-group__header::-webkit-details-marker { display: none; }
+.process-group__header:hover { color: var(--da-text-emphasis); background: var(--da-surface-1); }
+.process-group:not(.process-group--running) .process-group__mark { color: var(--da-accent-green); border-color: color-mix(in srgb, var(--da-accent-green) 26%, var(--da-border)); }
 
 .process-group__header small {
   color: var(--da-text-subtle);
@@ -115,59 +105,43 @@ function stepTone(message: Message, index: number) {
 .process-group--running .process-group__mark i:nth-child(2) { animation-delay: 120ms; }
 .process-group--running .process-group__mark i:nth-child(3) { animation-delay: 240ms; }
 
-.process-group__timeline {
+.process-group__chevron {
+  position: relative;
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: 0 0 auto;
+  color: var(--da-text-subtle);
+  transition: transform 160ms ease;
+}
+
+.process-group__chevron::before {
+  position: absolute;
+  top: 0.1875rem;
+  left: 0.125rem;
+  width: 0.3125rem;
+  height: 0.3125rem;
+  border-top: 0.0625rem solid currentColor;
+  border-right: 0.0625rem solid currentColor;
+  content: '';
+  transform: rotate(45deg);
+}
+
+.process-group[open] > .process-group__header .process-group__chevron { transform: rotate(90deg); }
+
+.process-group__steps {
   display: grid;
-  margin-top: var(--da-space-1);
-  padding-left: 0.1875rem;
+  gap: 0.125rem;
+  margin-top: 0.125rem;
+  padding-left: var(--da-space-2);
 }
 
 .process-step {
-  position: relative;
-  display: grid;
-  grid-template-columns: 1.5rem minmax(0, 1fr);
   min-width: 0;
-}
-
-.process-step__rail {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  min-height: 2rem;
-}
-
-.process-step__rail::after {
-  position: absolute;
-  top: 1.125rem;
-  bottom: -0.125rem;
-  width: 0.0625rem;
-  background: var(--da-border);
-  content: '';
-}
-
-.process-step:last-child .process-step__rail::after { display: none; }
-
-.process-step__rail i {
-  position: relative;
-  z-index: 1;
-  width: 0.5rem;
-  height: 0.5rem;
-  margin-top: 0.5rem;
-  border: 0.125rem solid var(--da-surface-0);
-  border-radius: 50%;
-  background: var(--da-border-focus);
-  box-shadow: 0 0 0 0.0625rem var(--da-border);
-}
-
-.process-step--done .process-step__rail i { background: var(--da-accent-green); }
-.process-step--error .process-step__rail i { background: var(--da-accent-red); }
-.process-step--active .process-step__rail i {
-  background: var(--da-accent-orange);
-  box-shadow: 0 0 0 0.0625rem var(--da-accent-orange-muted), 0 0 0.75rem var(--da-accent-orange-glow);
 }
 
 .process-step__content {
   min-width: 0;
-  padding: 0 0 var(--da-space-2) var(--da-space-1);
+  padding: 0 0 var(--da-space-1);
 }
 
 .process-step__content :deep(.message-bubble),
@@ -189,12 +163,19 @@ function stepTone(message: Message, index: number) {
 .process-step__content :deep(.reasoning-card summary),
 .process-step__content :deep(.tool-call summary),
 .process-step__content :deep(.tool-result-card summary) {
-  min-height: 1.75rem;
-  padding: var(--da-space-1) 0;
+  min-height: 1.5rem;
+  padding: 0;
 }
 
+.process-step__content :deep(.tool-call-list) { gap: 0; margin-top: 0; }
+.process-step__content :deep(.reasoning-content) { padding: var(--da-space-2) 0 var(--da-space-1); }
+.process-step__content :deep(.tool-call pre),
+.process-step__content :deep(.tool-result-card pre) { margin-top: 0; padding-block: var(--da-space-1); }
+
 .process-step__content :deep(.activity-card) {
-  padding: var(--da-space-2) 0;
+  min-height: 1.5rem;
+  gap: var(--da-space-2);
+  padding: 0;
   border: 0;
   background: transparent;
 }
