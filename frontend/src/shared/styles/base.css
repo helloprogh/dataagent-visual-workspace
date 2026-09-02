@@ -41,6 +41,38 @@ a { color: inherit; }
   --el-button-active-border-color: color-mix(in srgb, var(--da-accent-primary) 86%, #000);
 }
 
+/* Product-level refinements shared across scoped conversation components. */
+.dataagent-app .message-bubble--user {
+  --elx-bubble-bg-color: var(--da-bubble-user-bg) !important;
+}
+
+.dataagent-app .message-bubble--user .elx-bubble__content {
+  border-color: var(--da-bubble-user-border) !important;
+}
+
+.dataagent-app .agent-chat__header small {
+  display: none;
+}
+
+.dataagent-app .agent-welcome .elx-welcome__content {
+  max-width: 42rem;
+}
+
+.dataagent-app .agent-welcome .elx-welcome__description {
+  white-space: normal !important;
+}
+
+.dataagent-app .agent-chat-layout--preview {
+  grid-template-columns: minmax(28rem, 1fr) clamp(26rem, 44vw, 48rem);
+}
+
+.dataagent-app .model-selector .el-select__wrapper {
+  min-height: 2rem;
+  border-radius: 999rem;
+  background: var(--da-surface-2);
+  box-shadow: 0 0 0 0.0625rem var(--da-border) inset;
+}
+
 .dataagent-app { scrollbar-width: thin; scrollbar-color: var(--da-border-focus) transparent; }
 .dataagent-app ::-webkit-scrollbar { width: 0.5rem; height: 0.5rem; }
 .dataagent-app ::-webkit-scrollbar-track { background: transparent; }
