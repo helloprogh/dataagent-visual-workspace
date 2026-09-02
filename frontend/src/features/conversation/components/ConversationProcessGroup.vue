@@ -70,7 +70,8 @@ const stepCount = computed(() => props.messages.reduce((total, message) => {
 .process-group[open] > summary .process-group__chevron { transform: rotate(225deg); }
 .process-group__content { display: grid; gap: 0; padding: 0.125rem 0 var(--da-space-1) var(--da-space-4); }
 .process-group__content :deep(.tool-call-list) { margin-top: 0; }
-.process-group__content :deep(.tool-call summary), .process-group__content :deep(.tool-result-card summary) { min-height: 1.5rem; padding-block: 0; }
+.process-group__content :deep(.tool-call summary), .process-group__content :deep(.tool-result-card summary) { min-height: 1.5rem; padding-block: 0; padding-left: 0; }
+.process-group__content :deep(.reasoning-card::before) { display: none; }
 
 @keyframes process-pulse {
   0%, 100% { opacity: 0.35; transform: translateY(0); }
