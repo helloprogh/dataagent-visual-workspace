@@ -73,10 +73,12 @@ onMounted(load)
 <template>
   <el-select
     class="model-selector"
+    popper-class="model-selector-popper"
     :model-value="selectedKey"
     :disabled="disabled"
     :loading="loading"
     placeholder="选择模型"
+    aria-label="选择模型"
     @update:model-value="change"
   >
     <el-option
@@ -85,14 +87,30 @@ onMounted(load)
       :value="`${model.providerID}::${model.id}`"
       :label="model.name"
     >
-      <span>{{ model.name }}</span>
+      <span class="model-option__name">{{ model.name }}</span>
       <small>{{ model.providerID }}</small>
     </el-option>
   </el-select>
 </template>
 
 <style scoped>
-.model-selector { width: 11rem; }
-.model-selector :deep(.el-select-dropdown__item) { display: flex; justify-content: space-between; gap: var(--da-space-3); }
-.model-selector small { margin-left: var(--da-space-2); color: var(--da-text-muted); font-size: var(--da-font-size-xs); }
+.model-selector {
+  width: auto;
+  min-width: 7.5rem;
+  max-width: 13rem;
+}
+
+.model-option__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--da-text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-selector small {
+  margin-left: var(--da-space-3);
+  color: var(--da-text-subtle);
+  font-size: var(--da-font-size-xs);
+}
 </style>
