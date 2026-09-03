@@ -268,17 +268,6 @@ function continueFromStep(message: Message) {
   void nextTick(() => senderRef.value?.focus?.('last'))
 }
 
-async function shareConversation() {
-  const url = new URL(window.location.href)
-  if (threadId.value) url.searchParams.set('session', threadId.value)
-  try {
-    await navigator.clipboard.writeText(url.toString())
-    ElMessage.success('对话链接已复制')
-  } catch {
-    ElMessage.warning('无法自动复制，请从地址栏复制链接')
-  }
-}
-
 function exportConversation() {
   const title = userFacingSessionName(props.displayName) || 'Data Agent 对话'
   const body = messages.value.map(message => {
@@ -368,8 +357,6 @@ onBeforeUnmount(() => {
         <small>{{ sessionId }}</small>
       </div>
       <div class="agent-chat__header-actions">
-        <button type="button" title="分享对话" @click="shareConversation">分享</button>
-        <button type="button" title="导出 Markdown（Ctrl+Shift+E）" @click="exportConversation">导出</button>
         <button type="button" :class="{ active: auditOpen }" @click="toggleAudit">记录</button>
         <button type="button" :class="{ active: deliverablesOpen || activePreview }" @click="toggleDeliverables">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 6.5h4l1.4 1.8h7.6v7.2h-13z"/><path d="M5.5 4.5h4l1.2 2"/></svg>

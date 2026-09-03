@@ -34,6 +34,17 @@ test('runtime entry uses the new app, feature and shared architecture', async ()
   assert.doesNotMatch(tsconfig, /src\/components|src\/copilot|src\/workspace|src\/genui/)
 })
 
+test('conversation header omits share and export buttons while keeping other actions', async () => {
+  const source = await frontend('features/conversation/components/AgentChat.vue')
+  const header = vueTemplate(source).match(/<header\b[\s\S]*?<\/header>/)?.[0]
+  assert.ok(header)
+  assert.doesNotMatch(header, /分享|导出|shareConversation|exportConversation/)
+  assert.match(header, /@click="toggleAudit"/)
+  assert.match(header, /@click="toggleDeliverables"/)
+  assert.match(header, /执行中|已就绪/)
+  assert.match(source, /event\.shiftKey && event\.key\.toLocaleLowerCase\(\) === 'e'/)
+})
+
 test('conversation presentation is Element-Plus-X over direct AG-UI client', async () => {
   const [agentChat, message, processGroup, client] = await Promise.all([
     frontend('features/conversation/components/AgentChat.vue'),
