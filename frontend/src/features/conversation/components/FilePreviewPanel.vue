@@ -90,6 +90,8 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <div class="file-preview-panel__actions">
+        <span v-if="file.version" class="file-preview-panel__version">v{{ file.version }}</span>
+        <a :href="file.url" :download="file.name" aria-label="下载文件" title="下载文件">↓</a>
         <a :href="file.url" target="_blank" rel="noreferrer" aria-label="在新窗口打开">↗</a>
         <button type="button" aria-label="关闭文件预览" @click="emit('close')">×</button>
       </div>
@@ -164,6 +166,7 @@ onBeforeUnmount(() => {
 .file-preview-panel__identity small { color: var(--da-text-muted); font-size: var(--da-font-size-xs); }
 .file-preview-panel__mark { display: grid; width: 2rem; height: 2rem; flex: 0 0 auto; place-items: center; border: 0.0625rem solid var(--da-border-strong); border-radius: var(--da-radius-sm); color: var(--da-accent-orange); background: var(--da-surface-2); font-size: var(--da-font-size-xs); font-weight: 700; letter-spacing: 0.04em; }
 .file-preview-panel__actions { display: flex; align-items: center; gap: var(--da-space-1); }
+.file-preview-panel__version { padding: 0.1875rem 0.375rem; border-radius: 999rem; color: var(--da-brand-cyan); background: var(--da-surface-3); font-size: 0.625rem; }
 .file-preview-panel__actions :is(a, button) { display: grid; width: 2rem; height: 2rem; padding: 0; place-items: center; border: 0; border-radius: var(--da-radius-sm); color: var(--da-text-muted); background: transparent; cursor: pointer; text-decoration: none; }
 .file-preview-panel__actions :is(a, button):hover { color: var(--da-text-emphasis); background: var(--da-surface-3); }
 .file-preview-panel__body { min-height: 0; overflow: auto; padding: var(--da-space-5); }

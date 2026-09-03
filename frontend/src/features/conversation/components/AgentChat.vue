@@ -10,10 +10,13 @@ import AgentMark from './AgentMark.vue'
 import ConversationMessage from './ConversationMessage.vue'
 import ConversationProcessGroup from './ConversationProcessGroup.vue'
 import DeliverablesPanel from './DeliverablesPanel.vue'
+import AuditPanel, { type AuditEntry } from './AuditPanel.vue'
 import FilePreviewPanel from './FilePreviewPanel.vue'
 import InterruptCard from './InterruptCard.vue'
+import WorkflowStageBar from './WorkflowStageBar.vue'
 import type { ConversationFilePreview } from '../types/filePreview'
 import { userFacingSessionName } from '../presentation'
+import { deriveWorkflow, WORKFLOW_STAGES, type WorkflowStage } from '../workflow'
 
 const props = defineProps<{
   sessionId?: string
@@ -35,12 +38,14 @@ const {
   pendingInterrupts,
   attachments,
   error,
+  stopped,
   open,
   loadOlder,
   stageFiles,
   removeAttachment,
   send,
   resume,
+  retry,
   stop,
 } = useAgentConversation()
 
@@ -50,8 +55,13 @@ const messageScroller = ref<HTMLElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 const activePreview = ref<ConversationFilePreview | null>(null)
 const deliverablesOpen = ref(false)
+const auditOpen = ref(false)
 const previewApprovalSubmitted = ref(false)
 const showJumpToLatest = ref(false)
+const revealedStageMessageId = ref('')
+const workflow = computed(() => deriveWorkflow(messages.value, {
+  running: running.value, waiting: Boolean(pendingInterrupts.value.length), stopped: stopped.value, error: error.value,
+}))
 let followBottom = true
 let previousScrollHeight = 0
 
@@ -161,7 +171,26 @@ const deliverables = computed(() => {
     if (known.has(item.id)) continue
     result.push({ id: item.id, name: item.file.name, url: item.previewUrl, mimeType: item.file.type || 'application/octet-stream', size: item.file.size, category: 'input' })
   }
-  return result
+  const versions = new Map<string, number>()
+  return result.map(file => {
+    if (file.category === 'input') return file
+    const key = file.name.trim().toLocaleLowerCase()
+    const version = (versions.get(key) ?? 0) + 1
+    versions.set(key, version)
+    return { ...file, version }
+  })
+})
+
+const auditEntries = computed<AuditEntry[]>(() => {
+  const entries: AuditEntry[] = []
+  for (const message of messages.value) {
+    const raw = message as any
+    if (message.role === 'user') entries.push({ id: message.id, label: '已提交需求', detail: messageText(message).slice(0, 72) || '包含附件的需求', tone: 'active' })
+    else if (message.role === 'tool') entries.push({ id: message.id, label: raw.error ? '工具执行失败' : '工具执行完成', detail: raw.error ? '可从失败处重试或继续' : '执行结果已记录', tone: raw.error ? 'warning' : 'success' })
+    else if (message.role === 'assistant' && messageText(message).trim()) entries.push({ id: message.id, label: '已生成回答', detail: messageText(message).slice(0, 72), tone: 'success' })
+  }
+  pendingInterrupts.value.forEach(interrupt => entries.push({ id: `approval-${interrupt.id}`, label: '等待文件审批', detail: '需要你的决定后才能继续', tone: 'warning' }))
+  return entries.reverse()
 })
 
 const currentRunMessageIds = computed(() => {
@@ -240,6 +269,7 @@ function onFilesSelected(event: Event) {
 }
 
 async function submit() {
+  if (running.value || hydrating.value || pendingInterrupts.value.length) return
   const text = String(senderRef.value?.getModelValue?.()?.text ?? '').trim()
   if (!selectedModel.value) {
     ElMessage.warning('模型尚未加载完成')
@@ -248,11 +278,11 @@ async function submit() {
   if (!text && !attachments.value.length) return
   try {
     followBottom = true
-    const prepared = await send(text, selectedModel.value)
-    senderRef.value?.clear?.()
-    if (prepared?.created) {
-      emit('materialized', prepared.sessionId, prepared.initialName ?? '新需求')
-    }
+    await send(text, selectedModel.value, prepared => {
+      if (String(senderRef.value?.getModelValue?.()?.text ?? '').trim() === text) senderRef.value?.clear?.()
+      if (prepared.created) emit('materialized', prepared.sessionId, prepared.initialName ?? '新需求')
+      scrollToBottom()
+    })
     emit('changed')
     scrollToBottom()
   } catch (reason) {
@@ -276,21 +306,125 @@ function useStarterPrompt(prompt: string) {
   void nextTick(() => senderRef.value?.focus?.('last'))
 }
 
+async function selectWorkflowStage(stage: WorkflowStage) {
+  const record = workflow.value.evidence[stage]
+  if (record) {
+    if (revealedStageMessageId.value === record.messageId) {
+      revealedStageMessageId.value = ''
+      await nextTick()
+    }
+    revealedStageMessageId.value = record.messageId
+    await nextTick()
+    const element = Array.from(messageScroller.value?.querySelectorAll<HTMLElement>('[data-message-id]') ?? [])
+      .find(item => item.dataset.messageId === record.messageId)
+    element?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
+    followBottom = false
+    return
+  }
+  if (running.value || pendingInterrupts.value.length) return
+  const stageInfo = WORKFLOW_STAGES.find(item => item.id === stage)
+  if (!stageInfo) return
+  // Do not overwrite another draft when navigating stages.
+  if (String(senderRef.value?.getModelValue?.()?.text ?? '').trim()) {
+    ElMessage.info('请先发送或编辑当前草稿，再准备下一阶段请求')
+    senderRef.value?.focus?.('last')
+    return
+  }
+  useStarterPrompt(stageInfo.prompt)
+  ElMessage.info(`已准备${stageInfo.label}请求，确认发送后开始执行`)
+}
+
 function openFilePreview(file: ConversationFilePreview) {
   deliverablesOpen.value = false
+  auditOpen.value = false
   activePreview.value = file
   previewApprovalSubmitted.value = false
 }
 
 function openDeliverable(file: ConversationFilePreview) {
   deliverablesOpen.value = true
+  auditOpen.value = false
   activePreview.value = file
   previewApprovalSubmitted.value = false
 }
 
 function toggleDeliverables() {
   activePreview.value = null
+  auditOpen.value = false
   deliverablesOpen.value = !deliverablesOpen.value
+}
+
+function toggleAudit() {
+  activePreview.value = null
+  deliverablesOpen.value = false
+  auditOpen.value = !auditOpen.value
+}
+
+async function retryRun() {
+  try {
+    await retry()
+    emit('changed')
+  } catch (reason) {
+    ElMessage.error(reason instanceof Error ? reason.message : String(reason))
+  }
+}
+
+function continueFromStep(message: Message) {
+  const raw = message as any
+  const role = String(raw.role ?? '')
+  const labels: Record<string, string> = { read: '读取文件', write: '保存文件', edit: '修改文件', glob: '查找文件', grep: '搜索内容', bash: '执行任务', task: '协同处理' }
+  const firstTool = Array.isArray(raw.toolCalls) ? raw.toolCalls[0]?.function?.name : ''
+  const label = role === 'reasoning' ? '思考与方案整理'
+    : role === 'tool' ? (raw.error ? '失败的工具步骤' : '工具执行结果')
+      : firstTool ? (labels[String(firstTool).toLowerCase()] ?? '工具执行步骤')
+        : role === 'activity' ? '执行状态'
+          : messageText(message).replace(/\s+/g, ' ').trim().slice(0, 48) || '该执行步骤'
+  senderRef.value?.setText?.(`请从“${label}”继续执行，并保留已经完成的结果。`)
+  void nextTick(() => senderRef.value?.focus?.('last'))
+}
+
+async function shareConversation() {
+  const url = new URL(window.location.href)
+  if (threadId.value) url.searchParams.set('session', threadId.value)
+  try {
+    await navigator.clipboard.writeText(url.toString())
+    ElMessage.success('对话链接已复制')
+  } catch {
+    ElMessage.warning('无法自动复制，请从地址栏复制链接')
+  }
+}
+
+function exportConversation() {
+  const title = userFacingSessionName(props.displayName) || 'Data Agent 对话'
+  const body = messages.value.map(message => {
+    const role = message.role === 'user' ? '用户' : message.role === 'assistant' ? 'Data Agent' : message.role === 'reasoning' ? '执行过程' : '工具结果'
+    return `## ${role}\n\n${messageText(message) || String((message as any).content ?? '')}`
+  }).join('\n\n')
+  const blob = new Blob([`# ${title}\n\n${body}\n`], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `${title.replace(/[\\/:*?"<>|]/g, '_')}.md`
+  anchor.click()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  ElMessage.success('对话已导出')
+}
+
+function onGlobalKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    closeFilePreview()
+    deliverablesOpen.value = false
+    auditOpen.value = false
+    return
+  }
+  if (event.key === '/' && !['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName)) {
+    event.preventDefault()
+    senderRef.value?.focus?.('last')
+  }
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLocaleLowerCase() === 'e' && props.sessionId) {
+    event.preventDefault()
+    exportConversation()
+  }
 }
 
 function closeFilePreview() {
@@ -315,7 +449,10 @@ watch(() => props.sessionId, id => {
   if ((id ?? '') === threadId.value) return
   closeFilePreview()
   deliverablesOpen.value = false
+  auditOpen.value = false
   selectedModel.value = null
+  revealedStageMessageId.value = ''
+  senderRef.value?.clear?.()
   void open(id ?? '')
 }, { immediate: true })
 
@@ -327,22 +464,30 @@ watch(error, value => {
   if (value) ElMessage.warning(value)
 })
 
-onMounted(scrollToBottom)
+onMounted(() => {
+  scrollToBottom()
+  window.addEventListener('keydown', onGlobalKeydown)
+})
 onBeforeUnmount(() => {
   fileInput.value = null
+  window.removeEventListener('keydown', onGlobalKeydown)
 })
 </script>
 
 <template>
-  <section class="agent-chat-layout" :class="{ 'agent-chat-layout--preview': activePreview || deliverablesOpen }">
+  <section class="agent-chat-layout" :class="{ 'agent-chat-layout--preview': activePreview || deliverablesOpen || auditOpen }">
   <section class="agent-chat" :class="{ 'agent-chat--empty': !sessionId && !messages.length }">
-    <header v-if="sessionId" class="agent-chat__header">
-      <div>
-        <small>当前任务</small>
+    <div v-if="sessionId" class="agent-chat__topbar">
+    <header class="agent-chat__header">
+      <div class="agent-chat__identity">
+        <small>当前对话</small>
         <b>{{ userFacingSessionName(displayName) }}</b>
         <small>{{ sessionId }}</small>
       </div>
       <div class="agent-chat__header-actions">
+        <button type="button" title="分享对话" @click="shareConversation">分享</button>
+        <button type="button" title="导出 Markdown（Ctrl+Shift+E）" @click="exportConversation">导出</button>
+        <button type="button" :class="{ active: auditOpen }" @click="toggleAudit">记录</button>
         <button type="button" :class="{ active: deliverablesOpen || activePreview }" @click="toggleDeliverables">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 6.5h4l1.4 1.8h7.6v7.2h-13z"/><path d="M5.5 4.5h4l1.2 2"/></svg>
           交付物 <small>{{ deliverables.length + pendingInterrupts.length }}</small>
@@ -350,6 +495,13 @@ onBeforeUnmount(() => {
         <span :class="{ active: running }"><i></i>{{ running ? '执行中' : '已就绪' }}</span>
       </div>
     </header>
+    <WorkflowStageBar
+      class="agent-chat__progress"
+      :workflow="workflow"
+      :busy="running || Boolean(pendingInterrupts.length)"
+      @select="selectWorkflowStage"
+    />
+    </div>
 
     <div
       ref="messageScroller"
@@ -392,7 +544,7 @@ onBeforeUnmount(() => {
         </div>
         <template v-for="item in presentationItems" :key="item.key">
           <section v-if="item.kind === 'turn'" class="conversation-turn">
-            <ConversationMessage :message="item.user" @preview="openFilePreview" />
+            <div :data-message-id="item.user.id"><ConversationMessage :message="item.user" @preview="openFilePreview" /></div>
             <div class="conversation-turn__response">
               <template v-for="child in item.children" :key="child.key">
                 <ConversationProcessGroup
@@ -400,11 +552,14 @@ onBeforeUnmount(() => {
                   :messages="child.messages"
                   :running="isRunningProcess(child.messages)"
                   :active-reasoning-id="activeReasoningId"
+                  :reveal-message-id="revealedStageMessageId"
                   @preview="openFilePreview"
+                  @continue="continueFromStep"
                 />
                 <ConversationMessage
                   v-else
                   :message="child.message"
+                  :data-message-id="child.message.id"
                   :running="running && child.message.id === activeReasoningId"
                   @preview="openFilePreview"
                 />
@@ -416,9 +571,11 @@ onBeforeUnmount(() => {
             :messages="item.messages"
             :running="isRunningProcess(item.messages)"
             :active-reasoning-id="activeReasoningId"
+            :reveal-message-id="revealedStageMessageId"
             @preview="openFilePreview"
+            @continue="continueFromStep"
           />
-          <ConversationMessage v-else :message="item.message" @preview="openFilePreview" />
+          <ConversationMessage v-else :message="item.message" :data-message-id="item.message.id" @preview="openFilePreview" />
         </template>
       </div>
     </div>
@@ -430,6 +587,10 @@ onBeforeUnmount(() => {
     </Transition>
 
     <div class="agent-chat__composer-wrap">
+      <div v-if="error && !running" class="run-recovery" role="status">
+        <span><b>本次生成未完成</b><small>{{ error }}</small></span>
+        <button type="button" @click="retryRun">重试</button>
+      </div>
       <InterruptCard
         v-if="composerInterrupts.length"
         :interrupts="composerInterrupts"
@@ -507,6 +668,11 @@ onBeforeUnmount(() => {
     @close="deliverablesOpen = false"
     @select="openDeliverable"
   />
+  <AuditPanel
+    v-else-if="auditOpen"
+    :entries="auditEntries"
+    @close="auditOpen = false"
+  />
   </section>
 </template>
 
@@ -515,12 +681,13 @@ onBeforeUnmount(() => {
 .agent-chat-layout--preview { grid-template-columns: minmax(28rem, 1fr) clamp(22rem, 38vw, 36rem); }
 .agent-chat { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; background: var(--da-surface-0); }
 .agent-chat--empty { grid-template-rows: auto auto; align-content: center; gap: var(--da-space-6); padding-block: var(--da-space-8); }
+.agent-chat__topbar { min-width: 0; border-bottom: 0.0625rem solid var(--da-border); background: color-mix(in srgb, var(--da-surface-0) 88%, transparent); }
 .agent-chat__header { display: flex; align-items: center; justify-content: space-between; gap: var(--da-space-4); min-height: 3.75rem; padding: 0 var(--da-space-6); border-bottom: 0.0625rem solid var(--da-border); background: color-mix(in srgb, var(--da-surface-0) 88%, transparent); }
-.agent-chat__header > div { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0 var(--da-space-3); }
-.agent-chat__header > div > small:first-child { display: block; grid-row: 1; color: var(--da-accent-primary); font-size: 0.625rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-.agent-chat__header > div > b { grid-row: 2; }
+.agent-chat__identity { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0 var(--da-space-3); }
+.agent-chat__identity > small:first-child { display: block; grid-row: 1; color: var(--da-accent-primary); font-size: 0.625rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.agent-chat__identity > b { grid-row: 2; }
 .agent-chat__header b { overflow: hidden; color: var(--da-text-emphasis); text-overflow: ellipsis; white-space: nowrap; }
-.agent-chat__header > div > small:last-child { display: none; }
+.agent-chat__identity > small:last-child { display: none; }
 .agent-chat__header > span { display: inline-flex; flex: 0 0 auto; align-items: center; gap: var(--da-space-2); color: var(--da-text-muted); font-size: var(--da-font-size-xs); white-space: nowrap; }
 .agent-chat__header > span i { width: 0.375rem; height: 0.375rem; border-radius: 50%; background: var(--da-accent-green); }
 .agent-chat__header > span.active i { background: var(--da-accent-orange); box-shadow: 0 0 0.75rem var(--da-accent-orange-glow); }
@@ -532,6 +699,7 @@ onBeforeUnmount(() => {
 .agent-chat__header-actions > span { display: inline-flex; min-height: 1.875rem; align-items: center; gap: var(--da-space-2); padding-inline: var(--da-space-2); border: 0.0625rem solid var(--da-border); border-radius: 999rem; color: var(--da-text-muted); background: color-mix(in srgb, var(--da-surface-2) 68%, transparent); font-size: var(--da-font-size-xs); }
 .agent-chat__header-actions > span i { width: 0.375rem; height: 0.375rem; border-radius: 50%; background: var(--da-accent-green); }
 .agent-chat__header-actions > span.active i { background: var(--da-accent-orange); box-shadow: 0 0 0.75rem var(--da-accent-orange-glow); }
+.agent-chat__progress { min-height: 2.25rem; justify-content: center; padding: 0 var(--da-space-6); }
 .agent-chat__messages { min-height: 0; overflow: auto; padding: var(--da-space-6) clamp(1rem, 4vw, 3.5rem) var(--da-space-8); scrollbar-gutter: stable; }
 .agent-chat__loading, .message-list, .agent-welcome { width: min(100%, var(--da-content-max)); margin: 0 auto; }
 .message-list { display: flex; flex-direction: column; gap: var(--da-space-5); }
@@ -559,6 +727,9 @@ onBeforeUnmount(() => {
 .jump-latest-enter-active, .jump-latest-leave-active { transition: opacity 160ms ease, transform 160ms ease; }
 .jump-latest-enter-from, .jump-latest-leave-to { opacity: 0; transform: translate(-50%, 0.5rem); }
 .agent-chat__composer-wrap { z-index: 2; min-width: 0; padding: 0 clamp(1rem, 4vw, 3.5rem) var(--da-space-5); background: linear-gradient(180deg, transparent, var(--da-surface-0) 20%); }
+.run-recovery { display: flex; width: min(100%, var(--da-content-max)); align-items: center; justify-content: space-between; gap: var(--da-space-4); margin: 0 auto var(--da-space-2); padding: var(--da-space-2) var(--da-space-3); border: 0.0625rem solid color-mix(in srgb, var(--da-accent-orange) 30%, var(--da-border)); border-radius: var(--da-radius-md); background: color-mix(in srgb, var(--da-accent-orange) 5%, var(--da-surface-1)); }
+.run-recovery > span { display: grid; min-width: 0; gap: 0.125rem; }.run-recovery b { color: var(--da-text-primary); font-size: var(--da-font-size-xs); }.run-recovery small { overflow: hidden; color: var(--da-text-muted); font-size: 0.6875rem; text-overflow: ellipsis; white-space: nowrap; }
+.run-recovery button { flex: 0 0 auto; padding: var(--da-space-1) var(--da-space-3); border: 0.0625rem solid var(--da-border-strong); border-radius: var(--da-radius-sm); color: var(--da-text-primary); background: var(--da-surface-2); cursor: pointer; font-size: var(--da-font-size-xs); }.run-recovery button:hover { border-color: var(--da-border-focus); }
 .agent-chat__composer { width: min(100%, var(--da-content-max)); min-width: 0; margin: 0 auto; }
 .agent-chat--empty .agent-chat__messages { overflow: visible; padding-block: 0; }
 .agent-chat--empty .agent-welcome { min-height: 0; padding: 0; }
@@ -584,8 +755,12 @@ onBeforeUnmount(() => {
 
 @media (max-width: 48rem) {
   .agent-chat-layout--preview { position: relative; display: block; }
-  .agent-chat-layout--preview > :deep(.file-preview-panel) { position: absolute; inset: 0; z-index: 10; }
+  .agent-chat-layout--preview > :deep(.file-preview-panel), .agent-chat-layout--preview > :deep(.deliverables-panel), .agent-chat-layout--preview > :deep(.audit-panel) { position: absolute; inset: 0; z-index: 10; }
   .agent-chat__header { padding-inline: var(--da-space-4); }
+  .agent-chat__header-actions { gap: 0; }
+  .agent-chat__header-actions > button { padding-inline: var(--da-space-1); }
+  .agent-chat__header-actions > span { display: none; }
+  .agent-chat__progress { justify-content: flex-start; overflow: auto; padding-inline: var(--da-space-4); }
   .agent-chat__header small { display: none; }
   .agent-chat__messages { padding-inline: var(--da-space-4); }
   .agent-chat__composer-wrap { padding-inline: var(--da-space-4); }
@@ -593,6 +768,14 @@ onBeforeUnmount(() => {
   .composer-assurance small { display: none; }
   .starter-prompts { grid-template-columns: 1fr; }
   .starter-prompts button { padding-block: var(--da-space-3); }
+}
+
+@media (max-width: 34rem) {
+  .agent-chat__identity { max-width: 8rem; }
+  .agent-chat__header-actions > button:nth-child(-n+2) { display: none; }
+  .agent-chat__messages { padding-inline: var(--da-space-3); }
+  .agent-chat__composer-wrap { padding-inline: var(--da-space-3); padding-bottom: var(--da-space-3); }
+  .run-recovery small { max-width: 12rem; }
 }
 
 @media (max-width: 72rem) {

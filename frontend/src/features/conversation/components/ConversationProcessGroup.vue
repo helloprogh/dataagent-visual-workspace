@@ -8,15 +8,22 @@ const props = defineProps<{
   messages: Message[]
   running?: boolean
   activeReasoningId?: string
+  revealMessageId?: string
 }>()
 
-const emit = defineEmits<{ preview: [file: ConversationFilePreview] }>()
+const emit = defineEmits<{
+  preview: [file: ConversationFilePreview]
+  continue: [message: Message]
+}>()
 
 const stepCount = computed(() => props.messages.length)
 const expanded = ref(Boolean(props.running))
 
 watch(() => props.running, value => {
   if (value) expanded.value = true
+})
+watch(() => props.revealMessageId, id => {
+  if (props.messages.some(message => message.id === id)) expanded.value = true
 })
 </script>
 
@@ -40,6 +47,7 @@ watch(() => props.running, value => {
           v-for="message in messages"
           :key="message.id"
           class="process-step"
+          :data-message-id="message.id"
         >
           <div class="process-step__content">
             <ConversationMessage
@@ -48,6 +56,13 @@ watch(() => props.running, value => {
               @preview="emit('preview', $event)"
             />
           </div>
+          <button
+            v-if="!running"
+            type="button"
+            class="process-step__continue"
+            title="从此步骤继续"
+            @click="emit('continue', message)"
+          >从此继续</button>
         </div>
       </div>
     </div>
@@ -162,8 +177,13 @@ watch(() => props.running, value => {
 }
 
 .process-step {
+  position: relative;
   min-width: 0;
 }
+
+.process-step__continue { position: absolute; top: 0; right: 0; padding: 0.125rem var(--da-space-2); border: 0; border-radius: var(--da-radius-sm); color: var(--da-text-subtle); background: transparent; cursor: pointer; font-size: 0.6875rem; opacity: 0; transition: opacity 140ms ease, color 140ms ease, background-color 140ms ease; }
+.process-step:hover .process-step__continue, .process-step__continue:focus-visible { opacity: 1; }
+.process-step__continue:hover { color: var(--da-text-emphasis); background: var(--da-surface-2); }
 
 .process-step__content {
   min-width: 0;

@@ -4,6 +4,9 @@ import { createAgentClient, createHydrationClient } from '../../../agui/client'
 import { fetchConversationMessagePage } from '../api/history'
 import { createConversation, interruptConversation, uploadConversationFile } from '../api/session'
 import type { ModelSelection } from '../../model/types'
+import { publishAndRun } from '../sendLifecycle'
+
+export type SendReceipt = { sessionId: string; created: boolean; initialName?: string }
 
 export type PendingAttachment = {
   id: string
@@ -22,6 +25,7 @@ export function useAgentConversation() {
   const pendingInterrupts = ref<Interrupt[]>([])
   const attachments = ref<PendingAttachment[]>([])
   const error = ref('')
+  const stopped = ref(false)
   let subscription: { unsubscribe: () => void } | null = null
   let hydrationSubscription: { unsubscribe: () => void } | null = null
   let hydrationAgent: HttpAgent | null = null
@@ -52,6 +56,8 @@ export function useAgentConversation() {
     previewUrls.forEach(url => URL.revokeObjectURL(url))
     previewUrls.clear()
     attachments.value = []
+    running.value = false
+    stopped.value = false
   }
 
   function bind(next: HttpAgent) {
@@ -176,10 +182,11 @@ export function useAgentConversation() {
     return { client, sessionId, created: true, initialName: deriveConversationName(initialText) }
   }
 
-  async function send(text: string, model: ModelSelection) {
+  async function send(text: string, model: ModelSelection, onAccepted?: (receipt: SendReceipt) => void) {
     const value = text.trim()
     if ((!value && !attachments.value.length) || running.value || pendingInterrupts.value.length) return null
     error.value = ''
+    stopped.value = false
     running.value = true
     try {
       const prepared = await ensureAgent(model, value)
@@ -202,10 +209,11 @@ export function useAgentConversation() {
         role: 'user',
         content,
       } as Message
-      prepared.client.addMessage(userMessage)
-      attachments.value = []
-      syncMessages()
-      await prepared.client.runAgent()
+      await publishAndRun(prepared, () => {
+        prepared.client.addMessage(userMessage)
+        attachments.value = []
+        syncMessages()
+      }, onAccepted, () => prepared.client.runAgent())
       syncMessages()
       return prepared
     } catch (reason) {
@@ -226,6 +234,7 @@ export function useAgentConversation() {
     }
     const previousInterrupts = [...pendingInterrupts.value]
     const previousAgentInterrupts = [...target.pendingInterrupts]
+    stopped.value = false
     running.value = true
     error.value = ''
     try {
@@ -247,10 +256,29 @@ export function useAgentConversation() {
     }
   }
 
+  async function retry() {
+    const target = agent.value
+    if (!target || running.value || pendingInterrupts.value.length) return false
+    stopped.value = false
+    error.value = ''
+    running.value = true
+    try {
+      await target.runAgent()
+      syncMessages()
+      return true
+    } catch (reason) {
+      error.value = reason instanceof Error ? reason.message : String(reason)
+      throw reason
+    } finally {
+      running.value = false
+    }
+  }
+
   async function stop() {
     const id = threadId.value
     const target = agent.value
     ignoreCancellationErrorsUntil = Date.now() + 5000
+    stopped.value = true
     error.value = ''
     target?.abortRun()
     running.value = false
@@ -279,12 +307,14 @@ export function useAgentConversation() {
     pendingInterrupts,
     attachments,
     error,
+    stopped,
     open,
     loadOlder,
     stageFiles,
     removeAttachment,
     send,
     resume,
+    retry,
     stop,
   }
 }

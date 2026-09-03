@@ -14,7 +14,8 @@ function readAliases(): Record<string, string> {
 
 export function useSessions() {
   const sessions = ref<ConversationSession[]>([])
-  const activeId = ref(localStorage.getItem(ACTIVE_KEY) ?? '')
+  const linkedSession = new URLSearchParams(window.location.search).get('session')?.trim() ?? ''
+  const activeId = ref(linkedSession || localStorage.getItem(ACTIVE_KEY) || '')
   const aliases = ref<Record<string, string>>(readAliases())
   const loading = ref(false)
   const error = ref('')
@@ -28,8 +29,15 @@ export function useSessions() {
 
   function setActive(id: string) {
     activeId.value = id
-    if (id) localStorage.setItem(ACTIVE_KEY, id)
-    else localStorage.removeItem(ACTIVE_KEY)
+    const url = new URL(window.location.href)
+    if (id) {
+      localStorage.setItem(ACTIVE_KEY, id)
+      url.searchParams.set('session', id)
+    } else {
+      localStorage.removeItem(ACTIVE_KEY)
+      url.searchParams.delete('session')
+    }
+    window.history.replaceState(null, '', url)
   }
 
   function startNew() {
