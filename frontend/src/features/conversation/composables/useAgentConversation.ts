@@ -1,4 +1,4 @@
-import { onBeforeUnmount, ref, shallowRef } from 'vue'
+import { onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import type { HttpAgent, Interrupt, Message, ResumeEntry } from '@ag-ui/client'
 import { createAgentClient, createHydrationClient } from '../../../agui/client'
 import { fetchConversationMessagePage } from '../api/history'
@@ -19,6 +19,10 @@ export function useAgentConversation() {
   const threadId = ref('')
   const messages = ref<Message[]>([])
   const running = ref(false)
+  const activeReasoningId = ref('')
+  const activeTextId = ref('')
+  const animatedMessageIds = ref(new Set<string>())
+  const responsePhase = ref<'waiting' | 'thinking' | 'responding' | 'working'>('waiting')
   const hydrating = ref(false)
   const loadingOlder = ref(false)
   const nextCursor = ref<string>()
@@ -32,6 +36,13 @@ export function useAgentConversation() {
   let generation = 0
   let ignoreCancellationErrorsUntil = 0
   const previewUrls = new Set<string>()
+  const reasoningStartedAt = new Map<string, number>()
+
+  watch(running, value => {
+    activeReasoningId.value = ''
+    activeTextId.value = ''
+    if (value) responsePhase.value = 'waiting'
+  }, { flush: 'sync' })
 
   function syncMessages() {
     messages.value = agent.value ? [...agent.value.messages] : []
@@ -45,6 +56,7 @@ export function useAgentConversation() {
   }
 
   function detach() {
+    reasoningStartedAt.clear()
     subscription?.unsubscribe()
     subscription = null
     detachHydration()
@@ -57,21 +69,53 @@ export function useAgentConversation() {
     previewUrls.clear()
     attachments.value = []
     running.value = false
+    activeReasoningId.value = ''
     stopped.value = false
+    activeTextId.value = ''
+    animatedMessageIds.value = new Set()
   }
 
   function bind(next: HttpAgent) {
     subscription?.unsubscribe()
     subscription = next.subscribe({
+      onReasoningMessageStartEvent: ({ event }) => {
+        activeReasoningId.value = event.messageId
+        responsePhase.value = 'thinking'
+        if (!reasoningStartedAt.has(event.messageId)) reasoningStartedAt.set(event.messageId, Date.now())
+      },
+      onReasoningMessageContentEvent: ({ event }) => { activeReasoningId.value = event.messageId; responsePhase.value = 'thinking' },
+      onReasoningMessageEndEvent: ({ event, messages: eventMessages }) => {
+        if (activeReasoningId.value === event.messageId) activeReasoningId.value = ''
+        const started = reasoningStartedAt.get(event.messageId)
+        reasoningStartedAt.delete(event.messageId)
+        if (started !== undefined) return {
+          messages: eventMessages.map(message => message.id === event.messageId
+            ? { ...message, reasoningDurationMs: Math.max(0, Date.now() - started) } : message),
+        }
+      },
+      onTextMessageStartEvent: ({ event }) => {
+        activeReasoningId.value = ''
+        activeTextId.value = event.messageId
+        animatedMessageIds.value = new Set([...animatedMessageIds.value, event.messageId])
+        responsePhase.value = 'responding'
+      },
+      onTextMessageEndEvent: ({ event }) => {
+        if (activeTextId.value === event.messageId) activeTextId.value = ''
+      },
+      onToolCallStartEvent: () => { activeReasoningId.value = ''; responsePhase.value = 'working' },
       onMessagesChanged: ({ messages: nextMessages }) => {
         messages.value = [...nextMessages]
       },
       onRunFinishedEvent: ({ event }) => {
+        activeReasoningId.value = ''
+        activeTextId.value = ''
         pendingInterrupts.value = event.outcome?.type === 'interrupt'
           ? [...event.outcome.interrupts]
           : []
       },
       onRunErrorEvent: ({ event }) => {
+        activeReasoningId.value = ''
+        activeTextId.value = ''
         if (Date.now() < ignoreCancellationErrorsUntil && /abort|aborted|cancelled|canceled|interrupt|中止|取消/i.test(event.message)) return
         error.value = event.message
       },
@@ -301,6 +345,10 @@ export function useAgentConversation() {
     threadId,
     messages,
     running,
+    activeReasoningId,
+    activeTextId,
+    animatedMessageIds,
+    responsePhase,
     hydrating,
     loadingOlder,
     nextCursor,

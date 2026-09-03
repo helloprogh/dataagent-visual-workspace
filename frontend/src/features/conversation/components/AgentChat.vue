@@ -13,10 +13,9 @@ import DeliverablesPanel from './DeliverablesPanel.vue'
 import AuditPanel, { type AuditEntry } from './AuditPanel.vue'
 import FilePreviewPanel from './FilePreviewPanel.vue'
 import InterruptCard from './InterruptCard.vue'
-import WorkflowStageBar from './WorkflowStageBar.vue'
 import type { ConversationFilePreview } from '../types/filePreview'
 import { userFacingSessionName } from '../presentation'
-import { deriveWorkflow, WORKFLOW_STAGES, type WorkflowStage } from '../workflow'
+import { buildPresentation, messageText } from '../processPresentation'
 
 const props = defineProps<{
   sessionId?: string
@@ -32,13 +31,16 @@ const {
   threadId,
   messages,
   running,
+  activeReasoningId,
+  activeTextId,
+  animatedMessageIds,
+  responsePhase,
   hydrating,
   loadingOlder,
   nextCursor,
   pendingInterrupts,
   attachments,
   error,
-  stopped,
   open,
   loadOlder,
   stageFiles,
@@ -58,10 +60,6 @@ const deliverablesOpen = ref(false)
 const auditOpen = ref(false)
 const previewApprovalSubmitted = ref(false)
 const showJumpToLatest = ref(false)
-const revealedStageMessageId = ref('')
-const workflow = computed(() => deriveWorkflow(messages.value, {
-  running: running.value, waiting: Boolean(pendingInterrupts.value.length), stopped: stopped.value, error: error.value,
-}))
 let followBottom = true
 let previousScrollHeight = 0
 
@@ -72,69 +70,12 @@ const STARTER_PROMPTS = [
   { icon: '✓', title: '质量排查', description: '定位问题并验证修复结果', prompt: '检查数据链路中的质量问题，定位根因并给出修复与验证步骤。' },
 ]
 
-type TaskChild =
-  | { kind: 'message'; key: string; message: Message }
-  | { kind: 'process'; key: string; messages: Message[] }
-
-type PresentationItem =
-  | TaskChild
-  | { kind: 'turn'; key: string; user: Message; children: TaskChild[] }
-
-function messageText(message: Message) {
-  const content = (message as any).content
-  if (typeof content === 'string') return content
-  if (!Array.isArray(content)) return ''
-  return content
-    .filter((part: any) => part?.type === 'text')
-    .map((part: any) => String(part.text ?? part.content ?? ''))
-    .join('')
-}
-
-function isProcessMessage(message: Message) {
-  const raw = message as any
-  const role = String(raw.role ?? '')
-  if (['reasoning', 'tool', 'activity'].includes(role)) return true
-  return role === 'assistant'
-    && Array.isArray(raw.toolCalls)
-    && raw.toolCalls.length > 0
-    && !messageText(message).trim()
-}
-
-function isHiddenActivityMessage(message: Message) {
-  const raw = message as any
-  if (String(raw.role ?? '') !== 'activity' || String(raw.activityType ?? '') !== 'dataagent.task') return false
-  const content = raw.content && typeof raw.content === 'object' && !Array.isArray(raw.content)
-    ? raw.content
-    : {}
-  return String(content.status ?? '') === 'completed'
-}
-
-const presentationItems = computed<PresentationItem[]>(() => {
-  const result: PresentationItem[] = []
-  let turn: Extract<PresentationItem, { kind: 'turn' }> | null = null
-
-  const append = (target: TaskChild[], message: Message) => {
-    if (isProcessMessage(message)) {
-      const last = target[target.length - 1]
-      if (last?.kind === 'process') last.messages.push(message)
-      else target.push({ kind: 'process', key: `process-${message.id}`, messages: [message] })
-      return
-    }
-    target.push({ kind: 'message', key: `message-${message.id}`, message })
-  }
-
-  for (const message of messages.value) {
-    if (isHiddenActivityMessage(message)) continue
-    if (message.role === 'user') {
-      if (turn) result.push(turn)
-      turn = { kind: 'turn', key: `turn-${message.id}`, user: message, children: [] }
-      continue
-    }
-    if (turn) append(turn.children, message)
-    else append(result as TaskChild[], message)
-  }
-  if (turn) result.push(turn)
-  return result
+const presentationItems = computed(() => buildPresentation(messages.value, running.value, activeReasoningId.value))
+const showResponsePending = computed(() => {
+  if (!running.value) return false
+  if (responsePhase.value === 'waiting') return true
+  if (responsePhase.value === 'responding') return Boolean(activeTextId.value) && !messages.value.some(message => message.id === activeTextId.value && messageText(message))
+  return false
 })
 
 function previewFromPart(message: Message, part: any, index: number): ConversationFilePreview | null {
@@ -193,38 +134,6 @@ const auditEntries = computed<AuditEntry[]>(() => {
   return entries.reverse()
 })
 
-const currentRunMessageIds = computed(() => {
-  if (!running.value) return new Set<string>()
-  let latestUserIndex = -1
-  for (let index = messages.value.length - 1; index >= 0; index -= 1) {
-    if (messages.value[index].role === 'user') {
-      latestUserIndex = index
-      break
-    }
-  }
-  return new Set(messages.value.slice(latestUserIndex + 1).map(message => message.id))
-})
-
-function isRunningProcess(processMessages: Message[]) {
-  return running.value && processMessages.some(message => currentRunMessageIds.value.has(message.id))
-}
-
-const activeReasoningId = computed(() => {
-  if (!running.value) return ''
-  let latestUserIndex = -1
-  for (let index = messages.value.length - 1; index >= 0; index -= 1) {
-    if (messages.value[index].role === 'user') {
-      latestUserIndex = index
-      break
-    }
-  }
-  for (let index = messages.value.length - 1; index > latestUserIndex; index -= 1) {
-    const message = messages.value[index]
-    if (message.role === 'reasoning') return message.id
-  }
-  return ''
-})
-
 const previewInterrupts = computed(() => {
   const interruptId = activePreview.value?.approvalInterruptId
   if (!interruptId) return []
@@ -244,6 +153,10 @@ function scrollToBottom() {
     followBottom = true
     showJumpToLatest.value = false
   })
+}
+
+function followTextReveal() {
+  if (followBottom) scrollToBottom()
 }
 
 async function handleScroll() {
@@ -304,34 +217,6 @@ async function resumeRun(entries: ResumeEntry[]) {
 function useStarterPrompt(prompt: string) {
   senderRef.value?.setText?.(prompt)
   void nextTick(() => senderRef.value?.focus?.('last'))
-}
-
-async function selectWorkflowStage(stage: WorkflowStage) {
-  const record = workflow.value.evidence[stage]
-  if (record) {
-    if (revealedStageMessageId.value === record.messageId) {
-      revealedStageMessageId.value = ''
-      await nextTick()
-    }
-    revealedStageMessageId.value = record.messageId
-    await nextTick()
-    const element = Array.from(messageScroller.value?.querySelectorAll<HTMLElement>('[data-message-id]') ?? [])
-      .find(item => item.dataset.messageId === record.messageId)
-    element?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
-    followBottom = false
-    return
-  }
-  if (running.value || pendingInterrupts.value.length) return
-  const stageInfo = WORKFLOW_STAGES.find(item => item.id === stage)
-  if (!stageInfo) return
-  // Do not overwrite another draft when navigating stages.
-  if (String(senderRef.value?.getModelValue?.()?.text ?? '').trim()) {
-    ElMessage.info('请先发送或编辑当前草稿，再准备下一阶段请求')
-    senderRef.value?.focus?.('last')
-    return
-  }
-  useStarterPrompt(stageInfo.prompt)
-  ElMessage.info(`已准备${stageInfo.label}请求，确认发送后开始执行`)
 }
 
 function openFilePreview(file: ConversationFilePreview) {
@@ -451,7 +336,6 @@ watch(() => props.sessionId, id => {
   deliverablesOpen.value = false
   auditOpen.value = false
   selectedModel.value = null
-  revealedStageMessageId.value = ''
   senderRef.value?.clear?.()
   void open(id ?? '')
 }, { immediate: true })
@@ -477,8 +361,7 @@ onBeforeUnmount(() => {
 <template>
   <section class="agent-chat-layout" :class="{ 'agent-chat-layout--preview': activePreview || deliverablesOpen || auditOpen }">
   <section class="agent-chat" :class="{ 'agent-chat--empty': !sessionId && !messages.length }">
-    <div v-if="sessionId" class="agent-chat__topbar">
-    <header class="agent-chat__header">
+    <header v-if="sessionId" class="agent-chat__header">
       <div class="agent-chat__identity">
         <small>当前对话</small>
         <b>{{ userFacingSessionName(displayName) }}</b>
@@ -495,13 +378,6 @@ onBeforeUnmount(() => {
         <span :class="{ active: running }"><i></i>{{ running ? '执行中' : '已就绪' }}</span>
       </div>
     </header>
-    <WorkflowStageBar
-      class="agent-chat__progress"
-      :workflow="workflow"
-      :busy="running || Boolean(pendingInterrupts.length)"
-      @select="selectWorkflowStage"
-    />
-    </div>
 
     <div
       ref="messageScroller"
@@ -512,7 +388,7 @@ onBeforeUnmount(() => {
         <el-skeleton :rows="6" animated />
       </div>
 
-      <div v-else-if="!messages.length" class="agent-welcome">
+      <div v-else-if="!messages.length && !running" class="agent-welcome">
         <div class="agent-welcome__brand">
           <span class="agent-welcome__eyebrow">DATA DELIVERY WORKSPACE</span>
           <div class="agent-welcome__title">
@@ -549,18 +425,21 @@ onBeforeUnmount(() => {
               <template v-for="child in item.children" :key="child.key">
                 <ConversationProcessGroup
                   v-if="child.kind === 'process'"
-                  :messages="child.messages"
-                  :running="isRunningProcess(child.messages)"
-                  :active-reasoning-id="activeReasoningId"
-                  :reveal-message-id="revealedStageMessageId"
+                  :steps="child.steps"
+                  :running="child.running"
+                  :busy="running"
+                  :settled="child.settled"
+                  :active-reasoning-id="child.activeReasoningId"
                   @preview="openFilePreview"
                   @continue="continueFromStep"
                 />
                 <ConversationMessage
                   v-else
                   :message="child.message"
+                  :animate="animatedMessageIds.has(child.message.id)"
+                  :streaming="running && activeTextId === child.message.id"
+                  @reveal="followTextReveal"
                   :data-message-id="child.message.id"
-                  :running="running && child.message.id === activeReasoningId"
                   @preview="openFilePreview"
                 />
               </template>
@@ -568,15 +447,20 @@ onBeforeUnmount(() => {
           </section>
           <ConversationProcessGroup
             v-else-if="item.kind === 'process'"
-            :messages="item.messages"
-            :running="isRunningProcess(item.messages)"
-            :active-reasoning-id="activeReasoningId"
-            :reveal-message-id="revealedStageMessageId"
+            :steps="item.steps"
+            :running="item.running"
+            :busy="running"
+            :settled="item.settled"
+            :active-reasoning-id="item.activeReasoningId"
             @preview="openFilePreview"
             @continue="continueFromStep"
           />
-          <ConversationMessage v-else :message="item.message" :data-message-id="item.message.id" @preview="openFilePreview" />
+          <ConversationMessage v-else :message="item.message" :animate="animatedMessageIds.has(item.message.id)" :streaming="running && activeTextId === item.message.id" :data-message-id="item.message.id" @reveal="followTextReveal" @preview="openFilePreview" />
         </template>
+        <div v-if="showResponsePending" class="response-pending" role="status" aria-live="polite">
+          <span class="response-pending__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>{{ responsePhase === 'responding' ? '正在组织回答…' : '正在等待响应…' }}</span>
+        </div>
       </div>
     </div>
 
@@ -681,7 +565,6 @@ onBeforeUnmount(() => {
 .agent-chat-layout--preview { grid-template-columns: minmax(28rem, 1fr) clamp(22rem, 38vw, 36rem); }
 .agent-chat { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; background: var(--da-surface-0); }
 .agent-chat--empty { grid-template-rows: auto auto; align-content: center; gap: var(--da-space-6); padding-block: var(--da-space-8); }
-.agent-chat__topbar { min-width: 0; border-bottom: 0.0625rem solid var(--da-border); background: color-mix(in srgb, var(--da-surface-0) 88%, transparent); }
 .agent-chat__header { display: flex; align-items: center; justify-content: space-between; gap: var(--da-space-4); min-height: 3.75rem; padding: 0 var(--da-space-6); border-bottom: 0.0625rem solid var(--da-border); background: color-mix(in srgb, var(--da-surface-0) 88%, transparent); }
 .agent-chat__identity { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0 var(--da-space-3); }
 .agent-chat__identity > small:first-child { display: block; grid-row: 1; color: var(--da-accent-primary); font-size: 0.625rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -699,10 +582,15 @@ onBeforeUnmount(() => {
 .agent-chat__header-actions > span { display: inline-flex; min-height: 1.875rem; align-items: center; gap: var(--da-space-2); padding-inline: var(--da-space-2); border: 0.0625rem solid var(--da-border); border-radius: 999rem; color: var(--da-text-muted); background: color-mix(in srgb, var(--da-surface-2) 68%, transparent); font-size: var(--da-font-size-xs); }
 .agent-chat__header-actions > span i { width: 0.375rem; height: 0.375rem; border-radius: 50%; background: var(--da-accent-green); }
 .agent-chat__header-actions > span.active i { background: var(--da-accent-orange); box-shadow: 0 0 0.75rem var(--da-accent-orange-glow); }
-.agent-chat__progress { min-height: 2.25rem; justify-content: center; padding: 0 var(--da-space-6); }
 .agent-chat__messages { min-height: 0; overflow: auto; padding: var(--da-space-6) clamp(1rem, 4vw, 3.5rem) var(--da-space-8); scrollbar-gutter: stable; }
 .agent-chat__loading, .message-list, .agent-welcome { width: min(100%, var(--da-content-max)); margin: 0 auto; }
 .message-list { display: flex; flex-direction: column; gap: var(--da-space-5); }
+.response-pending { display: flex; min-height: 2rem; align-items: center; gap: var(--da-space-3); color: var(--da-text-muted); font-size: var(--da-font-size-sm); }
+.response-pending__dots { display: flex; align-items: center; gap: 0.25rem; }
+.response-pending__dots i { width: 0.25rem; height: 0.25rem; border-radius: 50%; background: var(--da-accent-primary); animation: response-pulse 1s ease-in-out infinite; }
+.response-pending__dots i:nth-child(2) { animation-delay: 150ms; }
+.response-pending__dots i:nth-child(3) { animation-delay: 300ms; }
+@keyframes response-pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
 .conversation-turn { display: flex; min-width: 0; flex-direction: column; gap: var(--da-space-3); }
 .conversation-turn__response { display: flex; min-width: 0; flex-direction: column; gap: var(--da-space-3); }
 .load-older { display: flex; justify-content: center; min-height: 2.25rem; }
@@ -736,7 +624,7 @@ onBeforeUnmount(() => {
 .agent-chat--empty .agent-chat__composer-wrap { padding-bottom: 0; background: transparent; }
 .agent-chat__composer :deep(.elx-x-sender .elx-x-sender__content.elx-x-sender__content--variant-updown .elx-x-sender__updown-action-list .elx-x-sender__prefix) { min-width: 0; flex: 1; padding-right: 0; }
 .composer-input-actions { display: flex; width: 100%; min-width: 0; align-items: center; gap: var(--da-space-2); }
-.composer-input-actions :deep(.model-selector) { margin-left: auto; }
+.composer-input-actions :deep(.model-selector) { margin-left: 0; }
 .composer-file-button svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.45; }
 .attachment-queue { display: flex; flex-wrap: wrap; gap: var(--da-space-2); margin-bottom: var(--da-space-2); }
 .attachment-chip { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--da-space-2); max-width: 24rem; padding: var(--da-space-2) var(--da-space-3); border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-md); background: var(--da-surface-2); }
@@ -760,11 +648,10 @@ onBeforeUnmount(() => {
   .agent-chat__header-actions { gap: 0; }
   .agent-chat__header-actions > button { padding-inline: var(--da-space-1); }
   .agent-chat__header-actions > span { display: none; }
-  .agent-chat__progress { justify-content: flex-start; overflow: auto; padding-inline: var(--da-space-4); }
   .agent-chat__header small { display: none; }
   .agent-chat__messages { padding-inline: var(--da-space-4); }
   .agent-chat__composer-wrap { padding-inline: var(--da-space-4); }
-  .composer-input-actions :deep(.model-selector) { width: min(9rem, 48vw); }
+  .composer-input-actions :deep(.model-selector) { max-width: min(17rem, 48vw); }
   .composer-assurance small { display: none; }
   .starter-prompts { grid-template-columns: 1fr; }
   .starter-prompts button { padding-block: var(--da-space-3); }
@@ -783,6 +670,7 @@ onBeforeUnmount(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .response-pending__dots i { animation: none; }
   .starter-prompts button, .starter-prompts button > span,
   .jump-latest-enter-active, .jump-latest-leave-active { transition: none; }
 }

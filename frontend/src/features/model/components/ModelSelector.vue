@@ -81,6 +81,8 @@ onMounted(load)
     placeholder="选择模型"
     aria-label="选择模型"
     :title="selectedModelName"
+    @click.stop
+    @mousedown.stop
     @update:model-value="change"
   >
     <el-option
@@ -97,9 +99,17 @@ onMounted(load)
 
 <style scoped>
 .model-selector {
-  width: 16rem;
-  min-width: 9rem;
+  width: max-content;
+  min-width: 0;
   max-width: 17rem;
+}
+
+/* Let the visible label provide intrinsic width instead of an absolute overlay. */
+.model-selector :deep(.el-select__selection) { flex: 0 1 auto; }
+.model-selector :deep(.el-select__placeholder) {
+  position: static;
+  width: auto;
+  transform: none;
 }
 
 .model-option__name {

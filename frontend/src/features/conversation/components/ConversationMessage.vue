@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import type { Message } from '@ag-ui/client'
 import { Bubble } from 'vue-element-plus-x'
 import { MarkdownRenderer } from 'x-markdown-vue'
 import { appTheme } from '../../../shared/theme/theme'
 import { fileKindLabel, formatFileSize, type ConversationFilePreview } from '../types/filePreview'
+import { nextRevealLength } from '../textReveal'
 
-const props = defineProps<{ message: Message; running?: boolean }>()
-const emit = defineEmits<{ preview: [file: ConversationFilePreview] }>()
+const props = defineProps<{ message: Message; running?: boolean; animate?: boolean; streaming?: boolean }>()
+const emit = defineEmits<{ preview: [file: ConversationFilePreview]; reveal: [] }>()
 const raw = computed(() => props.message as any)
 const role = computed(() => String(raw.value.role ?? ''))
 
@@ -87,6 +88,71 @@ const activity = computed(() => {
   return { title: '运行状态已更新', detail: '', tone: 'active', visible: true }
 })
 
+const displayedText = ref('')
+let revealTimer: ReturnType<typeof setTimeout> | undefined
+let revealId = ''
+let previousText = ''
+let characters: string[] = []
+let revealed = 0
+let deadline = 0
+let previousTick = 0
+const isRevealing = computed(() => displayedText.value !== text.value)
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+
+function cancelReveal() {
+  if (revealTimer !== undefined) clearTimeout(revealTimer)
+  revealTimer = undefined
+}
+
+function finishReveal() {
+  cancelReveal()
+  revealed = characters.length
+  displayedText.value = text.value
+  emit('reveal')
+}
+
+function tickReveal() {
+  revealTimer = undefined
+  if (document.hidden || reducedMotion.matches) return finishReveal()
+  const now = performance.now()
+  revealed = nextRevealLength(revealed, characters.length, now - previousTick, deadline - previousTick)
+  previousTick = now
+  displayedText.value = characters.slice(0, revealed).join('')
+  emit('reveal')
+  if (revealed < characters.length) revealTimer = setTimeout(tickReveal, 24)
+}
+
+watch([() => props.message.id, text, () => props.animate], ([id, value, animate]) => {
+  const append = revealId === id && value.startsWith(previousText)
+  revealId = id
+  previousText = value
+  characters = Array.from(value)
+  if (!animate || role.value !== 'assistant' || reducedMotion.matches || document.hidden) return finishReveal()
+  if (!append) { cancelReveal(); revealed = 0; displayedText.value = '' }
+  deadline = performance.now() + 240
+  if (revealTimer === undefined && revealed < characters.length) {
+    previousTick = performance.now()
+    revealTimer = setTimeout(tickReveal, 24)
+  }
+}, { immediate: true })
+
+function onRevealPreferenceChange() {
+  if (document.hidden || reducedMotion.matches) finishReveal()
+}
+reducedMotion.addEventListener('change', onRevealPreferenceChange)
+document.addEventListener('visibilitychange', onRevealPreferenceChange)
+onBeforeUnmount(() => {
+  cancelReveal()
+  reducedMotion.removeEventListener('change', onRevealPreferenceChange)
+  document.removeEventListener('visibilitychange', onRevealPreferenceChange)
+})
+
+const reasoningDuration = computed(() => {
+  const duration = Number(raw.value.reasoningDurationMs)
+  if (!Number.isFinite(duration) || duration < 0) return ''
+  return duration < 1000 ? '少于 1 秒' : `${Math.round(duration / 1000)} 秒`
+})
+
 function previewFile(file: any, index: number) {
   const url = String(file?.metadata?.clientPreviewUrl ?? file?.source?.value ?? '').trim()
   if (!url) return
@@ -147,13 +213,14 @@ function previewFile(file: any, index: number) {
     <template #content>
       <div class="assistant-content">
         <MarkdownRenderer
-          v-if="text"
-          :markdown="text"
+          v-if="displayedText"
+          :markdown="displayedText"
           :sanitize="true"
           :is-dark="appTheme === 'dark'"
           :enable-shiki="false"
           :enable-mermaid="false"
         />
+        <span v-if="streaming || isRevealing" class="response-caret" aria-label="正在生成回答"></span>
         <div v-if="files.length" class="attachment-list">
           <button
             v-for="(file, index) in files"
@@ -190,10 +257,11 @@ function previewFile(file: any, index: number) {
     <details :open="Boolean(running)">
       <summary>
         <span class="reasoning-node" aria-hidden="true"><i></i></span>
-        <span>{{ running ? '正在思考' : '思考过程' }}</span>
+        <span>{{ running ? '正在思考' : text ? '思考过程' : '已思考' }}</span>
+        <small v-if="!running && reasoningDuration">{{ reasoningDuration }}</small>
         <span class="disclosure-icon" aria-hidden="true"></span>
       </summary>
-      <div class="reasoning-content">{{ text }}</div>
+      <div class="reasoning-content">{{ text || (running ? '正在分析，请稍候…' : '模型未提供可展示的思考详情') }}</div>
     </details>
   </section>
 
@@ -221,6 +289,9 @@ function previewFile(file: any, index: number) {
 .message-bubble { width: 100%; }
 .message-bubble--user { --elx-bubble-bg-color: var(--da-surface-3); }
 .message-bubble--assistant :deep(.elx-bubble__content) {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
   padding: 0;
   border: 0;
   background: transparent;
@@ -236,7 +307,11 @@ function previewFile(file: any, index: number) {
 .attachment-card__body small { color: var(--da-text-muted); font-size: var(--da-font-size-xs); }
 .attachment-card__action { color: var(--da-text-muted); font-size: var(--da-font-size-xs); white-space: nowrap; }
 .attachment-card:hover .attachment-card__action { color: var(--da-text-emphasis); }
-.assistant-content { width: min(100%, 48rem); color: var(--da-text-primary); }
+.message-bubble--assistant :deep(.elx-bubble__content-wrapper) { min-width: 0; }
+.assistant-content { width: 100%; min-width: 0; color: var(--da-text-primary); overflow-wrap: anywhere; }
+.response-caret { display: inline-block; width: 0.375rem; height: 0.875rem; margin-left: 0.125rem; border-radius: 0.125rem; background: var(--da-accent-primary); animation: response-caret-blink 900ms ease-in-out infinite; }
+@keyframes response-caret-blink { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .response-caret { animation: none; } }
 .assistant-content :deep(.x-md-renderer) {
   padding: 0 !important;
   color: var(--da-text-primary) !important;

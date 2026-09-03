@@ -47,11 +47,11 @@ test('conversation presentation is Element-Plus-X over direct AG-UI client', asy
   assert.match(agentChat, /<Welcome/)
   assert.match(agentChat, /<XSender[\s\S]*<template #prefix>[\s\S]*添加文件[\s\S]*<ModelSelector[\s\S]*<\/XSender>/)
   assert.match(agentChat, /presentationItems/)
-  assert.match(agentChat, /kind: 'turn'/)
+  assert.match(agentChat, /buildPresentation\(messages.value, running.value, activeReasoningId.value\)/)
   assert.match(agentChat, /class="conversation-turn"/)
   assert.doesNotMatch(agentChat, /conversation-task|任务 \{\{/)
   assert.match(agentChat, /<ConversationProcessGroup/)
-  assert.match(agentChat, /\.composer-input-actions :deep\(\.model-selector\) \{ margin-left: auto; \}/)
+  assert.match(agentChat, /\.composer-input-actions :deep\(\.model-selector\) \{ margin-left: 0; \}/)
   assert.match(agentChat, /:deep\(\.chat-write-input\) \{ color: var\(--da-text-primary\); caret-color: var\(--da-text-emphasis\); \}/)
   assert.match(processGroup, /class="process-group__header"[\s\S]*:aria-expanded="expanded"/)
   assert.match(processGroup, /<ConversationMessage/)
@@ -64,7 +64,7 @@ test('conversation presentation is Element-Plus-X over direct AG-UI client', asy
   assert.match(processGroup, /:deep\(\.tool-call-list\) \{ gap: 0; margin-top: 0; \}/)
   assert.match(processGroup, /\.process-step__content :deep\(\.reasoning-card::before\),[\s\S]*\.process-step__content :deep\(\.reasoning-node\) \{[\s\S]*display: none;/)
   assert.doesNotMatch(processGroup, /timeline|process-step__rail|stepTone/)
-  assert.match(agentChat, /if \(isHiddenActivityMessage\(message\)\) continue/)
+  assert.match(processGroup, /:data-tool-call-id="step.call.id"/)
   assert.doesNotMatch(agentChat, /composer-toolbar/)
   assert.doesNotMatch(agentChat, /\bclearable\b/)
   assert.doesNotMatch(agentChat, /后端中断失败|abort/i)
@@ -178,6 +178,26 @@ test('user-facing shell does not expose transport or framework terminology', asy
   for (const source of sources) {
     assert.doesNotMatch(vueTemplate(source), /AG-UI|CopilotKit|OpenCode/i)
   }
+})
+
+test('assistant body fills the conversation column without the bubble default width cap', async () => {
+  const source = await frontend('features/conversation/components/ConversationMessage.vue')
+  assert.match(source, /\.message-bubble--assistant :deep\(\.elx-bubble__content\)\s*\{[^}]*width: 100%;[^}]*min-width: 0;[^}]*max-width: none;/s)
+  assert.match(source, /\.assistant-content\s*\{[^}]*width: 100%;[^}]*min-width: 0;/s)
+})
+
+test('model selector sits on the left and sizes to its label with a maximum only', async () => {
+  const [selector, base, chat] = await Promise.all([
+    frontend('features/model/components/ModelSelector.vue'),
+    frontend('shared/styles/base.css'),
+    frontend('features/conversation/components/AgentChat.vue'),
+  ])
+  for (const css of [selector, base]) {
+    assert.match(css, /\.model-selector\s*\{[^}]*width: max-content;[^}]*min-width: 0;[^}]*max-width: 17rem;/s)
+  }
+  assert.match(selector, /\.el-select__placeholder\)\s*\{[^}]*position: static;[^}]*width: auto;[^}]*transform: none;/s)
+  assert.match(selector, /@click\.stop[\s\S]*@mousedown\.stop/)
+  assert.doesNotMatch(chat, /\.composer-input-actions :deep\(\.model-selector\) \{ width:/)
 })
 
 test('tool page exposes the factual runtime capability catalog without workspace UI controls', async () => {

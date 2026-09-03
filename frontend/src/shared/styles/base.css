@@ -118,19 +118,57 @@ a { color: inherit; }
 .dataagent-app .agent-chat__composer .elx-x-sender,
 .dataagent-app .agent-chat__composer .elx-xsender,
 .dataagent-app .agent-chat__composer .x-sender {
-  overflow: hidden;
-  border-color: var(--da-border) !important;
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  border-color: transparent !important;
   border-radius: var(--da-radius-xl) !important;
   background: var(--da-surface-2) !important;
   box-shadow: 0 0.375rem 1.5rem rgb(0 0 0 / 10%) !important;
-  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+  transition: box-shadow 260ms ease, background-color 260ms ease;
+}
+
+/* Native rounded borders avoid thinning the corners through overlapping masks.
+   The isolated background layer does not change the sender's size or hit targets. */
+.dataagent-app .agent-chat__composer :is(.elx-x-sender, .elx-xsender, .x-sender)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: 0;
+  border: 0.0625rem solid transparent !important;
+  border-radius: inherit;
+  background:
+    linear-gradient(var(--da-surface-2), var(--da-surface-2)) padding-box,
+    linear-gradient(115deg, var(--da-brand-cyan), var(--da-accent-primary) 54%, var(--da-accent-orange)) border-box;
+  opacity: 0.45;
+  pointer-events: none;
+  transition: opacity 260ms ease;
+}
+
+.dataagent-app .agent-chat__composer .elx-x-sender__content {
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+@media (hover: hover) {
+  .dataagent-app .agent-chat__composer :is(.elx-x-sender, .elx-xsender, .x-sender):hover::after {
+    opacity: 0.7;
+  }
 }
 
 .dataagent-app .agent-chat__composer .elx-x-sender:focus-within,
 .dataagent-app .agent-chat__composer .elx-xsender:focus-within,
 .dataagent-app .agent-chat__composer .x-sender:focus-within {
-  border-color: color-mix(in srgb, var(--da-accent-primary) 42%, var(--da-border-strong)) !important;
-  box-shadow: 0 0 0 0.1875rem var(--da-accent-primary-soft), 0 0.5rem 1.75rem rgb(0 0 0 / 12%) !important;
+  box-shadow:
+    -0.5rem 0 1.25rem -0.5rem color-mix(in srgb, var(--da-brand-cyan) 26%, transparent),
+    0 0 1.5rem 0.0625rem var(--da-brand-glow),
+    0.5rem 0 1.25rem -0.5rem var(--da-accent-orange-glow),
+    0 0.5rem 1.75rem rgb(0 0 0 / 12%) !important;
+}
+
+.dataagent-app .agent-chat__composer :is(.elx-x-sender, .elx-xsender, .x-sender):focus-within::after {
+  opacity: 1;
 }
 
 .dataagent-app .agent-chat__composer :where([contenteditable='true'], .chat-write-wrap, .chat-write-input) {
@@ -170,9 +208,11 @@ a { color: inherit; }
 }
 
 .dataagent-app .model-selector {
-  width: 16rem;
+  width: max-content;
+  min-width: 0;
   max-width: 17rem;
-  margin-left: auto;
+  flex: 0 1 auto;
+  margin-left: 0;
 }
 
 .dataagent-app .model-selector .el-select__wrapper {
@@ -191,7 +231,7 @@ a { color: inherit; }
 
 .dataagent-app .model-selector .el-select__selected-item {
   overflow: hidden;
-  max-width: 14rem;
+  max-width: 100%;
   color: var(--da-text-muted);
   font-size: var(--da-font-size-xs);
   text-overflow: ellipsis;
@@ -237,9 +277,7 @@ a { color: inherit; }
 
 .dataagent-app .process-step__content .reasoning-content {
   max-width: 44rem;
-  max-height: 10rem;
   margin: var(--da-space-1) 0 var(--da-space-2);
-  overflow: auto;
   padding: var(--da-space-3);
   border: 0.0625rem solid var(--da-border);
   border-radius: var(--da-radius-md);
@@ -247,6 +285,11 @@ a { color: inherit; }
   background: color-mix(in srgb, var(--da-surface-2) 72%, transparent);
   font-size: var(--da-font-size-xs);
   line-height: 1.7;
+}
+
+.dataagent-app .process-step__content .reasoning-card:not(.reasoning-card--running) .reasoning-content {
+  max-height: 10rem;
+  overflow: auto;
 }
 
 .dataagent-app .tool-call pre,
@@ -295,7 +338,7 @@ a { color: inherit; }
 
 @media (max-width: 48rem) {
   .dataagent-app .model-selector {
-    max-width: min(10rem, 46vw);
+    max-width: min(17rem, 46vw);
   }
 
   .dataagent-app .agent-chat__composer-wrap {
@@ -305,6 +348,7 @@ a { color: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   .dataagent-app .agent-chat__composer :is(.elx-x-sender, .elx-xsender, .x-sender),
+  .dataagent-app .agent-chat__composer :is(.elx-x-sender, .elx-xsender, .x-sender)::after,
   .dataagent-app .process-step__content {
     transition: none;
   }

@@ -14,7 +14,10 @@ const flatten = (converter, events) => events.flatMap((source) => converter.conv
 test('conversation marks only the current run reasoning as active', async () => {
   const source = await fs.readFile(new URL('../../frontend/src/features/conversation/components/AgentChat.vue', import.meta.url), 'utf8')
   assert.match(source, /activeReasoningId/)
-  assert.match(source, /message\.id === activeReasoningId/)
+  assert.match(source, /:active-reasoning-id="child.activeReasoningId"/)
+  const lifecycle = await fs.readFile(new URL('../../frontend/src/features/conversation/composables/useAgentConversation.ts', import.meta.url), 'utf8')
+  assert.match(lifecycle, /onReasoningMessageEndEvent/)
+  assert.match(lifecycle, /onToolCallStartEvent: \(\) => \{ activeReasoningId.value = ''/)
 })
 
 test('emits a complete AG-UI reasoning lifecycle before the final assistant text', () => {

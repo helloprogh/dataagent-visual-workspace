@@ -322,7 +322,9 @@ export class OpenCodeAguiConverter {
   startTool(state) {
     if (this.openTools.has(state.id)) return []
     this.openTools.add(state.id)
-    const events = [toolStart(state.id, state.name, state.parentMessageId)]
+    // A dedicated assistant message keeps the call at its actual start position.
+    // Reusing the text parent's ID appends later calls to an earlier paragraph.
+    const events = [toolStart(state.id, state.name, `${state.parentMessageId}-tool-${state.id}`)]
     if (isSubAgentTool(state.name)) events.push(subagentActivity(state.id, {
       agentId: state.id,
       name: state.name,

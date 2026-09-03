@@ -148,58 +148,38 @@ function toolErrorText(state: UnknownRecord) {
   return textOf(state.error)
 }
 
-function normalizeAssistant(value: UnknownRecord, id: string): Message[] {
+export function normalizeAssistant(value: UnknownRecord, id: string): Message[] {
   if (!Array.isArray(value.content)) throw new Error(`assistant ${id}.content 无效`)
   const parts = value.content.filter(isRecord)
-  const reasoning = parts
-    .filter(part => part.type === 'reasoning')
-    .map(part => requiredText(part.text, 'reasoning.text', `解析 assistant ${id} 失败`))
-    .filter(Boolean)
-    .join('\n')
-  const text = parts
-    .filter(part => part.type === 'text')
-    .map(part => requiredText(part.text, 'text.text', `解析 assistant ${id} 失败`))
-    .filter(Boolean)
-    .join('\n')
-  const tools = parts
-    .filter(part => part.type === 'tool')
-    .map(part => {
+  const result: Message[] = []
+  let textCount = 0
+  let reasoningCount = 0
+  // Preserve backend part order; collecting all text before all tools reverses
+  // the visible sequence when one assistant message contains multiple phases.
+  parts.forEach((part, index) => {
+    if (part.type === 'text' || part.type === 'reasoning') {
+      const content = requiredText(part.text, `${part.type}.text`, `解析 assistant ${id} 失败`)
+      if (!content && part.type === 'text') return
+      const messageId = part.type === 'reasoning'
+        ? `${id}-reasoning${reasoningCount++ ? `-${index}` : ''}`
+        : textCount++ ? `${id}-text-${index}` : id
+      const time = isRecord(part.time) ? part.time : {}
+      const durationMs = typeof time.created === 'number' && typeof time.completed === 'number'
+        ? Math.max(0, time.completed - time.created) : undefined
+      result.push({ id: messageId, role: part.type === 'reasoning' ? 'reasoning' : 'assistant', content,
+        ...(part.type === 'reasoning' && durationMs !== undefined ? { reasoningDurationMs: durationMs } : {}),
+      } as Message)
+    } else if (part.type === 'tool') {
       const state = isRecord(part.state) ? part.state : {}
       const toolId = requiredString(part.id, 'tool.id', `解析 assistant ${id} tool 失败`)
       const name = requiredString(part.name, 'tool.name', `解析 assistant ${id} tool 失败`)
-      return {
-        id: toolId,
-        state,
-        call: {
-          id: toolId,
-          type: 'function' as const,
-          function: { name, arguments: textOf(state.input ?? {}) },
-        },
-      }
-    })
-
-  const result: Message[] = []
-  if (reasoning) result.push({ id: `${id}-reasoning`, role: 'reasoning', content: reasoning } as Message)
-  if (text || tools.length) {
-    result.push({
-      id,
-      role: 'assistant',
-      content: text,
-      ...(tools.length ? { toolCalls: tools.map(tool => tool.call) } : {}),
-    } as Message)
-  }
-  for (const tool of tools) {
-    const status = optionalString(tool.state.status)
-    if (status !== 'completed' && status !== 'error') continue
-    const error = status === 'error' ? toolErrorText(tool.state) : ''
-    result.push({
-      id: `${tool.id}-result`,
-      role: 'tool',
-      toolCallId: tool.id,
-      content: error || toolResultText(tool.state),
-      ...(error ? { error } : {}),
-    } as Message)
-  }
+      result.push({ id: `${id}-tool-${toolId}`, role: 'assistant', content: '', toolCalls: [{ id: toolId, type: 'function', function: { name, arguments: textOf(state.input ?? {}) } }] } as Message)
+      const status = optionalString(state.status)
+      if (status !== 'completed' && status !== 'error') return
+      const error = status === 'error' ? toolErrorText(state) || '工具执行失败' : ''
+      result.push({ id: `${toolId}-result`, role: 'tool', toolCallId: toolId, content: error || toolResultText(state), ...(error ? { error } : {}) } as Message)
+    }
+  })
   return result
 }
 
