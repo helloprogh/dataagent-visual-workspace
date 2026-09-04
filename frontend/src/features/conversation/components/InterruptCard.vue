@@ -57,7 +57,7 @@ function quickChoicesOf(interrupt: Interrupt) {
   if (!fields.length) {
     return choicesOf(schemaOf(interrupt)).map(choice => ({ ...choice, payload: choice.value }))
   }
-  if (fields.length !== 1 || fields[0].schema.type === 'array') return []
+  if (fields.length !== 1 || fields[0].schema.type === 'array' || fields[0].schema['x-custom']) return []
   return choicesOf(fields[0].schema).map(choice => ({
     ...choice,
     payload: { [fields[0].name]: choice.value },
@@ -154,6 +154,9 @@ watch(() => props.interrupts, interrupts => {
             v-if="choicesOf(field.schema).length && field.schema.type !== 'array'"
             v-model="answers[interrupt.id][field.name]"
             :disabled="busy"
+            :filterable="Boolean(field.schema['x-custom'])"
+            :allow-create="Boolean(field.schema['x-custom'])"
+            default-first-option
           >
             <el-option v-for="choice in choicesOf(field.schema)" :key="JSON.stringify(choice.value)" :label="choice.label" :value="choice.value" />
           </el-select>

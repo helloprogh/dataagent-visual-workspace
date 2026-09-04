@@ -18,6 +18,8 @@ test('conversation HITL uses direct AG-UI interrupt and resume lifecycle', async
   assert.match(runtime, /outcome\?\.type === 'interrupt'/)
   assert.match(runtime, /target\.runAgent\(\{ resume: entries \}/)
   assert.match(runtime, /target\.pendingInterrupts\s*=\s*\[\]/)
+  assert.match(runtime, /fetchConversationMessagePage\(currentThreadId\)/)
+  assert.match(runtime, /target\.setMessages\(page\.messages\)/)
   assert.match(runtime, /必须一次处理当前 Run 的全部待处理中断/)
   assert.doesNotMatch(runtime, /@copilotkit|useInterrupt|CopilotChat/i)
   assert.match(card, /ResumeEntry/)

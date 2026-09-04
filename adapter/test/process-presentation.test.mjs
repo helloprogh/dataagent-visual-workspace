@@ -130,6 +130,18 @@ test('tool text envelopes are readable without losing structured or partial resu
   assert.equal(toolOutputText({ ...result(), content: '[{"type":' }), '[{"type":')
 })
 
+test('UI cards remain outside folded steps, follow the answer, and preserve turn ownership', () => {
+  const ui = { id: 'ui-run-card', role: 'activity', activityType: 'dataagent.ui', content: { status: 'ready' } }
+  const items = children([thought(), ui, text()], false)
+  assert.deepEqual(items.map(item => item.kind), ['process', 'message', 'message'])
+  assert.equal(items[2].message.id, ui.id)
+  assert.equal(items[0].steps.length, 1)
+  assert.equal(children([{ ...ui, content: { status: 'removed' } }], false).length, 0)
+  const turns = buildPresentation([user, ui, { ...user, id: 'u2' }, text()], false)
+  assert.equal(turns[0].children[0].message.id, ui.id)
+  assert.equal(turns[1].children.length, 1)
+})
+
 test('empty private reasoning keeps its duration but never copies encrypted data', () => {
   const messages = normalizeAssistant({ content: [
     { type: 'reasoning', text: '', state: { reasoningEncryptedContent: 'private-test-value' }, time: { created: 100, completed: 2100 } },

@@ -103,11 +103,12 @@ test('conversation activity and tool results use product-facing progressive disc
 })
 
 test('conversation files open a pushed preview panel and approvals stay backend-schema driven', async () => {
-  const [chat, message, preview, interrupt] = await Promise.all([
+  const [chat, message, preview, interrupt, generated] = await Promise.all([
     frontend('features/conversation/components/AgentChat.vue'),
     frontend('features/conversation/components/ConversationMessage.vue'),
     frontend('features/conversation/components/FilePreviewPanel.vue'),
     frontend('features/conversation/components/InterruptCard.vue'),
+    frontend('features/conversation/components/GenerativeUiCard.vue'),
   ])
   assert.match(message, /class="attachment-card"/)
   assert.match(message, /approvalInterruptId/)
@@ -117,6 +118,13 @@ test('conversation files open a pushed preview panel and approvals stay backend-
   assert.match(chat, /previewInterrupts/)
   assert.match(preview, /<MarkdownRenderer/)
   assert.match(preview, /<InterruptCard/)
+  assert.match(preview, /file-preview-panel__confirm/)
+  assert.match(preview, /确认并继续/)
+  assert.match(preview, /其他处理/)
+  assert.match(generated, /generated-card__confirm/)
+  assert.match(generated, /查看完整内容/)
+  assert.match(chat, /deliveryApprovalIds/)
+  assert.match(chat, /confirmDelivery/)
   assert.match(interrupt, /responseSchema/)
   assert.doesNotMatch(vueTemplate(preview), /取消本次运行/)
 })

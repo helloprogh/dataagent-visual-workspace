@@ -49,6 +49,7 @@ export function buildPresentation(messages: Message[], running = false, activeRe
 
   chunks.forEach((chunk, chunkIndex) => {
     const children: ResponseItem[] = []
+    const deliveries = new Map<string, Message>()
     const calls = new Map<string, ToolStep>()
     // Pre-index results so late or parallel results update their original call row.
     const results = new Map<string, Message>()
@@ -93,6 +94,10 @@ export function buildPresentation(messages: Message[], running = false, activeRe
         append({ kind: 'message', key: message.id, message })
       } else if (message.role === 'activity') {
         const content = raw.content ?? {}
+        if (raw.activityType === 'dataagent.ui') {
+          deliveries.set(message.id, message)
+          continue
+        }
         if (['dataagent.tool', 'dataagent.subagent'].includes(raw.activityType)
           && knownCalls.has(content.toolCallId ?? content.agentId)) continue
         if (raw.activityType === 'dataagent.task'
@@ -110,6 +115,9 @@ export function buildPresentation(messages: Message[], running = false, activeRe
       group.running = true
       if (latestStep?.kind === 'message' && latestStep.message.role === 'reasoning'
         && (activeReasoningId === undefined || activeReasoningId === latestStep.message.id)) group.activeReasoningId = latestStep.message.id
+    }
+    for (const message of deliveries.values()) {
+      if ((message as any).content?.status !== 'removed') children.push({ kind: 'message', key: `message-${message.id}`, message })
     }
     if (chunk.user) result.push({ kind: 'turn', key: `turn-${chunk.user.id}`, user: chunk.user, children })
     else result.push(...children)

@@ -1,5 +1,6 @@
 import http from 'node:http'
 import { buildCapabilityCatalog } from './capability-catalog.mjs'
+import { interruptFromForm } from './converter.mjs'
 import { runFinished, runStarted, stateSnapshot } from './agui.mjs'
 import { createServer as createAgentServer } from './server.mjs'
 import { FileStorage } from './file-storage.mjs'
@@ -133,9 +134,14 @@ const proxyDirectApi = async (client, req, res, url) => {
     const restored = isConversationMessages
       ? await restoreUserMessageFiles(decodeURIComponent(url.pathname.split('/').at(-2)), data)
       : data
+    const activities = isConversationMessages
+      ? (await new SessionRegistry().uiSnapshots(decodeURIComponent(url.pathname.split('/').at(-2))))
+          .filter(item => data.some(message => message.id === item.parentMessageId))
+      : []
     res.end(JSON.stringify({
       data: restored,
       cursor: page.cursor && typeof page.cursor === 'object' ? page.cursor : {},
+      ...(activities.length ? { activities } : {}),
     }))
     return
   }
@@ -182,7 +188,7 @@ const runtimeCapabilities = async (client, res, url) => {
   res.end(JSON.stringify({ data: catalog }))
 }
 
-const hydrateAgent = async (req, res) => {
+const hydrateAgent = async (req, res, client) => {
   const input = await readJsonBody(req)
   const mode = input?.forwardedProps?.dataagent?.mode
   if (mode !== 'hydrate') throw new Error('Invalid AG-UI hydration request')
@@ -195,7 +201,12 @@ const hydrateAgent = async (req, res) => {
   // fresh registry for hydration so this gateway observes the latest commit
   // written by the streaming adapter before RUN_FINISHED(interrupt) was sent.
   const registry = new SessionRegistry()
-  const pending = await registry.pendingInterrupts(threadId)
+  let pending = await registry.pendingInterrupts(threadId)
+  if (!pending.length) {
+    const forms = await client.listForms(threadId).catch(() => [])
+    pending = (Array.isArray(forms) ? forms : []).map(interruptFromForm).filter(Boolean)
+    if (pending.length) await registry.setPendingInterrupts(threadId, pending)
+  }
 
   openSse(res)
   writeSse(res, runStarted(threadId, runId))
@@ -268,7 +279,7 @@ export const createServer = ({
 
       if (req.method === 'POST' && url.pathname === `${API_BASE}/agui`) {
         if (url.searchParams.get('mode') === 'hydrate') {
-          await hydrateAgent(req, res)
+          await hydrateAgent(req, res, client)
           return
         }
         req.url = `/agent${url.search}`

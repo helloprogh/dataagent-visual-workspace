@@ -228,6 +228,24 @@ export class OpenCodeClient {
     }, 'Unable to reply to OpenCode permission')
   }
 
+  async listForms(sessionId) {
+    return this.json(`/api/session/${encodeURIComponent(sessionId)}/form`, {}, 'Unable to list OpenCode forms')
+  }
+
+  async replyForm(sessionId, formId, answer) {
+    return this.json(`/api/session/${encodeURIComponent(sessionId)}/form/${encodeURIComponent(formId)}/reply`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ answer }),
+    }, 'Unable to reply to OpenCode form')
+  }
+
+  async cancelForm(sessionId, formId) {
+    return this.json(`/api/session/${encodeURIComponent(sessionId)}/form/${encodeURIComponent(formId)}/cancel`, {
+      method: 'POST',
+    }, 'Unable to cancel OpenCode form')
+  }
+
   async *events(signal) {
     const response = await this.request('/api/event', {
       headers: { Accept: 'text/event-stream' },

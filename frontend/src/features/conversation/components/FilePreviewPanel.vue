@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import type { Interrupt, ResumeEntry } from '@ag-ui/client'
 import { MarkdownRenderer } from 'x-markdown-vue'
 import { appTheme } from '../../../shared/theme/theme'
+import { buildConfirmationResumeEntry } from '../approval'
 import { fileKindLabel, formatFileSize, type ConversationFilePreview } from '../types/filePreview'
 import InterruptCard from './InterruptCard.vue'
 
@@ -26,6 +27,7 @@ const content = ref('')
 const loading = ref(false)
 const error = ref('')
 const truncated = ref(false)
+const showApprovalOptions = ref(false)
 let controller: AbortController | null = null
 
 const extension = computed(() => props.file.name.split('.').pop()?.toLowerCase() ?? '')
@@ -36,6 +38,10 @@ const kind = computed(() => {
   if (props.file.mimeType.startsWith('text/') || ['json', 'yaml', 'yml', 'csv', 'sql', 'xml', 'log'].includes(extension.value)) return 'text'
   return 'unsupported'
 })
+const confirmationEntry = computed(() => props.interrupts.length === 1
+  ? buildConfirmationResumeEntry(props.interrupts[0])
+  : null)
+const approvalHandled = computed(() => props.approvalSubmitted || props.file.approvalResolved)
 
 async function loadText() {
   controller?.abort()
@@ -71,7 +77,10 @@ function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') emit('close')
 }
 
-watch(() => props.file, loadText, { immediate: true })
+watch(() => props.file, () => {
+  showApprovalOptions.value = false
+  void loadText()
+}, { immediate: true })
 window.addEventListener('keydown', onKeydown)
 onBeforeUnmount(() => {
   controller?.abort()
@@ -98,24 +107,6 @@ onBeforeUnmount(() => {
     </header>
 
     <div class="file-preview-panel__body">
-      <section v-if="interrupts.length || approvalSubmitted" class="file-preview-panel__approval">
-        <div class="file-preview-panel__approval-heading">
-          <div>
-            <i aria-hidden="true"></i>
-            <span>文件审批</span>
-          </div>
-          <small>{{ approvalSubmitted ? '已提交' : '等待你的决定' }}</small>
-        </div>
-        <InterruptCard
-          v-if="interrupts.length"
-          variant="embedded"
-          :interrupts="interrupts"
-          :busy="busy"
-          @resume="emit('resume', $event)"
-        />
-        <p v-else>审批结果已发送，文件仍可继续预览。</p>
-      </section>
-
       <el-skeleton v-if="loading" :rows="12" animated />
 
       <div v-else-if="error" class="file-preview-panel__state">
@@ -154,11 +145,44 @@ onBeforeUnmount(() => {
         <a :href="file.url" target="_blank" rel="noreferrer">打开原文件</a>
       </div>
     </div>
+
+    <footer v-if="interrupts.length || approvalHandled" class="file-preview-panel__approval">
+      <div class="file-preview-panel__approval-heading">
+        <div>
+          <i aria-hidden="true"></i>
+          <span>文件审批</span>
+        </div>
+        <small>{{ approvalHandled ? '已处理' : '确认后继续执行' }}</small>
+      </div>
+      <button
+        v-if="confirmationEntry && !approvalHandled"
+        type="button"
+        class="file-preview-panel__confirm"
+        :disabled="busy"
+        @click="emit('resume', [confirmationEntry])"
+      >{{ busy ? '正在继续…' : '确认并继续' }}</button>
+      <button
+        v-if="confirmationEntry && !approvalHandled"
+        type="button"
+        class="file-preview-panel__more"
+        :disabled="busy"
+        :aria-expanded="showApprovalOptions"
+        @click="showApprovalOptions = !showApprovalOptions"
+      >{{ showApprovalOptions ? '收起其他选项' : '其他处理' }}</button>
+      <InterruptCard
+        v-if="interrupts.length && !approvalHandled && (!confirmationEntry || showApprovalOptions)"
+        variant="embedded"
+        :interrupts="interrupts"
+        :busy="busy"
+        @resume="emit('resume', $event)"
+      />
+      <p v-else-if="approvalHandled">审批结果已发送，文件仍可继续预览。</p>
+    </footer>
   </aside>
 </template>
 
 <style scoped>
-.file-preview-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; border-left: 0.0625rem solid var(--da-border-strong); background: var(--da-surface-1); box-shadow: -1.5rem 0 4rem rgb(0 0 0 / 18%); }
+.file-preview-panel { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-width: 0; min-height: 0; border-left: 0.0625rem solid var(--da-border-strong); background: var(--da-surface-1); box-shadow: -1.5rem 0 4rem rgb(0 0 0 / 18%); }
 .file-preview-panel__header { display: flex; min-height: 3.75rem; align-items: center; justify-content: space-between; gap: var(--da-space-4); padding: 0 var(--da-space-4); border-bottom: 0.0625rem solid var(--da-border); }
 .file-preview-panel__identity { display: flex; min-width: 0; align-items: center; gap: var(--da-space-3); }
 .file-preview-panel__identity > div { display: grid; min-width: 0; gap: 0.125rem; }
@@ -170,13 +194,19 @@ onBeforeUnmount(() => {
 .file-preview-panel__actions :is(a, button) { display: grid; width: 2rem; height: 2rem; padding: 0; place-items: center; border: 0; border-radius: var(--da-radius-sm); color: var(--da-text-muted); background: transparent; cursor: pointer; text-decoration: none; }
 .file-preview-panel__actions :is(a, button):hover { color: var(--da-text-emphasis); background: var(--da-surface-3); }
 .file-preview-panel__body { min-height: 0; overflow: auto; padding: var(--da-space-5); }
-.file-preview-panel__approval { margin-bottom: var(--da-space-5); padding: var(--da-space-4); border: 0.0625rem solid color-mix(in srgb, var(--da-accent-yellow) 28%, var(--da-border)); border-radius: var(--da-radius-md); background: color-mix(in srgb, var(--da-accent-yellow) 4%, var(--da-surface-2)); }
+.file-preview-panel__approval { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--da-space-3) var(--da-space-4); padding: var(--da-space-4); border-top: 0.0625rem solid color-mix(in srgb, var(--da-accent-yellow) 28%, var(--da-border)); background: color-mix(in srgb, var(--da-accent-yellow) 4%, var(--da-surface-2)); box-shadow: 0 -0.75rem 2rem rgb(0 0 0 / 8%); }
 .file-preview-panel__approval-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--da-space-3); margin-bottom: var(--da-space-3); }
 .file-preview-panel__approval-heading > div { display: flex; align-items: center; gap: var(--da-space-2); }
 .file-preview-panel__approval-heading i { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--da-accent-yellow); box-shadow: 0 0 0.75rem color-mix(in srgb, var(--da-accent-yellow) 32%, transparent); }
 .file-preview-panel__approval-heading span { color: var(--da-text-emphasis); font-size: var(--da-font-size-sm); font-weight: 600; }
 .file-preview-panel__approval-heading small, .file-preview-panel__approval > p { color: var(--da-text-muted); font-size: var(--da-font-size-xs); }
+.file-preview-panel__approval-heading { margin: 0; }
+.file-preview-panel__approval > :is(.interrupt-card, p) { grid-column: 1 / -1; }
 .file-preview-panel__approval > p { margin: 0; }
+.file-preview-panel__confirm { grid-column: 2; grid-row: 1; min-width: 7.5rem; padding: var(--da-space-2) var(--da-space-4); border: 0.0625rem solid color-mix(in srgb, var(--da-accent-blue) 60%, var(--da-border)); border-radius: var(--da-radius-sm); color: white; background: var(--da-accent-blue); cursor: pointer; font-weight: 600; }
+.file-preview-panel__confirm:disabled { cursor: wait; opacity: 0.65; }
+.file-preview-panel__more { grid-column: 2; padding: 0; border: 0; color: var(--da-text-muted); background: transparent; cursor: pointer; font-size: var(--da-font-size-xs); text-align: right; }
+.file-preview-panel__more:hover { color: var(--da-text-emphasis); }
 .file-preview-panel__body > img { display: block; width: 100%; height: auto; border-radius: var(--da-radius-md); background: var(--da-surface-0); object-fit: contain; }
 .file-preview-panel__body > iframe { width: 100%; height: 100%; min-height: 24rem; border: 0; border-radius: var(--da-radius-md); background: white; }
 .file-preview-panel__markdown :deep(.x-md-renderer) { padding: 0 !important; color: var(--da-text-primary) !important; background: transparent !important; }
@@ -187,4 +217,5 @@ onBeforeUnmount(() => {
 .file-preview-panel__state p { max-width: 22rem; margin: 0; line-height: 1.6; }
 .file-preview-panel__state a { padding: var(--da-space-2) var(--da-space-3); border: 0.0625rem solid var(--da-border-strong); border-radius: var(--da-radius-sm); color: var(--da-text-primary); text-decoration: none; }
 .file-preview-panel__notice { margin-top: var(--da-space-4); color: var(--da-text-muted); font-size: var(--da-font-size-xs); }
+@media (max-width: 40rem) { .file-preview-panel__approval { grid-template-columns: 1fr; } .file-preview-panel__confirm, .file-preview-panel__more { grid-column: 1; grid-row: auto; width: 100%; text-align: center; } }
 </style>

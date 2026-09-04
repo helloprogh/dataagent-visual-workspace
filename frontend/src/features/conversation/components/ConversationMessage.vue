@@ -6,9 +6,12 @@ import { MarkdownRenderer } from 'x-markdown-vue'
 import { appTheme } from '../../../shared/theme/theme'
 import { fileKindLabel, formatFileSize, type ConversationFilePreview } from '../types/filePreview'
 import { nextRevealLength } from '../textReveal'
+import GenerativeUiCard from './GenerativeUiCard.vue'
 
-const props = defineProps<{ message: Message; running?: boolean; animate?: boolean; streaming?: boolean }>()
-const emit = defineEmits<{ preview: [file: ConversationFilePreview]; reveal: [] }>()
+const props = withDefaults(defineProps<{ message: Message; running?: boolean; animate?: boolean; streaming?: boolean; pendingInterruptIds?: string[] }>(), {
+  pendingInterruptIds: () => [],
+})
+const emit = defineEmits<{ preview: [file: ConversationFilePreview]; reveal: []; confirm: [interruptId: string] }>()
 const raw = computed(() => props.message as any)
 const role = computed(() => String(raw.value.role ?? ''))
 
@@ -275,6 +278,16 @@ function previewFile(file: any, index: number) {
     </summary>
     <pre>{{ text }}</pre>
   </details>
+
+  <GenerativeUiCard
+    v-else-if="isActivity && raw.activityType === 'dataagent.ui'"
+    :content="raw.content"
+    :message-id="message.id"
+    :pending-interrupt-ids="pendingInterruptIds"
+    :busy="running"
+    @preview="emit('preview', $event)"
+    @confirm="emit('confirm', $event)"
+  />
 
   <section v-else-if="isActivity && activity.visible" class="activity-card">
     <i :class="`activity-card__dot activity-card__dot--${activity.tone}`"></i>

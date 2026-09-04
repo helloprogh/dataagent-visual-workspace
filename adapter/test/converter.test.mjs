@@ -91,6 +91,85 @@ test('turns OpenCode permission requests into a standard AG-UI interrupt', () =>
   })
 })
 
+test('turns OpenCode forms into schema-driven AG-UI interrupts', () => {
+  const converter = create()
+  converter.convert({
+    type: 'session.tool.input.ended',
+    data: { sessionID: 'ses-1', assistantMessageID: 'a1', id: 'question-1', name: 'question', text: '{}' },
+  })
+  const form = {
+    id: 'frm_test',
+    sessionID: 'ses-1',
+    title: 'Questions',
+    metadata: { kind: 'question', tool: { id: 'question-1', messageID: 'a1' } },
+    fields: [{
+      key: 'q0',
+      type: 'string',
+      title: '文件审批',
+      description: '是否通过审批？',
+      options: [{ value: '通过', label: '通过' }, { value: '需修改', label: '需修改' }],
+      custom: true,
+    }],
+  }
+  const events = converter.convert({ type: 'form.created', data: { form } })
+  const interrupt = events.at(-1).outcome.interrupts[0]
+
+  assert.deepEqual(types(events), ['ACTIVITY_SNAPSHOT', 'TOOL_CALL_END', 'RUN_FINISHED'])
+  assert.equal(interrupt.id, 'frm_test')
+  assert.equal(interrupt.toolCallId, 'question-1')
+  assert.equal(interrupt.message, '是否通过审批？')
+  assert.deepEqual(interrupt.responseSchema.required, ['q0'])
+  assert.deepEqual(interrupt.responseSchema.properties.q0.enum, ['通过', '需修改'])
+  assert.equal(interrupt.responseSchema.properties.q0['x-custom'], true)
+  assert.equal(interrupt.metadata.kind, 'form')
+
+  const other = create()
+  assert.deepEqual(other.convert({ type: 'form.created', data: { form: { ...form, sessionID: 'ses-other' } } }), [])
+})
+
+test('binds one actionable generated file to its following form before pausing', () => {
+  const converter = create()
+  converter.convert({
+    type: 'ACTIVITY_SNAPSHOT',
+    data: {
+      threadId: 'thread-1',
+      runId: 'run-1',
+      sessionID: 'ses-1',
+      parentMessageId: 'a1',
+      activityType: 'dataagent.ui',
+      content: {
+        version: 1,
+        surfaceId: 'spec',
+        title: 'SPEC',
+        status: 'ready',
+        cards: [{
+          id: 'spec-file',
+          kind: 'file',
+          name: 'SPEC.md',
+          mimeType: 'text/markdown',
+          url: '/dataagent/web/api/agui/file/12345678-1234-1234-1234-123456789abc',
+          approvalMode: 'next-interrupt',
+        }],
+      },
+    },
+  })
+  converter.convert({
+    type: 'session.tool.input.ended',
+    data: { sessionID: 'ses-1', assistantMessageID: 'a1', id: 'question-spec', name: 'question', text: '{}' },
+  })
+  const events = converter.convert({ type: 'form.created', data: { form: {
+    id: 'frm_spec',
+    sessionID: 'ses-1',
+    metadata: { tool: { id: 'question-spec' } },
+    fields: [{ key: 'decision', type: 'string', options: [{ value: '确认并继续' }, { value: '需要修改' }] }],
+  } } })
+
+  assert.deepEqual(types(events), ['ACTIVITY_SNAPSHOT', 'ACTIVITY_SNAPSHOT', 'TOOL_CALL_END', 'RUN_FINISHED'])
+  assert.equal(events[0].activityType, 'dataagent.ui')
+  assert.equal(events[0].content.cards[0].approvalInterruptId, 'frm_spec')
+  assert.equal(events.at(-1).outcome.interrupts[0].id, 'frm_spec')
+})
+
 test('resumed tool calls emit only the result in the new run', () => {
   const converter = new OpenCodeAguiConverter({
     threadId: 'thread-1',

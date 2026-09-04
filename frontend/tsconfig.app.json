@@ -23,6 +23,8 @@
     "src/features/**/*.ts",
     "src/features/**/*.vue",
     "src/shared/**/*.ts",
-    "src/shared/**/*.vue"
+    "src/shared/**/*.vue",
+    "tests/**/*.ts",
+    "tests/**/*.vue"
   ]
 }

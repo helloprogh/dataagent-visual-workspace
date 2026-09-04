@@ -14,8 +14,10 @@ import AuditPanel, { type AuditEntry } from './AuditPanel.vue'
 import FilePreviewPanel from './FilePreviewPanel.vue'
 import InterruptCard from './InterruptCard.vue'
 import type { ConversationFilePreview } from '../types/filePreview'
+import { buildConfirmationResumeEntry } from '../approval'
 import { userFacingSessionName } from '../presentation'
 import { buildPresentation, messageText } from '../processPresentation'
+import { normalizeUiContent } from '../../../../../shared/generative-ui.mjs'
 
 const props = defineProps<{
   sessionId?: string
@@ -100,6 +102,26 @@ const deliverables = computed(() => {
   const known = new Set<string>()
   for (const message of messages.value) {
     const content = (message as any).content
+    if ((message as any).activityType === 'dataagent.ui') {
+      const delivery = normalizeUiContent(content)
+      if (delivery && delivery.status !== 'removed') {
+        for (const card of delivery.cards) {
+          const id = `${message.id}-${card.id}`
+          if (card.kind !== 'file' || known.has(id)) continue
+          known.add(id)
+          result.push({
+            id,
+            name: card.name,
+            url: card.url,
+            mimeType: card.mimeType,
+            ...(card.approvalInterruptId ? { approvalInterruptId: card.approvalInterruptId } : {}),
+            ...(card.approvalInterruptId ? { approvalResolved: !pendingInterrupts.value.some(interrupt => interrupt.id === card.approvalInterruptId) } : {}),
+            category: 'output',
+          })
+        }
+      }
+      continue
+    }
     if (!Array.isArray(content)) continue
     content.forEach((part, index) => {
       const file = previewFromPart(message, part, index)
@@ -140,9 +162,13 @@ const previewInterrupts = computed(() => {
   return pendingInterrupts.value.filter(interrupt => interrupt.id === interruptId)
 })
 
+const pendingInterruptIds = computed(() => pendingInterrupts.value.map(interrupt => interrupt.id))
+const deliveryApprovalIds = computed(() => new Set(deliverables.value
+  .map(file => file.approvalInterruptId)
+  .filter((id): id is string => Boolean(id))))
 const composerInterrupts = computed(() => {
-  const previewIds = new Set(previewInterrupts.value.map(interrupt => interrupt.id))
-  return pendingInterrupts.value.filter(interrupt => !previewIds.has(interrupt.id))
+  if (pendingInterrupts.value.length !== 1) return pendingInterrupts.value
+  return pendingInterrupts.value.filter(interrupt => !deliveryApprovalIds.value.has(interrupt.id))
 })
 
 function scrollToBottom() {
@@ -310,6 +336,22 @@ async function resumeFileApproval(entries: ResumeEntry[]) {
   if (await resumeRun(entries)) previewApprovalSubmitted.value = true
 }
 
+async function confirmDelivery(interruptId: string) {
+  if (running.value) return
+  if (pendingInterrupts.value.length !== 1) {
+    ElMessage.warning('当前有多项待确认内容，请在完整审批界面统一处理')
+    return
+  }
+  const interrupt = pendingInterrupts.value.find(item => item.id === interruptId)
+  if (!interrupt) return
+  const entry = buildConfirmationResumeEntry(interrupt)
+  if (!entry) {
+    ElMessage.warning('这项审批需要查看完整选项后处理')
+    return
+  }
+  await resumeRun([entry])
+}
+
 async function stopRun() {
   try {
     await stop()
@@ -407,7 +449,7 @@ onBeforeUnmount(() => {
         </div>
         <template v-for="item in presentationItems" :key="item.key">
           <section v-if="item.kind === 'turn'" class="conversation-turn">
-            <div :data-message-id="item.user.id"><ConversationMessage :message="item.user" @preview="openFilePreview" /></div>
+            <div :data-message-id="item.user.id"><ConversationMessage :message="item.user" :running="running" :pending-interrupt-ids="pendingInterruptIds" @preview="openFilePreview" @confirm="confirmDelivery" /></div>
             <div class="conversation-turn__response">
               <template v-for="child in item.children" :key="child.key">
                 <ConversationProcessGroup
@@ -423,11 +465,14 @@ onBeforeUnmount(() => {
                 <ConversationMessage
                   v-else
                   :message="child.message"
+                  :running="running"
                   :animate="animatedMessageIds.has(child.message.id)"
                   :streaming="running && activeTextId === child.message.id"
+                  :pending-interrupt-ids="pendingInterruptIds"
                   @reveal="followTextReveal"
                   :data-message-id="child.message.id"
                   @preview="openFilePreview"
+                  @confirm="confirmDelivery"
                 />
               </template>
             </div>
@@ -442,7 +487,7 @@ onBeforeUnmount(() => {
             @preview="openFilePreview"
             @continue="continueFromStep"
           />
-          <ConversationMessage v-else :message="item.message" :animate="animatedMessageIds.has(item.message.id)" :streaming="running && activeTextId === item.message.id" :data-message-id="item.message.id" @reveal="followTextReveal" @preview="openFilePreview" />
+          <ConversationMessage v-else :message="item.message" :running="running" :animate="animatedMessageIds.has(item.message.id)" :streaming="running && activeTextId === item.message.id" :pending-interrupt-ids="pendingInterruptIds" :data-message-id="item.message.id" @reveal="followTextReveal" @preview="openFilePreview" @confirm="confirmDelivery" />
         </template>
         <div v-if="showResponsePending" class="response-pending" role="status" aria-live="polite">
           <span class="response-pending__dots" aria-hidden="true"><i></i><i></i><i></i></span>

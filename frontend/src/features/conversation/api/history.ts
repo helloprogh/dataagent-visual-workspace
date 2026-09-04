@@ -8,6 +8,7 @@ type SortOrder = 'asc' | 'desc'
 
 type V2Page = {
   data: unknown[]
+  activities?: unknown[]
   cursor: { previous?: string; next?: string }
 }
 
@@ -64,6 +65,7 @@ function parsePage(body: unknown, action: string): V2Page {
   }
   return {
     data: body.data,
+    activities: Array.isArray(body.activities) ? body.activities : [],
     cursor: {
       ...(optionalString(body.cursor.previous) ? { previous: optionalString(body.cursor.previous) } : {}),
       ...(optionalString(body.cursor.next) ? { next: optionalString(body.cursor.next) } : {}),
@@ -192,6 +194,22 @@ function normalizeMessage(value: unknown): Message[] {
   return []
 }
 
+export function normalizeHistoryPage(data: unknown[], activities: unknown[] = []): Message[] {
+  const seen = new Set<string>()
+  return [...data].reverse().flatMap(value => {
+    const messages = normalizeMessage(value)
+    if (!isRecord(value)) return messages
+    for (const activity of activities) {
+      if (!isRecord(activity) || activity.parentMessageId !== value.id
+        || activity.activityType !== 'dataagent.ui' || typeof activity.messageId !== 'string'
+        || !isRecord(activity.content) || seen.has(activity.messageId)) continue
+      seen.add(activity.messageId)
+      messages.push({ id: activity.messageId, role: 'activity', activityType: 'dataagent.ui', content: activity.content } as Message)
+    }
+    return messages
+  })
+}
+
 export async function fetchConversationSessions(signal?: AbortSignal): Promise<ConversationSession[]> {
   const sessions = await fetchAllPages('/session', 'desc', SESSION_PAGE_LIMIT, signal)
   return sessions
@@ -219,7 +237,7 @@ export async function fetchConversationMessagePage(
       ? { limit: MESSAGE_PAGE_LIMIT, cursor: pageCursor }
       : { limit: MESSAGE_PAGE_LIMIT, order: 'desc' })
     const page = parsePage(await requestJson(url, { signal }, '查询历史消息失败'), '查询历史消息失败')
-    const messages = [...page.data].reverse().flatMap(normalizeMessage)
+    const messages = normalizeHistoryPage(page.data, page.activities)
     const nextCursor = page.data.length === MESSAGE_PAGE_LIMIT ? optionalString(page.cursor.next) : undefined
     if (messages.length || !nextCursor) return { messages, ...(nextCursor ? { nextCursor } : {}) }
     pageCursor = nextCursor

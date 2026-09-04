@@ -41,6 +41,21 @@ test('persists pending interrupts and the latest resume receipt', async (t) => {
   assert.deepEqual(await resolved.lastResume('thread-1'), receipt)
 })
 
+test('refresh observes interrupts persisted by the hydration registry', async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'dataagent-registry-refresh-'))
+  const file = path.join(directory, 'thread-sessions.json')
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const streamRegistry = new SessionRegistry(file)
+  await streamRegistry.set('thread-form', 'thread-form')
+  assert.deepEqual(await streamRegistry.pendingInterrupts('thread-form'), [])
+
+  const hydrationRegistry = new SessionRegistry(file)
+  await hydrationRegistry.setPendingInterrupts('thread-form', [{ id: 'frm_restore', metadata: { kind: 'form' } }])
+  assert.deepEqual(await streamRegistry.pendingInterrupts('thread-form'), [])
+  await streamRegistry.refresh()
+  assert.equal((await streamRegistry.pendingInterrupts('thread-form'))[0].id, 'frm_restore')
+})
+
 test('persists structured user attachments by AG-UI run id', async (t) => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'dataagent-registry-files-'))
   const file = path.join(directory, 'thread-sessions.json')

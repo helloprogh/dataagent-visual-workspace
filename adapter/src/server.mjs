@@ -147,13 +147,22 @@ const applyResume = async (threadId, sessionId, resume) => {
   }
   const replies = pending.map((interrupt) => {
     const entry = entries.get(interrupt.id)
+    if (interrupt.metadata?.kind === 'form') {
+      const formId = interrupt.metadata.formId ?? interrupt.id
+      if (entry.status === 'cancelled') return client.cancelForm(sessionId, formId)
+      const answer = entry.payload
+      if (!answer || typeof answer !== 'object' || Array.isArray(answer)) {
+        throw new Error(`Interrupt ${interrupt.id} requires an object answer`)
+      }
+      return client.replyForm(sessionId, formId, answer)
+    }
     const decision = entry.status === 'cancelled' ? 'reject' : entry.payload?.decision
     if (!['once', 'always', 'reject'].includes(decision)) {
       throw new Error(`Interrupt ${interrupt.id} requires payload.decision to be once, always, or reject`)
     }
-    return { requestId: interrupt.id, decision, message: entry.payload?.message }
+    return client.replyPermission(sessionId, interrupt.id, decision, entry.payload?.message)
   })
-  await Promise.all(replies.map((item) => client.replyPermission(sessionId, item.requestId, item.decision, item.message)))
+  await Promise.all(replies)
   const resumedToolCallIds = pending.map((item) => item.toolCallId).filter(Boolean)
   await registry.resolveInterrupts(threadId, { signature, resumedToolCallIds, resolvedAt: Date.now() })
   return { resumedToolCallIds, replayed: false }
@@ -208,6 +217,7 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl, language } = {}) => 
   const abort = new AbortController()
   let timedOut = false
   let promptFailure
+  let converter
   let pausedForFrontendTool = false
   let pausedForInterrupt = false
   const timeout = setTimeout(() => {
@@ -227,8 +237,12 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl, language } = {}) => 
     if (!resume.length && (text || attachments.length)) {
       await registry.setUserMessage(input.threadId, input.runId, { text, files: attachments })
     }
+    // Hydration intentionally reads a fresh registry instance so it can recover
+    // forms created before an adapter restart. Refresh this long-lived stream
+    // registry before resume so both request paths use the same persisted state.
+    await registry.refresh()
     const pending = await registry.pendingInterrupts(input.threadId)
-    const converter = new OpenCodeAguiConverter({
+    converter = new OpenCodeAguiConverter({
       threadId: input.threadId,
       runId: input.runId,
       sessionId,
@@ -288,6 +302,10 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl, language } = {}) => 
         pausedForInterrupt = true
       }
       for (const item of converted) {
+        if (item.activityType === 'dataagent.ui') {
+          const snapshot = converter.ui.snapshots.get(item.messageId)
+          if (snapshot) await registry.setUiSnapshot(input.threadId, snapshot)
+        }
         if (item === interruptEvent) writeSse(res, stateSnapshot(input.state ?? {}))
         writeSse(res, item.type === 'TOOL_CALL_START' && knownFrontendCall
           ? { ...item, toolCallName: knownFrontendCall.toolName }
@@ -310,7 +328,9 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl, language } = {}) => 
     if (promptFailure) throw promptFailure
     if (!converter.finished) for (const item of converter.finish()) writeSse(res, item)
   } catch (error) {
+    const uiEvents = converter?.ui.finish() ?? []
     if (!res.destroyed && !res.writableEnded) {
+      for (const item of uiEvents) writeSse(res, item)
       const actualError = promptFailure ?? error
       const message = timedOut ? `OpenCode run timed out after ${runTimeoutMs}ms` : actualError.message
       writeSse(res, { type: 'RUN_ERROR', message, code: timedOut ? 'ADAPTER_TIMEOUT' : 'ADAPTER_ERROR' })
@@ -318,6 +338,11 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl, language } = {}) => 
   } finally {
     clearTimeout(timeout)
     abort.abort()
+    if (converter) {
+      for (const snapshot of converter.ui.snapshots.values()) {
+        await registry.setUiSnapshot(input.threadId, snapshot)
+      }
+    }
     if (!res.writableEnded) res.end()
   }
 }

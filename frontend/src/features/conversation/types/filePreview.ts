@@ -5,6 +5,7 @@ export type ConversationFilePreview = {
   mimeType: string
   size?: number
   approvalInterruptId?: string
+  approvalResolved?: boolean
   category?: 'input' | 'output'
   version?: number
   createdAt?: number

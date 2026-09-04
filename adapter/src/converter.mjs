@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { GenerativeUiStream } from './generative-ui.mjs'
+import { uiContentFromToolOutput } from '../../shared/generative-ui.mjs'
 import {
   activitySnapshot,
   event,
@@ -27,11 +29,85 @@ const toolContentText = (content) => {
 const taskActivity = (runId, content) => activitySnapshot(`task-${runId}`, 'dataagent.task', content)
 const subagentActivity = (id, content) => activitySnapshot(`subagent-${id}`, 'dataagent.subagent', content)
 
+const formFieldSchema = (field) => {
+  if (!field || typeof field !== 'object' || typeof field.key !== 'string' || !field.key.trim()) return null
+  const schema = {
+    ...(typeof field.title === 'string' ? { title: field.title } : {}),
+    ...(typeof field.description === 'string' ? { description: field.description } : {}),
+  }
+  if (field.type === 'string') {
+    schema.type = 'string'
+    for (const key of ['format', 'pattern', 'minLength', 'maxLength', 'placeholder', 'default']) {
+      if (field[key] != null) schema[key] = field[key]
+    }
+    if (Array.isArray(field.options) && field.options.length) {
+      schema.enum = field.options.map(option => option?.value).filter(value => typeof value === 'string')
+      schema['x-enumNames'] = field.options.map(option => String(option?.label ?? option?.value ?? ''))
+    }
+    if (field.custom === true) schema['x-custom'] = true
+    return schema
+  }
+  if (field.type === 'number' || field.type === 'integer') {
+    schema.type = field.type
+    for (const key of ['minimum', 'maximum', 'default']) if (field[key] != null) schema[key] = field[key]
+    return schema
+  }
+  if (field.type === 'boolean') return { ...schema, type: 'boolean', ...(field.default != null ? { default: field.default } : {}) }
+  if (field.type === 'multiselect') {
+    const options = Array.isArray(field.options) ? field.options : []
+    return {
+      ...schema,
+      type: 'array',
+      items: {
+        type: 'string',
+        enum: options.map(option => option?.value).filter(value => typeof value === 'string'),
+        'x-enumNames': options.map(option => String(option?.label ?? option?.value ?? '')),
+      },
+      ...(field.minItems != null ? { minItems: field.minItems } : {}),
+      ...(field.maxItems != null ? { maxItems: field.maxItems } : {}),
+      ...(Array.isArray(field.default) ? { default: field.default } : {}),
+      ...(field.custom === true ? { 'x-custom': true } : {}),
+    }
+  }
+  if (field.type === 'external') return { ...schema, type: 'string', readOnly: true, ...(field.url ? { 'x-externalUrl': field.url } : {}) }
+  return null
+}
+
+export function interruptFromForm(form) {
+  if (!form || typeof form !== 'object' || typeof form.id !== 'string' || !Array.isArray(form.fields)) return null
+  const properties = Object.create(null)
+  const required = []
+  for (const field of form.fields) {
+    const schema = formFieldSchema(field)
+    const key = typeof field?.key === 'string' ? field.key.trim() : ''
+    if (!schema || !key || Object.prototype.hasOwnProperty.call(properties, key)) continue
+    properties[key] = schema
+    if (field.required !== false) required.push(key)
+  }
+  if (!Object.keys(properties).length) return null
+  const toolCallId = form.metadata?.tool?.id
+  const firstField = form.fields.find(field => Object.prototype.hasOwnProperty.call(properties, field?.key))
+  return {
+    id: form.id,
+    reason: toolCallId ? 'tool_call' : 'input_required',
+    message: firstField?.description ?? firstField?.title ?? form.title ?? 'Agent 需要你的输入后才能继续。',
+    ...(toolCallId ? { toolCallId: String(toolCallId) } : {}),
+    responseSchema: {
+      type: 'object',
+      properties,
+      ...(required.length ? { required } : {}),
+      additionalProperties: false,
+    },
+    metadata: { source: 'opencode2', kind: 'form', formId: form.id },
+  }
+}
+
 export class OpenCodeAguiConverter {
   constructor({ threadId, runId, sessionId, resumedToolCallIds = [] }) {
     this.threadId = threadId
     this.runId = runId
     this.sessionId = sessionId
+    this.ui = new GenerativeUiStream(threadId, runId)
     this.messageIds = new Map()
     this.partIds = new Map()
     this.openText = new Set()
@@ -87,7 +163,7 @@ export class OpenCodeAguiConverter {
   }
 
   matchesSession(raw) {
-    const eventSession = raw.sessionID ?? raw.sessionId ?? raw.session?.id
+    const eventSession = raw.sessionID ?? raw.sessionId ?? raw.session?.id ?? raw.form?.sessionID ?? raw.form?.sessionId
     return !eventSession || !this.sessionId || eventSession === this.sessionId
   }
 
@@ -102,6 +178,9 @@ export class OpenCodeAguiConverter {
     const type = source?.type ?? ''
     const raw = propsOf(source)
     if (!this.matchesSession(raw)) return []
+    if (type === 'ACTIVITY_SNAPSHOT' || type === 'ACTIVITY_DELTA') {
+      return this.ui.accept({ ...raw, type }, this.sessionId)
+    }
 
     if (type === 'message.updated') {
       const info = raw.info ?? raw.message ?? raw
@@ -215,6 +294,16 @@ export class OpenCodeAguiConverter {
     if (type === 'permission.asked') {
       this.activateRun()
       return this.interrupt(raw)
+    }
+    if (type === 'form.created') {
+      this.activateRun()
+      const interrupt = interruptFromForm(raw.form ?? raw)
+      if (!interrupt) return []
+      return [
+        ...this.ui.bindNextInterrupt(interrupt),
+        taskActivity(this.runId, { mode: 'async', status: 'waiting_permission', formId: interrupt.id }),
+        ...this.finish({ type: 'interrupt', interrupts: [interrupt] }),
+      ]
     }
 
     if (type === 'session.error') return this.fail(errorText(raw.error ?? raw.message) || 'OpenCode run failed')
@@ -378,6 +467,7 @@ export class OpenCodeAguiConverter {
       const failed = type === 'session.tool.failed'
       const output = failed ? errorText(raw.error) : toolContentText(raw.content)
       events.push(toolResult(`result-${state.id}`, state.id, output || (failed ? 'Tool failed' : 'Tool completed')))
+      if (!failed) events.push(...this.ui.publish(uiContentFromToolOutput(raw.structuredContent ?? raw.content), state.parentMessageId))
       if (isSubAgentTool(state.name)) events.push(subagentActivity(state.id, {
         agentId: state.id,
         name: state.name,
@@ -415,6 +505,7 @@ export class OpenCodeAguiConverter {
       if (this.openTools.delete(state.id)) events.push(toolEnd(state.id))
       const output = stateValue.output ?? stateValue.result ?? part.output ?? stateValue.error ?? ''
       events.push(toolResult(`result-${state.id}`, state.id, asText(output)))
+      if (status !== 'error' && status !== 'failed') events.push(...this.ui.publish(uiContentFromToolOutput(output), state.parentMessageId))
       if (isSubAgentTool(state.name)) events.push(subagentActivity(state.id, {
         agentId: state.id,
         name: part.metadata?.agent ?? part.agent ?? state.name,
@@ -478,12 +569,12 @@ export class OpenCodeAguiConverter {
   finish(outcome) {
     if (this.finished) return []
     this.finished = true
-    return [...this.closeOpenEvents(), runFinished(this.threadId, this.runId, outcome)]
+    return [...this.closeOpenEvents(), ...(outcome?.type === 'interrupt' ? [] : this.ui.finish()), runFinished(this.threadId, this.runId, outcome)]
   }
 
   fail(message) {
     if (this.finished) return []
     this.finished = true
-    return [...this.closeOpenEvents(), runError(message)]
+    return [...this.closeOpenEvents(), ...this.ui.finish(), runError(message)]
   }
 }

@@ -270,6 +270,7 @@ export function useAgentConversation() {
 
   async function resume(entries: ResumeEntry[]) {
     const target = agent.value
+    const currentThreadId = threadId.value
     if (!target || running.value || !pendingInterrupts.value.length) return
     const required = new Set(pendingInterrupts.value.map(item => item.id))
     const provided = new Set(entries.map(item => item.interruptId))
@@ -289,6 +290,21 @@ export function useAgentConversation() {
       // clears its internal queue on RUN_FINISHED, so clear it explicitly once
       // the resume request has been accepted by the adapter.
       target.pendingInterrupts = []
+      // A native tool can start before an interrupt and finish in the resumed
+      // run. The AG-UI client does not always associate that later result with
+      // the tool call retained from the previous run, while OpenCode history is
+      // already authoritative. Rehydrate the latest page so the live status is
+      // identical to what a reload would show.
+      try {
+        const page = await fetchConversationMessagePage(currentThreadId)
+        if (agent.value === target && threadId.value === currentThreadId) {
+          target.setMessages(page.messages)
+          nextCursor.value = page.nextCursor
+        }
+      } catch {
+        // The resume itself is already accepted. A transient history refresh
+        // failure must not restore a decision that OpenCode has consumed.
+      }
       syncMessages()
     } catch (reason) {
       pendingInterrupts.value = previousInterrupts

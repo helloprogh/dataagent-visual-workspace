@@ -73,6 +73,12 @@ export class SessionRegistry {
     return record?.lastResume
   }
 
+  async refresh() {
+    await this.ready
+    this.sessions.clear()
+    await this.load()
+  }
+
   async setUserMessage(threadId, runId, message) {
     await this.ready
     const record = await this.get(threadId)
@@ -93,6 +99,19 @@ export class SessionRegistry {
     return record?.userMessages && typeof record.userMessages === 'object'
       ? record.userMessages
       : {}
+  }
+
+  async setUiSnapshot(threadId, snapshot) {
+    const record = await this.get(threadId)
+    const snapshots = record.uiSnapshots ?? {}
+    snapshots[snapshot.messageId] = snapshot
+    record.uiSnapshots = snapshots
+    await this.save()
+  }
+
+  async uiSnapshots(threadId) {
+    const record = await this.get(threadId)
+    return Object.values(record?.uiSnapshots ?? {})
   }
 
   async delete(threadId) {
