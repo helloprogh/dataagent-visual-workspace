@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import { getDefaultModel, getSelectedModel, listModels, switchSessionModel } from '../api/model'
 import type { ModelCatalogItem, ModelSelection } from '../types'
 
@@ -15,10 +16,11 @@ const models = ref<ModelCatalogItem[]>([])
 const selectedKey = ref('')
 const loading = ref(false)
 const changing = ref(false)
+const { t } = useI18n()
 
 const disabled = computed(() => Boolean(props.disabled || loading.value || changing.value))
 const modelByKey = computed(() => new Map(models.value.map(model => [`${model.providerID}::${model.id}`, model])))
-const selectedModelName = computed(() => modelByKey.value.get(selectedKey.value)?.name ?? '选择模型')
+const selectedModelName = computed(() => modelByKey.value.get(selectedKey.value)?.name ?? t('model.select'))
 
 function keyOf(model: ModelSelection) {
   return `${model.providerID}::${model.id}`
@@ -78,8 +80,8 @@ onMounted(load)
     :model-value="selectedKey"
     :disabled="disabled"
     :loading="loading"
-    placeholder="选择模型"
-    aria-label="选择模型"
+    :placeholder="t('model.select')"
+    :aria-label="t('model.select')"
     :title="selectedModelName"
     @click.stop
     @mousedown.stop

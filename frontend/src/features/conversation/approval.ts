@@ -40,3 +40,12 @@ export function buildConfirmationResumeEntry(interrupt: Interrupt): ResumeEntry 
     payload: choice.value,
   } as ResumeEntry
 }
+
+export function buildCancellationResumeEntry(interrupt: Interrupt): ResumeEntry | null {
+  if ((interrupt as any).metadata?.kind !== 'form') return null
+  return {
+    interruptId: interrupt.id,
+    status: 'cancelled',
+    payload: {},
+  } as ResumeEntry
+}

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import { deleteSkill, listSkills, uploadSkill, type AgentSkill } from '../api/skill'
 
 const skills = ref<AgentSkill[]>([])
@@ -9,6 +10,7 @@ const loading = ref(false)
 const uploading = ref(false)
 const deleting = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
+const { t } = useI18n()
 
 const filtered = computed(() => {
   const query = keyword.value.trim().toLowerCase()
@@ -32,14 +34,14 @@ async function onFile(event: Event) {
   input.value = ''
   if (!file) return
   if (!file.name.toLowerCase().endsWith('.zip')) {
-    ElMessage.error('技能包必须是 ZIP 文件')
+    ElMessage.error(t('skill.invalidZip'))
     return
   }
   uploading.value = true
   try {
     await uploadSkill(file)
     await refresh()
-    ElMessage.success('技能上传成功')
+    ElMessage.success(t('skill.uploaded'))
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : String(error))
   } finally { uploading.value = false }
@@ -47,8 +49,8 @@ async function onFile(event: Event) {
 
 async function remove(item: AgentSkill) {
   try {
-    await ElMessageBox.confirm(`确定删除技能「${item.name}」吗？`, '删除技能', {
-      type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('skill.removeConfirm', { name: item.name }), t('skill.removeTitle'), {
+      type: 'warning', confirmButtonText: t('skill.remove'), cancelButtonText: t('app.cancel'),
     })
   } catch { return }
   deleting.value = item.name
@@ -68,15 +70,15 @@ onMounted(refresh)
     <div class="app-page__inner">
       <header class="app-page__header">
         <div>
-          <h1>Skill 管理</h1>
-          <p>查看和管理当前 Data Agent 可用的技能扩展。</p>
+          <h1>{{ t('skill.title') }}</h1>
+          <p>{{ t('skill.description') }}</p>
         </div>
-        <el-button type="primary" :loading="uploading" @click="chooseFile">上传技能包</el-button>
+        <el-button type="primary" :loading="uploading" @click="chooseFile">{{ t('skill.upload') }}</el-button>
       </header>
 
       <div class="skill-toolbar">
-        <el-input v-model="keyword" clearable placeholder="搜索技能" />
-        <el-button :loading="loading" @click="refresh">刷新</el-button>
+        <el-input v-model="keyword" clearable :placeholder="t('skill.search')" />
+        <el-button :loading="loading" @click="refresh">{{ t('app.refresh') }}</el-button>
       </div>
 
       <div v-loading="loading" class="skill-list">
@@ -84,11 +86,11 @@ onMounted(refresh)
           <div class="skill-row__mark">S</div>
           <div class="skill-row__copy">
             <b>{{ skill.name }}</b>
-            <small>{{ skill.description || skill.id || '技能扩展' }}</small>
+            <small>{{ skill.description || skill.id || t('skill.extension') }}</small>
           </div>
-          <el-button text type="danger" :loading="deleting === skill.name" @click="remove(skill)">删除</el-button>
+          <el-button text type="danger" :loading="deleting === skill.name" @click="remove(skill)">{{ t('skill.remove') }}</el-button>
         </article>
-        <div v-if="!loading && !filtered.length" class="empty-state">{{ keyword ? '没有匹配的技能' : '暂未安装技能' }}</div>
+        <div v-if="!loading && !filtered.length" class="empty-state">{{ keyword ? t('skill.noMatches') : t('skill.empty') }}</div>
       </div>
 
       <input ref="fileInput" class="hidden-input" type="file" accept=".zip,application/zip" @change="onFile" />

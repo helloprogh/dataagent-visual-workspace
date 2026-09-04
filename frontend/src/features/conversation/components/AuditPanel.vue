@@ -1,18 +1,20 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 export type AuditEntry = { id: string; label: string; detail: string; tone?: 'success' | 'warning' | 'active' }
 
 defineProps<{ entries: AuditEntry[] }>()
 const emit = defineEmits<{ close: [] }>()
+const { t } = useI18n()
 </script>
 
 <template>
-  <aside class="audit-panel" aria-label="审计记录">
-    <header><div><small>AUDIT LOG</small><b>审计记录</b></div><button type="button" aria-label="关闭审计记录" @click="emit('close')">×</button></header>
+  <aside class="audit-panel" :aria-label="t('audit.label')">
+    <header><div><small>{{ t('audit.eyebrow') }}</small><b>{{ t('audit.label') }}</b></div><button type="button" :aria-label="t('audit.close')" @click="emit('close')">×</button></header>
     <div class="audit-panel__body">
       <div v-for="entry in entries" :key="entry.id" class="audit-entry">
         <i :class="entry.tone"></i><div><b>{{ entry.label }}</b><small>{{ entry.detail }}</small></div>
       </div>
-      <div v-if="!entries.length" class="audit-empty">本次对话暂无操作记录</div>
+      <div v-if="!entries.length" class="audit-empty">{{ t('audit.empty') }}</div>
     </div>
   </aside>
 </template>

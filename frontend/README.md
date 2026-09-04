@@ -9,9 +9,10 @@ Vue 3
 + Element Plus
 + Element-Plus-X
 + @ag-ui/client
++ A2UI v0.9 Native Catalog
 ```
 
-目标是保留 `main` 已有的 Data Agent 核心能力，同时移除旧 Workspace / Frontend Tool 生成式画布链路。
+目标是保留 `main` 已有的 Data Agent 核心能力，同时将生成式 UI 收敛到受校验的 A2UI surface、原生文件交付卡片和可恢复的人机审批流程。
 
 ## 当前能力
 
@@ -26,6 +27,11 @@ Vue 3
 - AG-UI Interrupt / Resume。
 - Pending Interrupt 刷新恢复。
 - Stop：前端 Abort Run + OpenCode Session Interrupt。
+- A2UI v0.9 白名单组件与 action 回传。
+- `dataagent.ui` 文件、Markdown、指标和表格卡片。
+- 工作区文件与结构化 ZIP 目录/文件预览。
+- 单审批快捷确认，以及多审批完整汇总恢复。
+- 右侧预览与对话卡片共用的确认并继续/取消入口。
 - Skill 查询、上传、删除。
 - Tool / MCP Capability 管理页面。
 - Light / Dark Theme。
@@ -36,6 +42,8 @@ Vue 3
 - `workspace.render / upsert / remove / agents` 前端工具。
 - CopilotKit Runtime。
 - 旧 GenUI Widget Registry。
+
+生成式 UI 只接受 Adapter 校验后的结构化内容；模型不能直接注入 HTML、JavaScript、Vue 模板或任意文件地址。
 
 OpenCode 后端自身的 Workspace 管理能力没有因此被删除；只是当前新前端不提供对应 Workspace 页面。
 
@@ -69,6 +77,14 @@ src/
 │   ├── config/
 │   ├── styles/
 │   └── theme/
+├── a2ui/
+│   ├── catalog.ts
+│   ├── NativeA2uiSurface.vue
+│   └── sanitizeOperations.ts
+├── i18n/
+│   └── index.ts
+├── router/
+│   └── index.ts
 ├── env.d.ts
 └── main.ts
 ```
@@ -81,11 +97,17 @@ src/
 `agui/`
 : `@ag-ui/client` 的 Agent 创建、AG-UI endpoint 与 hydration client。
 
+`a2ui/`
+: A2UI catalog、组件白名单、操作清洗和 Native Vue renderer；不执行模型代码。
+
 `features/`
 : 按业务领域组织能力，不建立一个全局 `components/` 大目录。
 
 `shared/`
 : HTTP、API 路径、Design Token、Theme 等跨领域基础能力。
+
+`i18n/` 与 `router/`
+: `vue-i18n` 文案资源和 `createWebHashHistory` 路由装配。
 
 ## Conversation Runtime
 
@@ -153,6 +175,9 @@ RunAgentInput.resume[]
 | Welcome / Sender / Bubble | Element-Plus-X |
 | Chat Markdown | x-markdown-vue |
 | Agent Runtime | `@ag-ui/client` |
+| 生成式 UI | A2UI v0.9 Native Catalog + `dataagent.ui` |
+| 文件交付 | `GeneratedArtifactCard` + `FilePreviewPanel` |
+| 审批恢复 | `InterruptCard` + `RunAgentInput.resume[]` |
 | 后续 Chart | raw `echarts` |
 | 后续 Editable Markdown Artifact | Milkdown / Crepe |
 

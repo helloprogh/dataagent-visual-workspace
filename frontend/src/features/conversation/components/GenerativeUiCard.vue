@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { MarkdownRenderer } from 'x-markdown-vue'
 import { normalizeUiContent, type UiCard } from '../../../../../shared/generative-ui.mjs'
 import { appTheme } from '../../../shared/theme/theme'
@@ -17,11 +18,13 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   preview: [file: ConversationFilePreview]
   confirm: [interruptId: string]
+  cancel: [interruptId: string]
 }>()
+const { t } = useI18n()
 const content = computed(() => normalizeUiContent(props.content))
 const expanded = ref(true)
 watch(() => props.messageId, () => { expanded.value = true })
-const statuses = { generating: '正在生成', ready: '已生成', error: '生成失败', removed: '已移除' }
+const statuses = computed(() => ({ generating: t('generated.generating'), ready: t('generated.ready'), error: t('generated.error'), removed: t('generated.removed') }))
 function preview(card: Extract<UiCard, { kind: 'file' }>) {
   emit('preview', {
     id: `${props.messageId}-${card.id}`,
@@ -41,7 +44,7 @@ function approvalPending(card: Extract<UiCard, { kind: 'file' }>) {
 
 <template>
   <section v-if="!content" class="generated-card generated-card--error" role="status">
-    <p>暂时无法展示这份生成结果，卡片数据格式不受支持。</p>
+    <p>{{ t('generated.unsupported') }}</p>
   </section>
   <section v-else-if="content.status !== 'removed'" class="generated-card" :class="`generated-card--${content.status}`" :data-surface-id="content.surfaceId" :aria-busy="content.status === 'generating'">
     <button class="generated-card__header" type="button" :aria-expanded="expanded" @click="expanded = !expanded">
@@ -51,7 +54,7 @@ function approvalPending(card: Extract<UiCard, { kind: 'file' }>) {
       <span class="generated-card__chevron" :class="{ expanded }" aria-hidden="true">›</span>
     </button>
     <div v-show="expanded" class="generated-card__body">
-      <p v-if="!content.cards.length" class="generated-card__empty">{{ content.status === 'generating' ? '内容生成后会在这里自动更新…' : content.status === 'error' ? '本次未能生成内容，请重试。' : '暂无展示内容' }}</p>
+      <p v-if="!content.cards.length" class="generated-card__empty">{{ content.status === 'generating' ? t('generated.waiting') : content.status === 'error' ? t('generated.retry') : t('generated.empty') }}</p>
       <section v-for="card in content.cards" :key="card.id" class="generated-card__block">
         <h3 v-if="card.title">{{ card.title }}</h3>
         <p v-if="card.kind === 'text'" class="generated-card__text">{{ card.text }}</p>
@@ -59,16 +62,16 @@ function approvalPending(card: Extract<UiCard, { kind: 'file' }>) {
         <dl v-else-if="card.kind === 'metrics'" class="generated-card__metrics">
           <div v-for="(item, index) in card.items" :key="index"><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd><small v-if="item.detail">{{ item.detail }}</small></div>
         </dl>
-        <div v-else-if="card.kind === 'table'" class="generated-card__table" tabindex="0" role="region" :aria-label="card.title || '数据表格'">
+        <div v-else-if="card.kind === 'table'" class="generated-card__table" tabindex="0" role="region" :aria-label="card.title || t('generated.dataTable')">
           <table><thead><tr><th v-for="column in card.columns" :key="column.key" scope="col">{{ column.label || column.key }}</th></tr></thead>
             <tbody><tr v-for="(row, index) in card.rows" :key="index"><td v-for="column in card.columns" :key="column.key">{{ row[column.key] }}</td></tr></tbody>
           </table>
-          <p v-if="!card.rows.length" class="generated-card__empty">暂无数据</p>
+          <p v-if="!card.rows.length" class="generated-card__empty">{{ t('generated.noData') }}</p>
         </div>
         <div v-else-if="card.kind === 'file'" class="generated-card__file">
           <button type="button" class="generated-card__file-main" @click="preview(card)">
             <span><b>{{ card.name }}</b><small>{{ card.mimeType }}</small></span>
-            <span>查看完整内容 →</span>
+            <span>{{ t('generated.viewFull') }}</span>
           </button>
           <button
             v-if="approvalPending(card)"
@@ -76,8 +79,15 @@ function approvalPending(card: Extract<UiCard, { kind: 'file' }>) {
             class="generated-card__confirm"
             :disabled="busy"
             @click="emit('confirm', card.approvalInterruptId!)"
-          >{{ busy ? '正在继续…' : '确认并继续' }}</button>
-          <span v-else-if="card.approvalInterruptId" class="generated-card__resolved">已处理</span>
+          >{{ busy ? t('generated.confirmBusy') : t('generated.confirm') }}</button>
+          <button
+            v-if="approvalPending(card)"
+            type="button"
+            class="generated-card__cancel"
+            :disabled="busy"
+            @click="emit('cancel', card.approvalInterruptId!)"
+          >{{ t('generated.cancel') }}</button>
+          <span v-else-if="card.approvalInterruptId" class="generated-card__resolved">{{ t('generated.handled') }}</span>
         </div>
       </section>
     </div>
@@ -119,10 +129,13 @@ function approvalPending(card: Extract<UiCard, { kind: 'file' }>) {
 .generated-card__file-main small, .generated-card__file-main > span:last-child { color: var(--da-text-muted); font-size: var(--da-font-size-xs); white-space: nowrap; }
 .generated-card__confirm { align-self: center; padding: var(--da-space-2) var(--da-space-3); border: 0.0625rem solid color-mix(in srgb, var(--da-accent-blue) 55%, var(--da-border)); border-radius: var(--da-radius-sm); color: var(--da-text-emphasis); background: color-mix(in srgb, var(--da-accent-blue) 14%, var(--da-surface-1)); cursor: pointer; white-space: nowrap; }
 .generated-card__confirm:disabled { cursor: wait; opacity: 0.6; }
+.generated-card__cancel { align-self: center; padding: var(--da-space-2) var(--da-space-3); border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-sm); color: var(--da-text-secondary); background: var(--da-surface-1); cursor: pointer; white-space: nowrap; }
+.generated-card__cancel:hover:not(:disabled) { border-color: var(--da-border-strong); color: var(--da-text-emphasis); }
+.generated-card__cancel:disabled { cursor: wait; opacity: 0.6; }
 .generated-card__resolved { align-self: center; padding: 0 var(--da-space-2); color: var(--da-accent-green); font-size: var(--da-font-size-xs); white-space: nowrap; }
 .generated-card__empty, .generated-card--error > p { margin: 0; padding: var(--da-space-3); color: var(--da-text-muted); font-size: var(--da-font-size-sm); }
 @keyframes card-arrive { from { opacity: 0; transform: translateY(0.25rem); } to { opacity: 1; transform: translateY(0); } }
 @keyframes card-pulse { 50% { opacity: 0.35; } }
-@media (max-width: 40rem) { .generated-card__header { gap: var(--da-space-2); } .generated-card__mark { display: none; } .generated-card__file { align-items: stretch; flex-direction: column; } .generated-card__confirm { width: 100%; } }
+@media (max-width: 40rem) { .generated-card__header { gap: var(--da-space-2); } .generated-card__mark { display: none; } .generated-card__file { align-items: stretch; flex-direction: column; } .generated-card__confirm, .generated-card__cancel { width: 100%; } }
 @media (prefers-reduced-motion: reduce) { .generated-card, .generated-card--generating .generated-card__status i { animation: none; } .generated-card__header, .generated-card__chevron { transition: none; } }
 </style>

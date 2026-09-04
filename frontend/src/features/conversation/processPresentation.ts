@@ -16,9 +16,9 @@ export function messageText(message: Message) {
   return Array.isArray(content) ? content.filter(part => part?.type === 'text').map(part => String(part.text ?? part.content ?? '')).join('') : ''
 }
 
-export function toolDisplayName(name: unknown) {
+export function toolDisplayName(name: unknown, translations?: Record<string, string>) {
   const value = String(name ?? '').trim()
-  const labels: Record<string, string> = { read: '读取文件', write: '保存文件', edit: '修改文件', glob: '查找文件', grep: '搜索内容', bash: '执行命令', shell: '执行命令', task: '协同处理' }
+  const labels: Record<string, string> = translations ?? { read: '读取文件', write: '保存文件', edit: '修改文件', glob: '查找文件', grep: '搜索内容', bash: '执行命令', shell: '执行命令', task: '协同处理' }
   return labels[value.toLowerCase()] ?? (value.startsWith('mcp_') ? '调用外部能力' : value || '执行工具')
 }
 
@@ -36,6 +36,14 @@ export function toolOutputText(message: Message) {
 function hasBody(message: Message) {
   const content = (message as any).content
   return Boolean(messageText(message).trim()) || (Array.isArray(content) && content.some(part => ['image', 'audio', 'video', 'document', 'file'].includes(part?.type)))
+}
+
+function isRemovedDelivery(message: Message) {
+  const raw = message as any
+  if (raw.activityType === 'dataagent.ui') return raw.content?.status === 'removed'
+  const operations = raw.content?.operations ?? raw.content?.a2ui_operations
+  return raw.activityType === 'a2ui-surface' && Array.isArray(operations) && operations.length > 0
+    && operations.every((operation: any) => Boolean(operation?.deleteSurface))
 }
 
 // Only project the view: original messages remain intact for export, retry and approvals.
@@ -94,7 +102,7 @@ export function buildPresentation(messages: Message[], running = false, activeRe
         append({ kind: 'message', key: message.id, message })
       } else if (message.role === 'activity') {
         const content = raw.content ?? {}
-        if (raw.activityType === 'dataagent.ui') {
+        if (['dataagent.ui', 'a2ui-surface'].includes(raw.activityType)) {
           deliveries.set(message.id, message)
           continue
         }
@@ -117,7 +125,7 @@ export function buildPresentation(messages: Message[], running = false, activeRe
         && (activeReasoningId === undefined || activeReasoningId === latestStep.message.id)) group.activeReasoningId = latestStep.message.id
     }
     for (const message of deliveries.values()) {
-      if ((message as any).content?.status !== 'removed') children.push({ kind: 'message', key: `message-${message.id}`, message })
+      if (!isRemovedDelivery(message)) children.push({ kind: 'message', key: `message-${message.id}`, message })
     }
     if (chunk.user) result.push({ kind: 'turn', key: `turn-${chunk.user.id}`, user: chunk.user, children })
     else result.push(...children)

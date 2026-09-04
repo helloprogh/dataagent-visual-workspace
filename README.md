@@ -1,4 +1,4 @@
-# Data Agent Visual Workspace V5.2
+# Data Agent Visual Workspace 6.0
 
 完整的 Data Agent 可视工作区工程。Vue 前端是项目主体，OpenCode2 → AG-UI Adapter 是本地联调、协议转换和会话桥接服务。
 
@@ -6,26 +6,31 @@
 
 ```text
 .
-├─ frontend/   Vue 3 + CopilotKit + AG-UI 可视工作区
+├─ frontend/   Vue 3 + Element Plus + AG-UI/A2UI 可视工作区
 │  ├─ 空工作区 / Demo Mode / OpenCode2 场景模式
-│  ├─ Generative UI 组件注册表
+│  ├─ Generative UI 与 A2UI 组件注册表
+│  ├─ Hash 路由 + 中英文界面国际化
 │  ├─ 主 Agent 聊天与本地会话列表
+│  ├─ 对话内交付卡片、右侧文件/ZIP 目录预览
 │  └─ 输入框上方的标准 AG-UI 人工授权卡片
 └─ adapter/    本地 OpenCode2 → AG-UI Adapter
-   ├─ 自动发现 `opencode2 serve --service`
+   ├─ 默认连接参考 OpenCode `127.0.0.1:4096`（可由环境变量覆盖）
    ├─ OpenCode2 v2 `/api` 接口与本机认证
    ├─ 原生事件 → 标准 AG-UI 事件转换
    ├─ threadId → sessionID 持久化映射
-   ├─ AG-UI frontend tools → 动态 MCP → ToolMessage 续跑
+   ├─ A2UI render_a2ui → 动态 MCP → AG-UI activity
    └─ mock / replay 开发入口
 ```
 
 ## 快速启动
 
-要求 Node.js 20.19 或更高版本，并确保本地 OpenCode2 service 正在运行：
+要求 Node.js 20.19 或更高版本。联调必须启动参考目录
+`D:\ProjectSpace\opencode-dataagent-v2` 中的 OpenCode2 service：
 
 ```powershell
+cd D:\ProjectSpace\opencode-dataagent-v2
 opencode2 serve --service
+cd D:\ProjectSpace\dataagent
 npm install
 npm run dev
 ```
@@ -35,7 +40,15 @@ npm run dev
 - 前端：<http://127.0.0.1:5173>
 - Adapter：<http://127.0.0.1:3001>
 
-Adapter 默认读取 OpenCode2 的 service 注册文件，自动获得动态端口和本机认证，不需要把密码写进项目。也可以通过 `OPENCODE_BASE_URL`、`OPENCODE_PASSWORD` 显式覆盖。
+开发编排脚本默认把 Adapter 固定到参考服务 `http://127.0.0.1:4096`，避免误连本机其它 OpenCode。也可以通过环境变量显式覆盖地址、认证和工作区：
+
+```powershell
+$env:OPENCODE_BASE_URL = 'http://127.0.0.1:4096'
+$env:OPENCODE_PASSWORD = '<your-local-opencode-password>'
+$env:OPENCODE_WORKSPACE_DIRECTORY = 'D:\ProjectSpace\dataagent'
+$env:NO_PROXY = '127.0.0.1,localhost'
+npm run dev
+```
 
 ## 三种前端模式
 
@@ -50,19 +63,24 @@ npm run dev:scenario
 npm run dev:demo
 ```
 
-`dev` 与 `dev:scenario` 都使用真实 OpenCode2，不再注入固定工作区。浏览器只调用 `/api/agui`，由 Vite 代理到 `POST /agent`。CopilotKit 通过标准 `RunAgentInput.tools` 下发 `workspace.render/upsert/remove/agents`，Adapter 把它们注册为动态 MCP；OpenCode2 调用后，浏览器执行工具并用标准 `ToolMessage` 回传结果。
+`dev` 与 `dev:scenario` 都使用真实 OpenCode2，不再注入固定工作区。浏览器只调用
+`/dataagent/web/api/agui`，由 Adapter 转发到参考 OpenCode2；所有浏览器 API 都经过
+`/dataagent/web/api` 前缀。前端通过标准 A2UI catalog 声明生成式 UI 能力，Adapter
+把参考 OpenCode2 的原生事件和 `render_a2ui` 结果转换为 AG-UI；A2UI Delivery、
+文件交付和审批都复用同一条对话流。
 
-OpenCode2 请求工具授权时，Adapter 在同一条 SSE 中返回 `RUN_FINISHED.outcome.interrupts`。界面在输入框上方显示“允许一次 / 始终允许 / 拒绝”，并通过同一个 `/agent` 请求携带 `RunAgentInput.resume` 恢复执行；没有 session、permission、context 或 capability 辅助接口。两端都会持久化待处理 interrupt，刷新页面或重启 Adapter 后仍可继续。
+OpenCode2 请求工具授权时，Adapter 在同一条 SSE 中返回 `RUN_FINISHED.outcome.interrupts`。界面在输入框上方显示由后端 schema 驱动的审批卡；文件交付还可从对话卡片或右侧预览底部确认/取消，并通过同一个 AG-UI 请求携带 `RunAgentInput.resume` 恢复执行。两端都会持久化待处理 interrupt，刷新页面或重启 Adapter 后仍可继续。
 
 ## 关键入口
 
 | 接口 | 用途 |
 | --- | --- |
-| `POST /agent` | 前端默认 AG-UI SSE 入口，连接真实 OpenCode2 |
-| `POST /agui/mock` | 不依赖 OpenCode2 的完整 AG-UI mock |
-| `POST /agui/replay` | 离线重放 OpenCode2 原生事件 |
+| `POST /dataagent/web/api/agui` | 前端默认 AG-UI SSE 入口，连接真实参考 OpenCode2 |
+| `POST /dataagent/web/api/agui/file/upload` | 上传输入附件并返回同源预览地址 |
+| `GET /dataagent/web/api/agui/workspace-file` | 预览工作区生成文件 |
+| `GET /dataagent/web/api/agui/workspace-archive` | 获取 ZIP 目录或读取单个内部文件 |
 
-完整接口见 [adapter/docs/UI-INTERFACES.md](adapter/docs/UI-INTERFACES.md)，事件转换见 [adapter/docs/EVENT-MAPPING.md](adapter/docs/EVENT-MAPPING.md)。
+完整接口见 [adapter/docs/UI-INTERFACES.md](adapter/docs/UI-INTERFACES.md)，事件转换见 [adapter/docs/EVENT-MAPPING.md](adapter/docs/EVENT-MAPPING.md)。技术路线见 [docs/technical-route.md](docs/technical-route.md)，对话流与交互说明见 [docs/conversation-flow.md](docs/conversation-flow.md)。
 
 ## 验证
 

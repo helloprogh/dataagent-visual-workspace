@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { GenerativeUiStream } from './generative-ui.mjs'
+import { A2uiStream, isRenderA2uiTool } from './a2ui.mjs'
 import { uiContentFromToolOutput } from '../../shared/generative-ui.mjs'
 import {
   activitySnapshot,
@@ -103,11 +104,13 @@ export function interruptFromForm(form) {
 }
 
 export class OpenCodeAguiConverter {
-  constructor({ threadId, runId, sessionId, resumedToolCallIds = [] }) {
+  constructor({ threadId, runId, sessionId, resumedToolCallIds = [], a2uiAvailable = false, uiSnapshots = [] }) {
     this.threadId = threadId
     this.runId = runId
     this.sessionId = sessionId
     this.ui = new GenerativeUiStream(threadId, runId)
+    this.a2ui = new A2uiStream(threadId, runId, uiSnapshots)
+    this.a2uiAvailable = a2uiAvailable
     this.messageIds = new Map()
     this.partIds = new Map()
     this.openText = new Set()
@@ -179,6 +182,7 @@ export class OpenCodeAguiConverter {
     const raw = propsOf(source)
     if (!this.matchesSession(raw)) return []
     if (type === 'ACTIVITY_SNAPSHOT' || type === 'ACTIVITY_DELTA') {
+      if (raw.activityType === 'a2ui-surface') return this.a2uiAvailable ? this.a2ui.accept({ ...raw, type }, this.sessionId) : []
       return this.ui.accept({ ...raw, type }, this.sessionId)
     }
 
@@ -467,6 +471,9 @@ export class OpenCodeAguiConverter {
       const failed = type === 'session.tool.failed'
       const output = failed ? errorText(raw.error) : toolContentText(raw.content)
       events.push(toolResult(`result-${state.id}`, state.id, output || (failed ? 'Tool failed' : 'Tool completed')))
+      if (!failed && this.a2uiAvailable && isRenderA2uiTool(state.name)) {
+        events.push(...this.a2ui.publish(state.args, state.parentMessageId))
+      }
       if (!failed) events.push(...this.ui.publish(uiContentFromToolOutput(raw.structuredContent ?? raw.content), state.parentMessageId))
       if (isSubAgentTool(state.name)) events.push(subagentActivity(state.id, {
         agentId: state.id,
@@ -505,6 +512,9 @@ export class OpenCodeAguiConverter {
       if (this.openTools.delete(state.id)) events.push(toolEnd(state.id))
       const output = stateValue.output ?? stateValue.result ?? part.output ?? stateValue.error ?? ''
       events.push(toolResult(`result-${state.id}`, state.id, asText(output)))
+      if (status !== 'error' && status !== 'failed' && this.a2uiAvailable && isRenderA2uiTool(state.name)) {
+        events.push(...this.a2ui.publish(state.args, state.parentMessageId))
+      }
       if (status !== 'error' && status !== 'failed') events.push(...this.ui.publish(uiContentFromToolOutput(output), state.parentMessageId))
       if (isSubAgentTool(state.name)) events.push(subagentActivity(state.id, {
         agentId: state.id,

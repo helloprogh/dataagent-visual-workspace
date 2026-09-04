@@ -9,6 +9,16 @@ export type ConversationFilePreview = {
   category?: 'input' | 'output'
   version?: number
   createdAt?: number
+  /** Internal correlation for files created by a tool in an assistant turn. */
+  sourceMessageId?: string
+  /** Internal workspace path used to retire a generated card after deletion. */
+  sourcePath?: string
+}
+
+export type ArchiveEntry = {
+  path: string
+  kind: 'file' | 'directory'
+  size: number
 }
 
 export function fileKindLabel(file: Pick<ConversationFilePreview, 'name' | 'mimeType'>) {
@@ -16,6 +26,7 @@ export function fileKindLabel(file: Pick<ConversationFilePreview, 'name' | 'mime
   if (file.mimeType === 'text/markdown' || ['md', 'markdown', 'mdx'].includes(extension)) return 'Markdown'
   if (file.mimeType.startsWith('image/')) return '图片'
   if (file.mimeType === 'application/pdf' || extension === 'pdf') return 'PDF'
+  if (file.mimeType === 'application/zip' || extension === 'zip') return 'ZIP'
   if (file.mimeType.startsWith('text/') || ['json', 'yaml', 'yml', 'csv', 'sql', 'xml', 'log'].includes(extension)) return '文本'
   return extension ? extension.toUpperCase() : '文件'
 }

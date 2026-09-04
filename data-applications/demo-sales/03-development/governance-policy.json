@@ -1,0 +1,1 @@
+{"appId":"demo-sales","rowLevelSecurity":"按大区隔离，华东用户不可见华南明细","retention":"明细 3 年，聚合 5 年","export":"CSV UTF-8 with BOM，字段与明细表一致","alerting":"T+1 失败重试3次，08:00前恢复，短信告警"}

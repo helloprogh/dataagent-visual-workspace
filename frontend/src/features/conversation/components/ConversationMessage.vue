@@ -1,17 +1,20 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import type { Message } from '@ag-ui/client'
+import { useI18n } from 'vue-i18n'
 import { Bubble } from 'vue-element-plus-x'
 import { MarkdownRenderer } from 'x-markdown-vue'
 import { appTheme } from '../../../shared/theme/theme'
 import { fileKindLabel, formatFileSize, type ConversationFilePreview } from '../types/filePreview'
 import { nextRevealLength } from '../textReveal'
 import GenerativeUiCard from './GenerativeUiCard.vue'
+import A2uiSurfaceCard from './A2uiSurfaceCard.vue'
 
 const props = withDefaults(defineProps<{ message: Message; running?: boolean; animate?: boolean; streaming?: boolean; pendingInterruptIds?: string[] }>(), {
   pendingInterruptIds: () => [],
 })
-const emit = defineEmits<{ preview: [file: ConversationFilePreview]; reveal: []; confirm: [interruptId: string] }>()
+const emit = defineEmits<{ preview: [file: ConversationFilePreview]; reveal: []; confirm: [interruptId: string]; cancel: [interruptId: string]; a2uiAction: [action: unknown] }>()
+const { t, tm } = useI18n()
 const raw = computed(() => props.message as any)
 const role = computed(() => String(raw.value.role ?? ''))
 
@@ -40,16 +43,8 @@ const isActivity = computed(() => role.value === 'activity')
 
 function toolDisplayName(name: unknown) {
   const value = String(name ?? '').trim()
-  const labels: Record<string, string> = {
-    read: '读取文件',
-    write: '保存文件',
-    edit: '修改文件',
-    glob: '查找文件',
-    grep: '搜索内容',
-    bash: '执行任务',
-    task: '协同处理',
-  }
-  return labels[value.toLowerCase()] ?? (value.startsWith('mcp_') ? '调用外部能力' : value || '执行工具')
+  const labels: Record<string, string> = { ...tm('chat.toolLabels') as any }
+  return labels[value.toLowerCase()] ?? (value.startsWith('mcp_') ? t('message.externalCapability') : value || t('message.executeTool'))
 }
 
 const activity = computed(() => {
@@ -60,20 +55,20 @@ const activity = computed(() => {
   const status = String(content.status ?? '')
   if (type === 'dataagent.task') {
     const labels: Record<string, string> = {
-      queued: '任务已进入队列',
-      delivered: '请求已送达',
-      running: '正在执行任务',
-      waiting_permission: '等待你的授权',
-      retry: '服务暂时不可用，正在重试',
-      completed: '任务执行完成',
+      queued: t('message.queued'),
+      delivered: t('message.delivered'),
+      running: t('message.running'),
+      waiting_permission: t('message.waitingPermission'),
+      retry: t('message.retrying'),
+      completed: t('message.completed'),
     }
     const detail = status === 'waiting_permission'
-      ? String(content.permission?.action ? `待授权操作：${content.permission.action}` : '确认后继续执行')
+      ? String(content.permission?.action ? t('message.pendingAction', { action: content.permission.action }) : t('message.continueAfterConfirm'))
       : status === 'retry'
-        ? String(content.attempt ? `第 ${content.attempt} 次重试` : '')
+        ? String(content.attempt ? t('message.retryCount', { count: content.attempt }) : '')
         : ''
     return {
-      title: labels[status] ?? '任务状态已更新',
+      title: labels[status] ?? t('message.statusUpdated'),
       detail,
       tone: status === 'retry' ? 'warning' : status === 'completed' ? 'success' : 'active',
       visible: status !== 'completed',
@@ -82,13 +77,13 @@ const activity = computed(() => {
   if (type === 'dataagent.tool') {
     const name = toolDisplayName(content.name)
     return {
-      title: status === 'completed' ? `${name} 执行完成` : status === 'error' ? `${name} 执行失败` : `${name} 正在执行`,
+      title: status === 'completed' ? t('message.completedNamed', { name }) : status === 'error' ? t('message.failedNamed', { name }) : t('message.runningNamed', { name }),
       detail: '',
       tone: status === 'error' ? 'warning' : status === 'completed' ? 'success' : 'active',
       visible: true,
     }
   }
-  return { title: '运行状态已更新', detail: '', tone: 'active', visible: true }
+  return { title: t('message.runUpdated'), detail: '', tone: 'active', visible: true }
 })
 
 const displayedText = ref('')
@@ -153,7 +148,7 @@ onBeforeUnmount(() => {
 const reasoningDuration = computed(() => {
   const duration = Number(raw.value.reasoningDurationMs)
   if (!Number.isFinite(duration) || duration < 0) return ''
-  return duration < 1000 ? '少于 1 秒' : `${Math.round(duration / 1000)} 秒`
+  return duration < 1000 ? t('message.lessThanSecond') : t('message.seconds', { count: Math.round(duration / 1000) })
 })
 
 function previewFile(file: any, index: number) {
@@ -161,7 +156,7 @@ function previewFile(file: any, index: number) {
   if (!url) return
   emit('preview', {
     id: String(file?.metadata?.fileId ?? `${props.message.id}-${index}`),
-    name: String(file?.metadata?.filename ?? `附件 ${index + 1}`),
+    name: String(file?.metadata?.filename ?? t('message.attachment', { count: index + 1 })),
     url,
     mimeType: String(file?.source?.mimeType ?? file?.mimeType ?? 'application/octet-stream'),
     ...(Number(file?.metadata?.size) > 0 ? { size: Number(file.metadata.size) } : {}),
@@ -193,12 +188,12 @@ function previewFile(file: any, index: number) {
             class="attachment-card"
             @click="previewFile(file, index)"
           >
-            <span class="attachment-card__mark">{{ fileKindLabel({ name: file.metadata?.filename || `附件 ${index + 1}`, mimeType: file.source?.mimeType || '' }).slice(0, 2) }}</span>
+            <span class="attachment-card__mark">{{ fileKindLabel({ name: file.metadata?.filename || t('message.attachment', { count: index + 1 }), mimeType: file.source?.mimeType || '' }).slice(0, 2) }}</span>
             <span class="attachment-card__body">
-              <b>{{ file.metadata?.filename || `附件 ${index + 1}` }}</b>
-              <small>{{ [fileKindLabel({ name: file.metadata?.filename || `附件 ${index + 1}`, mimeType: file.source?.mimeType || '' }), formatFileSize(file.metadata?.size)].filter(Boolean).join(' · ') }}</small>
+              <b>{{ file.metadata?.filename || t('message.attachment', { count: index + 1 }) }}</b>
+              <small>{{ [fileKindLabel({ name: file.metadata?.filename || t('message.attachment', { count: index + 1 }), mimeType: file.source?.mimeType || '' }), formatFileSize(file.metadata?.size)].filter(Boolean).join(' · ') }}</small>
             </span>
-            <span class="attachment-card__action">预览 →</span>
+            <span class="attachment-card__action">{{ t('message.preview') }}</span>
           </button>
         </div>
       </div>
@@ -223,7 +218,7 @@ function previewFile(file: any, index: number) {
           :enable-shiki="false"
           :enable-mermaid="false"
         />
-        <span v-if="streaming || isRevealing" class="response-caret" aria-label="正在生成回答"></span>
+        <span v-if="streaming || isRevealing" class="response-caret" :aria-label="t('message.generatingAnswer')"></span>
         <div v-if="files.length" class="attachment-list">
           <button
             v-for="(file, index) in files"
@@ -232,12 +227,12 @@ function previewFile(file: any, index: number) {
             class="attachment-card"
             @click="previewFile(file, index)"
           >
-            <span class="attachment-card__mark">{{ fileKindLabel({ name: file.metadata?.filename || `附件 ${index + 1}`, mimeType: file.source?.mimeType || '' }).slice(0, 2) }}</span>
+            <span class="attachment-card__mark">{{ fileKindLabel({ name: file.metadata?.filename || t('message.attachment', { count: index + 1 }), mimeType: file.source?.mimeType || '' }).slice(0, 2) }}</span>
             <span class="attachment-card__body">
-              <b>{{ file.metadata?.filename || `附件 ${index + 1}` }}</b>
-              <small>{{ [fileKindLabel({ name: file.metadata?.filename || `附件 ${index + 1}`, mimeType: file.source?.mimeType || '' }), formatFileSize(file.metadata?.size)].filter(Boolean).join(' · ') }}</small>
+              <b>{{ file.metadata?.filename || t('message.attachment', { count: index + 1 }) }}</b>
+              <small>{{ [fileKindLabel({ name: file.metadata?.filename || t('message.attachment', { count: index + 1 }), mimeType: file.source?.mimeType || '' }), formatFileSize(file.metadata?.size)].filter(Boolean).join(' · ') }}</small>
             </span>
-            <span class="attachment-card__action">预览 →</span>
+            <span class="attachment-card__action">{{ t('message.preview') }}</span>
           </button>
         </div>
         <div v-if="toolCalls.length" class="tool-call-list">
@@ -260,11 +255,11 @@ function previewFile(file: any, index: number) {
     <details :open="Boolean(running)">
       <summary>
         <span class="reasoning-node" aria-hidden="true"><i></i></span>
-        <span>{{ running ? '正在思考' : text ? '思考过程' : '已思考' }}</span>
+        <span>{{ running ? t('message.thinking') : text ? t('message.thoughtProcess') : t('message.thoughtDone') }}</span>
         <small v-if="!running && reasoningDuration">{{ reasoningDuration }}</small>
         <span class="disclosure-icon" aria-hidden="true"></span>
       </summary>
-      <div class="reasoning-content">{{ text || (running ? '正在分析，请稍候…' : '模型未提供可展示的思考详情') }}</div>
+      <div class="reasoning-content">{{ text || (running ? t('message.analyzing') : t('message.noReasoning')) }}</div>
     </details>
   </section>
 
@@ -273,7 +268,7 @@ function previewFile(file: any, index: number) {
       <span class="tool-mark" :class="raw.error ? 'tool-mark--error' : 'tool-mark--success'" aria-hidden="true">
         <svg viewBox="0 0 16 16"><path d="M3.25 4.75 6.5 8l-3.25 3.25M8 11.25h4.75" /></svg>
       </span>
-      <span>{{ raw.error ? '工具执行失败' : '工具结果' }}</span>
+      <span>{{ raw.error ? t('message.toolFailed') : t('message.toolResult') }}</span>
       <span class="disclosure-icon" aria-hidden="true"></span>
     </summary>
     <pre>{{ text }}</pre>
@@ -287,6 +282,15 @@ function previewFile(file: any, index: number) {
     :busy="running"
     @preview="emit('preview', $event)"
     @confirm="emit('confirm', $event)"
+    @cancel="emit('cancel', $event)"
+  />
+
+  <A2uiSurfaceCard
+    v-else-if="isActivity && raw.activityType === 'a2ui-surface'"
+    :content="raw.content"
+    :message-id="message.id"
+    :busy="running"
+    @action="emit('a2uiAction', $event)"
   />
 
   <section v-else-if="isActivity && activity.visible" class="activity-card">

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ConversationPage, ConversationSession } from '../types'
 import type { AppTheme } from '../../../shared/theme/theme'
 import AgentMark from './AgentMark.vue'
 import { presentSessions } from '../presentation'
+import { toggleLocale } from '../../../i18n'
 
 const props = defineProps<{
   sessions: ConversationSession[]
@@ -20,6 +22,7 @@ const emit = defineEmits<{
   toggleTheme: []
 }>()
 
+const { t, locale } = useI18n()
 const query = ref('')
 
 const visibleSessions = computed(() => {
@@ -32,14 +35,14 @@ const visibleSessions = computed(() => {
 
 function relativeTime(timestamp: number) {
   const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000))
-  if (seconds < 60) return '刚刚'
+  if (seconds < 60) return t('common.justNow')
   const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes} 分钟前`
+  if (minutes < 60) return t('common.minutesAgo', { count: minutes })
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} 小时前`
+  if (hours < 24) return t('common.hoursAgo', { count: hours })
   const days = Math.floor(hours / 24)
-  if (days < 7) return `${days} 天前`
-  return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit' }).format(new Date(timestamp))
+  if (days < 7) return t('common.daysAgo', { count: days })
+  return new Intl.DateTimeFormat(locale.value, { month: '2-digit', day: '2-digit' }).format(new Date(timestamp))
 }
 </script>
 
@@ -47,13 +50,13 @@ function relativeTime(timestamp: number) {
   <aside class="conversation-sidebar">
     <div class="sidebar-brand">
       <span class="sidebar-brand__mark"><AgentMark /></span>
-      <div><b>DATA AGENT</b><small>数据交付工作台</small></div>
+      <div><b>DATA AGENT</b><small>{{ t('sidebar.subtitle') }}</small></div>
       <span class="sidebar-brand__edition">WORKSPACE</span>
     </div>
 
     <el-button class="new-chat" type="primary" @click="emit('create')">
       <span class="new-chat__icon" aria-hidden="true">+</span>
-      <span>新建需求</span>
+      <span>{{ t('app.newRequest') }}</span>
     </el-button>
 
     <div class="sidebar-section">
@@ -61,11 +64,11 @@ function relativeTime(timestamp: number) {
         <span aria-hidden="true">
           <svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="4.75"/><path d="m12 12 4 4"/></svg>
         </span>
-        <input v-model="query" type="search" placeholder="搜索需求" aria-label="搜索需求" />
+        <input v-model="query" type="search" :placeholder="t('sidebar.search')" :aria-label="t('sidebar.search')" />
       </label>
       <div class="sidebar-section__title">
-        <span>最近需求</span>
-        <button v-if="sessions.length" type="button" @click="emit('page', 'history')">查看全部</button>
+        <span>{{ t('sidebar.recent') }}</span>
+        <button v-if="sessions.length" type="button" @click="emit('page', 'history')">{{ t('sidebar.viewAll') }}</button>
       </div>
       <div class="session-list">
         <button
@@ -83,32 +86,36 @@ function relativeTime(timestamp: number) {
             <small>{{ relativeTime(session.updatedAt) }}</small>
           </span>
         </button>
-        <div v-if="!visibleSessions.length" class="session-empty">{{ query ? '没有匹配的需求' : '还没有历史需求' }}</div>
+        <div v-if="!visibleSessions.length" class="session-empty">{{ query ? t('sidebar.noMatches') : t('sidebar.empty') }}</div>
       </div>
     </div>
 
-    <nav class="sidebar-nav" aria-label="管理导航">
+    <nav class="sidebar-nav" :aria-label="t('sidebar.navigation')">
       <button :class="{ active: activePage === 'skills' }" type="button" @click="emit('page', 'skills')">
         <span class="sidebar-icon" aria-hidden="true">
           <svg viewBox="0 0 20 20"><path d="M6.5 3.5h7v3h3v7h-3v3h-7v-3h-3v-7h3v-3Z"/><path d="M8 8h4v4H8z"/></svg>
         </span>
-        <b>Skills</b>
+        <b>{{ t('app.skills') }}</b>
       </button>
       <button :class="{ active: activePage === 'tools' }" type="button" @click="emit('page', 'tools')">
         <span class="sidebar-icon" aria-hidden="true">
           <svg viewBox="0 0 20 20"><path d="M7.2 5.1a3.5 3.5 0 0 0 4.5 4.5l4.1 4.1-2.1 2.1-4.1-4.1a3.5 3.5 0 0 0-4.5-4.5L7.4 8.4 5.6 6.6 7.2 5.1Z"/></svg>
         </span>
-        <b>工具</b>
+        <b>{{ t('app.tools') }}</b>
       </button>
     </nav>
 
     <footer class="sidebar-footer">
-      <button type="button" @click="emit('toggleTheme')">
+      <button type="button" @click="emit('toggleTheme')" :aria-label="theme === 'dark' ? t('app.lightMode') : t('app.darkMode')">
         <span class="sidebar-icon" aria-hidden="true">
           <svg v-if="theme === 'dark'" viewBox="0 0 20 20"><circle cx="10" cy="10" r="3.25"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4"/></svg>
           <svg v-else viewBox="0 0 20 20"><path d="M15.8 12.5A6.2 6.2 0 0 1 7.5 4.2 6.2 6.2 0 1 0 15.8 12.5Z"/></svg>
         </span>
-        <b>{{ theme === 'dark' ? '浅色模式' : '深色模式' }}</b>
+        <b>{{ theme === 'dark' ? t('app.lightMode') : t('app.darkMode') }}</b>
+      </button>
+      <button type="button" :aria-label="t('app.switchLanguage')" @click="toggleLocale()">
+        <span class="sidebar-icon sidebar-icon__language" aria-hidden="true">{{ t('app.languageGlyph') }}</span>
+        <b>{{ t('app.language') }}</b>
       </button>
     </footer>
   </aside>
@@ -153,7 +160,8 @@ function relativeTime(timestamp: number) {
 .sidebar-icon { display: grid; width: 1rem; height: 1rem; flex: 0 0 auto; place-items: center; }
 .sidebar-icon svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.35; }
 .sidebar-nav button b, .sidebar-footer button b { font-size: var(--da-font-size-sm); font-weight: 550; }
-.sidebar-footer { padding-top: var(--da-space-2); }
+.sidebar-footer { display: grid; gap: var(--da-space-1); padding-top: var(--da-space-2); }
+.sidebar-icon__language { color: var(--da-brand-cyan); font-size: var(--da-font-size-xs); font-weight: 700; }
 
 @media (max-width: 52rem) {
   .conversation-sidebar { padding: var(--da-space-3) var(--da-space-2); }

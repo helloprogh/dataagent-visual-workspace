@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { Message } from '@ag-ui/client'
+import { useI18n } from 'vue-i18n'
 import ConversationMessage from './ConversationMessage.vue'
 import type { ConversationFilePreview } from '../types/filePreview'
 import { toolOutputText, toolDisplayName, type ProcessStep } from '../processPresentation'
@@ -17,6 +18,7 @@ const emit = defineEmits<{
   preview: [file: ConversationFilePreview]
   continue: [message: Message]
 }>()
+const { t, tm } = useI18n()
 
 const stepCount = computed(() => props.steps.length)
 const onlyReasoning = computed(() => props.steps.length > 0 && props.steps.every(step => step.kind === 'message' && step.message.role === 'reasoning'))
@@ -25,7 +27,7 @@ const reasoningTime = computed(() => {
   const durations = props.steps.map(step => (step.message as any).reasoningDurationMs)
   if (!durations.every(duration => typeof duration === 'number' && Number.isFinite(duration))) return ''
   const total = durations.reduce((sum, duration) => sum + duration, 0)
-  return total < 1000 ? '少于 1 秒' : `${Math.round(total / 1000)} 秒`
+  return total < 1000 ? t('message.lessThanSecond') : t('message.seconds', { count: Math.round(total / 1000) })
 })
 const expanded = ref(Boolean(props.running && !props.settled))
 
@@ -34,8 +36,8 @@ watch(() => [props.running, props.settled], ([running, settled]) => {
 })
 
 function toolStatus(step: Extract<ProcessStep, { kind: 'tool' }>) {
-  if (step.result) return (step.result as any).error ? '失败' : '已完成'
-  return props.running ? '执行中' : '未完成'
+  if (step.result) return (step.result as any).error ? t('process.failed') : t('process.completed')
+  return props.running ? t('process.running') : t('process.unfinished')
 }
 
 function toolTarget(step: Extract<ProcessStep, { kind: 'tool' }>) {
@@ -55,8 +57,8 @@ function toolTarget(step: Extract<ProcessStep, { kind: 'tool' }>) {
       @click="expanded = !expanded"
     >
       <span class="process-group__mark" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span>{{ activeReasoningId ? '正在思考' : running ? (onlyReasoning ? '正在组织回答' : '正在执行') : onlyReasoning ? '已思考' : '执行过程' }}</span>
-      <small v-if="!onlyReasoning || (!running && reasoningTime)">{{ onlyReasoning ? reasoningTime : stepCount ? `${stepCount} 步` : '准备中' }}</small>
+      <span>{{ activeReasoningId ? t('process.thinking') : running ? (onlyReasoning ? t('process.organizing') : t('process.running')) : onlyReasoning ? t('process.thoughtDone') : t('process.title') }}</span>
+      <small v-if="!onlyReasoning || (!running && reasoningTime)">{{ onlyReasoning ? reasoningTime : stepCount ? t('process.steps', { count: stepCount }) : t('process.preparing') }}</small>
       <span class="process-group__chevron" aria-hidden="true"></span>
     </button>
 
@@ -77,19 +79,19 @@ function toolTarget(step: Extract<ProcessStep, { kind: 'tool' }>) {
             >
               <summary>
                 <span class="process-tool__icon" :class="{ 'process-tool__icon--error': (step.result as any)?.error }" aria-hidden="true">›</span>
-                <span class="process-tool__name">{{ toolDisplayName(step.call.function.name) }}</span>
+                <span class="process-tool__name">{{ toolDisplayName(step.call.function.name, tm('chat.toolLabels') as any) }}</span>
                 <span v-if="toolTarget(step)" class="process-tool__target" :title="toolTarget(step)">{{ toolTarget(step) }}</span>
                 <small class="process-tool__status">{{ toolStatus(step) }}</small>
                 <span class="process-group__chevron" aria-hidden="true"></span>
               </summary>
               <div class="process-tool__details">
-                <small>输入参数</small>
+                <small>{{ t('process.input') }}</small>
                 <pre>{{ step.call.function.arguments || '{}' }}</pre>
                 <template v-if="step.result">
-                  <small>{{ (step.result as any).error ? '失败原因' : '执行结果' }}</small>
-                  <pre>{{ toolOutputText(step.result) || (step.result as any).error || '执行完成，无文本输出' }}</pre>
+                  <small>{{ (step.result as any).error ? t('process.failureReason') : t('process.result') }}</small>
+                  <pre>{{ toolOutputText(step.result) || (step.result as any).error || t('message.noTextResult') }}</pre>
                 </template>
-                <small v-else>{{ running ? '等待执行结果…' : '尚未收到执行结果' }}</small>
+                <small v-else>{{ running ? t('process.waitingResult') : t('process.noResult') }}</small>
               </div>
             </details>
             <ConversationMessage
@@ -103,9 +105,9 @@ function toolTarget(step: Extract<ProcessStep, { kind: 'tool' }>) {
             v-if="!busy"
             type="button"
             class="process-step__continue"
-            title="从此步骤继续"
+            :title="t('process.continueFrom')"
             @click="emit('continue', step.message)"
-          >从此继续</button>
+          >{{ t('process.continue') }}</button>
         </div>
       </div>
     </div>

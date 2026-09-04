@@ -5,6 +5,7 @@ import { fetchConversationMessagePage } from '../api/history'
 import { createConversation, interruptConversation, uploadConversationFile } from '../api/session'
 import type { ModelSelection } from '../../model/types'
 import { publishAndRun } from '../sendLifecycle'
+import { A2UI_RUN_CAPABILITY } from '../../../a2ui/capability'
 
 export type SendReceipt = { sessionId: string; created: boolean; initialName?: string }
 
@@ -37,6 +38,29 @@ export function useAgentConversation() {
   let ignoreCancellationErrorsUntil = 0
   const previewUrls = new Set<string>()
   const reasoningStartedAt = new Map<string, number>()
+
+  function errorMessage(reason: unknown) {
+    return reason instanceof Error ? reason.message : String(reason)
+  }
+
+  function interruptsFromOutcome(outcome: any): Interrupt[] {
+    return outcome?.type === 'interrupt' ? [...outcome.interrupts] : []
+  }
+
+  async function runWithState<T>(operation: () => Promise<T>, restore?: () => void): Promise<T> {
+    stopped.value = false
+    error.value = ''
+    running.value = true
+    try {
+      return await operation()
+    } catch (reason) {
+      restore?.()
+      error.value = errorMessage(reason)
+      throw reason
+    } finally {
+      running.value = false
+    }
+  }
 
   watch(running, value => {
     activeReasoningId.value = ''
@@ -109,9 +133,7 @@ export function useAgentConversation() {
       onRunFinishedEvent: ({ event }) => {
         activeReasoningId.value = ''
         activeTextId.value = ''
-        pendingInterrupts.value = event.outcome?.type === 'interrupt'
-          ? [...event.outcome.interrupts]
-          : []
+        pendingInterrupts.value = interruptsFromOutcome(event.outcome)
       },
       onRunErrorEvent: ({ event }) => {
         activeReasoningId.value = ''
@@ -128,9 +150,7 @@ export function useAgentConversation() {
     hydrationSubscription = client.subscribe({
       onRunFinishedEvent: ({ event }) => {
         if (currentGeneration !== generation) return
-        pendingInterrupts.value = event.outcome?.type === 'interrupt'
-          ? [...event.outcome.interrupts]
-          : []
+        pendingInterrupts.value = interruptsFromOutcome(event.outcome)
       },
       onRunErrorEvent: ({ event }) => {
         if (currentGeneration === generation) error.value = event.message
@@ -168,7 +188,7 @@ export function useAgentConversation() {
       syncMessages()
       await hydratePendingInterrupts(id, currentGeneration)
     } catch (reason) {
-      if (currentGeneration === generation) error.value = reason instanceof Error ? reason.message : String(reason)
+      if (currentGeneration === generation) error.value = errorMessage(reason)
     } finally {
       if (currentGeneration === generation) hydrating.value = false
     }
@@ -188,7 +208,7 @@ export function useAgentConversation() {
       nextCursor.value = page.nextCursor
       syncMessages()
     } catch (reason) {
-      error.value = reason instanceof Error ? reason.message : String(reason)
+      error.value = errorMessage(reason)
     } finally {
       loadingOlder.value = false
     }
@@ -229,10 +249,7 @@ export function useAgentConversation() {
   async function send(text: string, model: ModelSelection, onAccepted?: (receipt: SendReceipt) => void) {
     const value = text.trim()
     if ((!value && !attachments.value.length) || running.value || pendingInterrupts.value.length) return null
-    error.value = ''
-    stopped.value = false
-    running.value = true
-    try {
+    return runWithState(async () => {
       const prepared = await ensureAgent(model, value)
       const uploaded = []
       for (const item of attachments.value) {
@@ -257,15 +274,10 @@ export function useAgentConversation() {
         prepared.client.addMessage(userMessage)
         attachments.value = []
         syncMessages()
-      }, onAccepted, () => prepared.client.runAgent())
+      }, onAccepted, () => prepared.client.runAgent(A2UI_RUN_CAPABILITY as any))
       syncMessages()
       return prepared
-    } catch (reason) {
-      error.value = reason instanceof Error ? reason.message : String(reason)
-      throw reason
-    } finally {
-      running.value = false
-    }
+    })
   }
 
   async function resume(entries: ResumeEntry[]) {
@@ -274,17 +286,14 @@ export function useAgentConversation() {
     if (!target || running.value || !pendingInterrupts.value.length) return
     const required = new Set(pendingInterrupts.value.map(item => item.id))
     const provided = new Set(entries.map(item => item.interruptId))
-    if (required.size !== provided.size || [...required].some(id => !provided.has(id))) {
+    if (entries.length !== required.size || required.size !== provided.size || [...required].some(id => !provided.has(id))) {
       throw new Error('必须一次处理当前 Run 的全部待处理中断')
     }
     const previousInterrupts = [...pendingInterrupts.value]
     const previousAgentInterrupts = [...target.pendingInterrupts]
-    stopped.value = false
-    running.value = true
-    error.value = ''
-    try {
+    return runWithState(async () => {
       pendingInterrupts.value = []
-      await target.runAgent({ resume: entries } as any)
+      await target.runAgent({ ...A2UI_RUN_CAPABILITY, resume: entries } as any)
       // A rejected native permission ends with RUN_ERROR in OpenCode even
       // though the interrupt itself was resolved successfully. AG-UI only
       // clears its internal queue on RUN_FINISHED, so clear it explicitly once
@@ -306,32 +315,38 @@ export function useAgentConversation() {
         // failure must not restore a decision that OpenCode has consumed.
       }
       syncMessages()
-    } catch (reason) {
+    }, () => {
       pendingInterrupts.value = previousInterrupts
       target.pendingInterrupts = previousAgentInterrupts
-      error.value = reason instanceof Error ? reason.message : String(reason)
-      throw reason
-    } finally {
-      running.value = false
-    }
+    })
   }
 
   async function retry() {
     const target = agent.value
     if (!target || running.value || pendingInterrupts.value.length) return false
-    stopped.value = false
-    error.value = ''
-    running.value = true
-    try {
-      await target.runAgent()
+    return runWithState(async () => {
+      await target.runAgent(A2UI_RUN_CAPABILITY as any)
       syncMessages()
       return true
-    } catch (reason) {
-      error.value = reason instanceof Error ? reason.message : String(reason)
-      throw reason
-    } finally {
-      running.value = false
-    }
+    })
+  }
+
+  async function sendA2uiAction(action: unknown) {
+    const target = agent.value
+    if (!target || running.value || pendingInterrupts.value.length) return false
+    return runWithState(async () => {
+      await target.runAgent({
+        ...A2UI_RUN_CAPABILITY,
+        forwardedProps: {
+          ...A2UI_RUN_CAPABILITY.forwardedProps,
+          a2uiAction: (action as any)?.version === 'v0.9' && (action as any)?.action
+            ? action
+            : { version: 'v0.9', action },
+        },
+      } as any)
+      syncMessages()
+      return true
+    })
   }
 
   async function stop() {
@@ -379,6 +394,7 @@ export function useAgentConversation() {
     send,
     resume,
     retry,
+    sendA2uiAction,
     stop,
   }
 }

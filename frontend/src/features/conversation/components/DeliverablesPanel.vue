@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { fileKindLabel, formatFileSize, type ConversationFilePreview } from '../types/filePreview'
 
 const props = defineProps<{
@@ -11,49 +12,50 @@ const emit = defineEmits<{
   close: []
   select: [file: ConversationFilePreview]
 }>()
+const { t } = useI18n()
 
 const inputFiles = computed(() => props.files.filter(file => file.category === 'input'))
 const outputFiles = computed(() => props.files.filter(file => file.category !== 'input'))
 </script>
 
 <template>
-  <aside class="deliverables-panel" aria-label="交付物面板">
+  <aside class="deliverables-panel" :aria-label="t('deliverables.label')">
     <header>
       <div>
-        <small>DELIVERABLES</small>
-        <b>交付物</b>
+        <small>{{ t('deliverables.eyebrow') }}</small>
+        <b>{{ t('chat.deliverables') }}</b>
       </div>
-      <button type="button" aria-label="关闭交付物面板" @click="emit('close')">×</button>
+      <button type="button" :aria-label="t('deliverables.close')" @click="emit('close')">×</button>
     </header>
 
     <div class="deliverables-panel__body">
       <section v-if="pendingApprovals" class="approval-summary">
         <span aria-hidden="true">!</span>
-        <div><b>{{ pendingApprovals }} 项待确认</b><small>完成确认后任务将继续执行</small></div>
+        <div><b>{{ t('deliverables.pending', { count: pendingApprovals }) }}</b><small>{{ t('deliverables.pendingHint') }}</small></div>
       </section>
 
       <section v-if="outputFiles.length" class="deliverable-section">
-        <div class="deliverable-section__title"><b>生成文件</b><small>{{ outputFiles.length }}</small></div>
+        <div class="deliverable-section__title"><b>{{ t('deliverables.generated') }}</b><small>{{ outputFiles.length }}</small></div>
         <div v-for="file in outputFiles" :key="file.id" class="deliverable-item">
           <span>{{ fileKindLabel(file).slice(0, 2) }}</span>
           <button type="button" @click="emit('select', file)"><b>{{ file.name }}</b><small>{{ [fileKindLabel(file), formatFileSize(file.size)].filter(Boolean).join(' · ') }}</small></button>
-          <div class="deliverable-item__actions"><em v-if="file.version">v{{ file.version }}</em><a :href="file.url" :download="file.name" title="下载文件" aria-label="下载文件">↓</a></div>
+          <div class="deliverable-item__actions"><em v-if="file.version">v{{ file.version }}</em><a :href="file.url" :download="file.name" :title="t('deliverables.download')" :aria-label="t('deliverables.download')">↓</a></div>
         </div>
       </section>
 
       <section v-if="inputFiles.length" class="deliverable-section">
-        <div class="deliverable-section__title"><b>需求附件</b><small>{{ inputFiles.length }}</small></div>
+        <div class="deliverable-section__title"><b>{{ t('deliverables.inputs') }}</b><small>{{ inputFiles.length }}</small></div>
         <div v-for="file in inputFiles" :key="file.id" class="deliverable-item">
           <span>{{ fileKindLabel(file).slice(0, 2) }}</span>
           <button type="button" @click="emit('select', file)"><b>{{ file.name }}</b><small>{{ [fileKindLabel(file), formatFileSize(file.size)].filter(Boolean).join(' · ') }}</small></button>
-          <div class="deliverable-item__actions"><a :href="file.url" :download="file.name" title="下载文件" aria-label="下载文件">↓</a></div>
+          <div class="deliverable-item__actions"><a :href="file.url" :download="file.name" :title="t('deliverables.download')" :aria-label="t('deliverables.download')">↓</a></div>
         </div>
       </section>
 
       <div v-if="!files.length && !pendingApprovals" class="deliverables-empty">
         <span aria-hidden="true">◇</span>
-        <b>暂无交付物</b>
-        <p>附件、生成文件和待确认事项会集中显示在这里。</p>
+        <b>{{ t('deliverables.empty') }}</b>
+        <p>{{ t('deliverables.emptyHint') }}</p>
       </div>
     </div>
   </aside>

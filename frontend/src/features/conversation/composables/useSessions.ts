@@ -29,15 +29,11 @@ export function useSessions() {
 
   function setActive(id: string) {
     activeId.value = id
-    const url = new URL(window.location.href)
     if (id) {
       localStorage.setItem(ACTIVE_KEY, id)
-      url.searchParams.set('session', id)
     } else {
       localStorage.removeItem(ACTIVE_KEY)
-      url.searchParams.delete('session')
     }
-    window.history.replaceState(null, '', url)
   }
 
   function startNew() {

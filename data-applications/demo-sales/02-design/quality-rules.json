@@ -1,0 +1,1 @@
+{"appId":"demo-sales","rules":[{"id":"Q1","field":"paid_amount","rule":"金额>0，排除测试订单/调拨单"},{"id":"Q2","field":"region","rule":"缺失映射归入待认领，不计入0"},{"id":"Q3","field":"sales_amount","rule":"与财务月报差异<0.5%则告警"},{"id":"Q4","field":"return_rate","rule":"退货率>5%标红预警"},{"id":"Q5","field":"target_amount","rule":"完成率<80%红色，<70%触发WarningCard"}]}

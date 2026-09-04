@@ -1,0 +1,16 @@
+{
+  "appId": "demo-sales",
+  "appName": "区域销售分析看板",
+  "owner": "data-team",
+  "createdAt": "2026-09-05",
+  "phases": [
+    "01-specification",
+    "02-design",
+    "03-development",
+    "04-validation",
+    "05-release"
+  ],
+  "phaseOrder": "Specification -> Solution Design -> Development -> Validation -> Release",
+  "deliveryZip": "data-development-delivery.zip",
+  "status": "Specification 待审批"
+}

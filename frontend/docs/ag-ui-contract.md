@@ -17,12 +17,17 @@ No custom top-level properties are added:
   "messages": [],
   "state": {},
   "tools": [],
-  "context": [],
-  "forwardedProps": {}
+  "context": [{
+    "description": "A2UI catalog capabilities: available catalog IDs and components the client can render.",
+    "value": "{...catalog metadata...}"
+  }],
+  "forwardedProps": { "a2uiCatalogAvailable": true }
 }
 ```
 
 `threadId` is the OpenCode session id and is stable for the lifetime of a conversation.
+
+The A2UI capability fields are the only generative-UI additions. An A2UI component action starts a continuation run with `forwardedProps.a2uiAction`; it does not create a synthetic user message.
 
 Chat runs use the AG-UI SSE endpoint. Session lifecycle and history use the
 gateway endpoints documented below; the browser never calls OpenCode directly.
@@ -33,26 +38,33 @@ When `RUN_FINISHED.outcome.type` is `interrupt`, the client reads the standard `
 
 While interrupts are pending, normal chat input is blocked. A resumed tool emits only `TOOL_CALL_RESULT` for the original `toolCallId`, preserving the two-run AG-UI audit trail.
 
+A2UI remains non-blocking presentation. Document delivery approval continues to use the standard `RUN_FINISHED.outcome.interrupts` and `runAgent({ resume })` path; retired A2UI confirmation actions are quarantined and never treated as approval decisions.
+
 The Adapter persists server-side interrupt correlation inside its existing
 thread/session registry. Interrupt restoration is separate from message-history
 hydration because the OpenCode message endpoint does not expose the active AG-UI
 interrupt outcome.
 
-## Frontend tools and workspace state
+## Generative UI and workspace files
 
-CopilotKit registers `workspace.render`, `workspace.upsert`, `workspace.remove`, and `workspace.agents` with `useFrontendTool`. Their schemas are sent in standard `RunAgentInput.tools`; the Adapter exposes them to OpenCode2 as a dynamic MCP server and maps native MCP tool calls back to AG-UI `TOOL_CALL_*` events.
+The current shell uses `@ag-ui/client` directly. Each run advertises the
+versioned A2UI catalog through `forwardedProps.a2uiCatalogAvailable` and the
+`context` catalog description. The Adapter then exposes the validated
+`render_a2ui` MCP tool to the reference OpenCode2 service and converts its
+result into an `a2ui-surface` activity. A2UI actions start a continuation run;
+they never become approval decisions.
 
-`workspace.render/upsert` use a discriminated widget union: every `ui.*` component carries its actual props schema. For example, `ui.lineChart` uses `points: [{ label, value }]`. The workspace store also normalizes common Chart.js `data.labels/datasets` payloads for compatibility with models or sessions that retained an older tool catalog.
+The Adapter still accepts `RunAgentInput.tools` for compatibility with clients
+that provide browser-owned tools, but this frontend does not silently register
+the old `workspace.*` catalog. Native OpenCode `write` results are projected
+into file cards and use the safe `workspace-file` route; ZIP delivery cards use
+`workspace-archive` and the right-side archive tree preview.
 
-`ui.areaChart` uses the same `points: [{ label, value }]` series contract and renders a filled trend area. For compatibility with older browser state, serialized `workspace.widgets` JSON is parsed before persistence and rendering instead of being treated as an empty workspace.
-
-On thread hydration, the dedicated per-thread workspace store is authoritative. A throttled conversation snapshot may lag behind the most recent frontend tool result and is therefore not allowed to overwrite the newer persisted workspace during page reload.
-
-Shared workspace snapshots are applied monotonically by `updatedAt`; a delayed snapshot from an earlier AG-UI run cannot roll back a newer browser tool result.
-
-The active conversation id is persisted separately, so a page reload returns to the same AG-UI `threadId` instead of switching to whichever background conversation was updated most recently.
-
-After a browser handler runs, CopilotKit sends a standard `ToolMessage`. The Adapter resolves the pending MCP call and resumes the same OpenCode2 session. Workspace data is carried in `RunAgentInput.state` and synchronized by `STATE_SNAPSHOT`; task and sub-agent status use `ACTIVITY_SNAPSHOT`.
+The active conversation id is persisted separately, so a page reload returns to
+the same AG-UI `threadId` instead of switching to whichever background
+conversation was updated most recently. A2UI snapshots and file cards remain
+conversation-scoped and are restored from server history without allowing a
+late run to overwrite the active conversation.
 
 ## Conversation persistence
 

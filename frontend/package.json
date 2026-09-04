@@ -18,10 +18,14 @@
     "diagnose:npm": "node scripts/npm-diagnose.mjs"
   },
   "dependencies": {
+    "@a2ui/web_core": "^0.10.4",
     "@ag-ui/client": "0.0.57",
+    "echarts": "^6.1.0",
     "element-plus": "2.14.5",
     "vue": "3.5.42",
     "vue-element-plus-x": "2.0.3",
+    "vue-i18n": "^11.4.10",
+    "vue-router": "^4.6.4",
     "x-markdown-vue": "0.0.203",
     "zod": "3.25.76"
   },

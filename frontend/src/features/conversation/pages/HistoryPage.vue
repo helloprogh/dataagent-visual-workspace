@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { ConversationSession } from '../types'
 
 const props = defineProps<{
@@ -13,8 +14,10 @@ const emit = defineEmits<{
   refresh: []
 }>()
 
+const { t, locale } = useI18n()
+
 function timeLabel(timestamp: number) {
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(locale.value, {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -29,12 +32,12 @@ function timeLabel(timestamp: number) {
     <div class="app-page__inner">
       <header class="app-page__header">
         <div>
-          <h1>历史需求</h1>
-          <p>继续之前的数据需求，或回顾已经完成的分析与交付记录。</p>
+          <h1>{{ t('history.title') }}</h1>
+          <p>{{ t('history.description') }}</p>
         </div>
         <div class="history-page__actions">
-          <el-button @click="emit('refresh')">刷新</el-button>
-          <el-button type="primary" @click="emit('create')">新建需求</el-button>
+          <el-button @click="emit('refresh')">{{ t('app.refresh') }}</el-button>
+          <el-button type="primary" @click="emit('create')">{{ t('app.newRequest') }}</el-button>
         </div>
       </header>
 
@@ -52,11 +55,11 @@ function timeLabel(timestamp: number) {
               <small>{{ timeLabel(session.updatedAt) }}</small>
             </span>
           </button>
-          <el-button text @click="emit('rename', session.id)">重命名</el-button>
+          <el-button text @click="emit('rename', session.id)">{{ t('history.rename') }}</el-button>
         </article>
 
         <div v-if="!props.sessions.length" class="empty-state">
-          暂无历史需求
+          {{ t('history.empty') }}
         </div>
       </div>
     </div>

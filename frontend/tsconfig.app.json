@@ -20,6 +20,8 @@
     "src/app/**/*.ts",
     "src/app/**/*.vue",
     "src/agui/**/*.ts",
+    "src/a2ui/**/*.ts",
+    "src/a2ui/**/*.vue",
     "src/features/**/*.ts",
     "src/features/**/*.vue",
     "src/shared/**/*.ts",

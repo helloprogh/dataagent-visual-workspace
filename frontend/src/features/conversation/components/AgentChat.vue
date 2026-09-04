@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Message, ResumeEntry } from '@ag-ui/client'
 import { ElMessage } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import { Welcome, XSender } from 'vue-element-plus-x'
 import type { ModelSelection } from '../../model/types'
 import ModelSelector from '../../model/components/ModelSelector.vue'
@@ -12,17 +13,22 @@ import ConversationProcessGroup from './ConversationProcessGroup.vue'
 import DeliverablesPanel from './DeliverablesPanel.vue'
 import AuditPanel, { type AuditEntry } from './AuditPanel.vue'
 import FilePreviewPanel from './FilePreviewPanel.vue'
+import GeneratedArtifactCard from './GeneratedArtifactCard.vue'
 import InterruptCard from './InterruptCard.vue'
 import type { ConversationFilePreview } from '../types/filePreview'
-import { buildConfirmationResumeEntry } from '../approval'
+import { buildCancellationResumeEntry, buildConfirmationResumeEntry } from '../approval'
 import { userFacingSessionName } from '../presentation'
 import { buildPresentation, messageText } from '../processPresentation'
 import { normalizeUiContent } from '../../../../../shared/generative-ui.mjs'
+import { artifactPathKey, generatedArtifactsFromTool, removedArtifactPathsFromTool } from '../../../../../shared/generated-artifacts.mjs'
+import { dataAgentWebApi } from '../../../shared/config/api'
 
 const props = defineProps<{
   sessionId?: string
   displayName?: string
 }>()
+
+const { t, tm } = useI18n()
 
 const emit = defineEmits<{
   materialized: [sessionId: string, displayName: string]
@@ -50,6 +56,7 @@ const {
   send,
   resume,
   retry,
+  sendA2uiAction,
   stop,
 } = useAgentConversation()
 
@@ -64,13 +71,14 @@ const previewApprovalSubmitted = ref(false)
 const showJumpToLatest = ref(false)
 let followBottom = true
 let previousScrollHeight = 0
+let lastNotifiedError = ''
 
-const WELCOME_DESCRIPTION = '从业务目标到数据方案、集成开发、质量验证与交付，让每一个需求都有清晰过程和可复用结果。'
-const STARTER_PROMPTS = [
-  { icon: '↗', title: '分析数据', description: '发现指标、异常与业务机会', prompt: '分析我上传的数据，识别关键指标、异常和业务机会，并给出可执行结论。' },
-  { icon: '◇', title: '搭建流程', description: '形成端到端可验证方案', prompt: '梳理当前数据需求，设计端到端处理流程并生成可验证的交付方案。' },
-  { icon: '✓', title: '质量排查', description: '定位问题并验证修复结果', prompt: '检查数据链路中的质量问题，定位根因并给出修复与验证步骤。' },
-]
+const welcomeDescription = computed(() => t('chat.welcomeDescription'))
+const starterPrompts = computed(() => [
+  { icon: '↗', ...(tm('chat.starters.analyze') as any) },
+  { icon: '◇', ...(tm('chat.starters.plan') as any) },
+  { icon: '✓', ...(tm('chat.starters.quality') as any) },
+])
 
 const presentationItems = computed(() => buildPresentation(messages.value, running.value, activeReasoningId.value))
 const showResponsePending = computed(() => {
@@ -86,7 +94,7 @@ function previewFromPart(message: Message, part: any, index: number): Conversati
   if (!url) return null
   return {
     id: String(part?.metadata?.fileId ?? `${message.id}-${index}`),
-    name: String(part?.metadata?.filename ?? `文件 ${index + 1}`),
+    name: String(part?.metadata?.filename ?? `${t('common.file')} ${index + 1}`),
     url,
     mimeType: String(part?.source?.mimeType ?? part?.mimeType ?? 'application/octet-stream'),
     ...(Number(part?.metadata?.size) > 0 ? { size: Number(part.metadata.size) } : {}),
@@ -97,9 +105,28 @@ function previewFromPart(message: Message, part: any, index: number): Conversati
   }
 }
 
+function generatedFilesFromTool(call: any, successfulToolIds: Set<string>, sourceMessageId: string): ConversationFilePreview[] {
+  return generatedArtifactsFromTool(call, successfulToolIds).map((artifact: any) => {
+    const query = new URLSearchParams({ path: artifact.sourcePath })
+    const route = artifact.archive ? '/agui/workspace-archive' : '/agui/workspace-file'
+    return {
+      id: artifact.id,
+      name: artifact.name,
+      url: `${dataAgentWebApi(route)}?${query.toString()}`,
+      mimeType: artifact.mimeType,
+      category: 'output',
+      sourceMessageId,
+      sourcePath: artifact.sourcePath,
+    }
+  })
+}
+
 const deliverables = computed(() => {
   const result: ConversationFilePreview[] = []
   const known = new Set<string>()
+  const successfulToolIds = new Set(messages.value
+    .filter(message => message.role === 'tool' && !(message as any).error && (message as any).toolCallId)
+    .map(message => String((message as any).toolCallId)))
   for (const message of messages.value) {
     const content = (message as any).content
     if ((message as any).activityType === 'dataagent.ui') {
@@ -122,37 +149,77 @@ const deliverables = computed(() => {
       }
       continue
     }
-    if (!Array.isArray(content)) continue
-    content.forEach((part, index) => {
-      const file = previewFromPart(message, part, index)
-      if (!file || known.has(file.id)) return
-      known.add(file.id)
-      result.push(file)
-    })
+    if (Array.isArray(content)) {
+      content.forEach((part, index) => {
+        const file = previewFromPart(message, part, index)
+        if (!file || known.has(file.id)) return
+        known.add(file.id)
+        result.push(file)
+      })
+    }
+    for (const call of (message as any).toolCalls ?? []) {
+      for (const removedPath of removedArtifactPathsFromTool(call, successfulToolIds)) {
+        const key = artifactPathKey(removedPath)
+        for (let index = result.length - 1; index >= 0; index -= 1) {
+          if (!result[index]?.sourcePath || artifactPathKey(result[index].sourcePath) !== key) continue
+          known.delete(result[index].id)
+          result.splice(index, 1)
+        }
+      }
+      for (const file of generatedFilesFromTool(call, successfulToolIds, message.id)) {
+        if (known.has(file.id)) continue
+        known.add(file.id)
+        result.push(file)
+      }
+    }
   }
   for (const item of attachments.value) {
     if (known.has(item.id)) continue
     result.push({ id: item.id, name: item.file.name, url: item.previewUrl, mimeType: item.file.type || 'application/octet-stream', size: item.file.size, category: 'input' })
   }
+  const approval = pendingInterrupts.value.length === 1
+    && pendingInterrupts.value[0]?.metadata?.kind === 'form'
+    && !result.some(file => file.approvalInterruptId)
+    ? pendingInterrupts.value[0]
+    : undefined
+  const approvalTarget = approval ? [...result].reverse().find(file => file.category === 'output') : undefined
   const versions = new Map<string, number>()
   return result.map(file => {
     if (file.category === 'input') return file
     const key = file.name.trim().toLocaleLowerCase()
     const version = (versions.get(key) ?? 0) + 1
     versions.set(key, version)
-    return { ...file, version }
+    return { ...file, version, ...(file === approvalTarget ? { approvalInterruptId: approval!.id } : {}) }
   })
 })
+
+// A native write result can arrive a moment before its following form. Keep an
+// already-open preview synchronized when the adapter later binds that form to
+// the latest delivery, so the right-side approval footer does not disappear
+// during this normal streaming race.
+watch(deliverables, files => {
+  const current = activePreview.value
+  if (!current) return
+  const latest = files.find(file => file.id === current.id)
+  if (!latest) return
+  if (latest.url === current.url
+    && latest.name === current.name
+    && latest.mimeType === current.mimeType
+    && latest.approvalInterruptId === current.approvalInterruptId
+    && latest.approvalResolved === current.approvalResolved
+    && latest.version === current.version) return
+  activePreview.value = { ...current, ...latest }
+}, { deep: true })
 
 const auditEntries = computed<AuditEntry[]>(() => {
   const entries: AuditEntry[] = []
   for (const message of messages.value) {
     const raw = message as any
-    if (message.role === 'user') entries.push({ id: message.id, label: '已提交需求', detail: messageText(message).slice(0, 72) || '包含附件的需求', tone: 'active' })
-    else if (message.role === 'tool') entries.push({ id: message.id, label: raw.error ? '工具执行失败' : '工具执行完成', detail: raw.error ? '可从失败处重试或继续' : '执行结果已记录', tone: raw.error ? 'warning' : 'success' })
-    else if (message.role === 'assistant' && messageText(message).trim()) entries.push({ id: message.id, label: '已生成回答', detail: messageText(message).slice(0, 72), tone: 'success' })
+    if (message.role === 'user') entries.push({ id: message.id, label: t('chat.submitted'), detail: messageText(message).slice(0, 72) || t('chat.attachmentSubmitted'), tone: 'active' })
+    else if (message.role === 'tool') entries.push({ id: message.id, label: raw.error ? t('chat.toolFailed') : t('chat.toolCompleted'), detail: raw.error ? t('chat.canContinue') : t('chat.resultRecorded'), tone: raw.error ? 'warning' : 'success' })
+    else if (message.role === 'assistant' && messageText(message).trim()) entries.push({ id: message.id, label: t('chat.generatedAnswer'), detail: messageText(message).slice(0, 72), tone: 'success' })
   }
-  pendingInterrupts.value.forEach(interrupt => entries.push({ id: `approval-${interrupt.id}`, label: '等待文件审批', detail: '需要你的决定后才能继续', tone: 'warning' }))
+  pendingInterrupts.value.forEach(interrupt => entries.push({ id: `approval-${interrupt.id}`, label: t('chat.waitingApproval'), detail: t('chat.approvalDetail'), tone: 'warning' }))
   return entries.reverse()
 })
 
@@ -166,10 +233,20 @@ const pendingInterruptIds = computed(() => pendingInterrupts.value.map(interrupt
 const deliveryApprovalIds = computed(() => new Set(deliverables.value
   .map(file => file.approvalInterruptId)
   .filter((id): id is string => Boolean(id))))
+// A single delivery approval can be acted on from its file card. When a run
+// has multiple interrupts, keep the aggregate card visible because the API
+// requires all decisions to be resumed together.
 const composerInterrupts = computed(() => {
   if (pendingInterrupts.value.length !== 1) return pendingInterrupts.value
   return pendingInterrupts.value.filter(interrupt => !deliveryApprovalIds.value.has(interrupt.id))
 })
+
+function notifyError(reason: unknown) {
+  const message = reason instanceof Error ? reason.message : String(reason)
+  if (!message || message === lastNotifiedError) return
+  lastNotifiedError = message
+  ElMessage.error(message)
+}
 
 function scrollToBottom() {
   void nextTick().then(() => {
@@ -211,7 +288,7 @@ async function submit() {
   if (running.value || hydrating.value || pendingInterrupts.value.length) return
   const text = String(senderRef.value?.getModelValue?.()?.text ?? '').trim()
   if (!selectedModel.value) {
-    ElMessage.warning('模型尚未加载完成')
+    ElMessage.warning(t('chat.modelNotReady'))
     return
   }
   if (!text && !attachments.value.length) return
@@ -219,13 +296,13 @@ async function submit() {
     followBottom = true
     await send(text, selectedModel.value, prepared => {
       if (String(senderRef.value?.getModelValue?.()?.text ?? '').trim() === text) senderRef.value?.clear?.()
-      if (prepared.created) emit('materialized', prepared.sessionId, prepared.initialName ?? '新需求')
+      if (prepared.created) emit('materialized', prepared.sessionId, prepared.initialName ?? t('app.newRequest'))
       scrollToBottom()
     })
     emit('changed')
     scrollToBottom()
   } catch (reason) {
-    ElMessage.error(reason instanceof Error ? reason.message : String(reason))
+    notifyError(reason)
   }
 }
 
@@ -235,7 +312,7 @@ async function resumeRun(entries: ResumeEntry[]) {
     emit('changed')
     return true
   } catch (reason) {
-    ElMessage.error(reason instanceof Error ? reason.message : String(reason))
+    notifyError(reason)
     return false
   }
 }
@@ -276,28 +353,28 @@ async function retryRun() {
     await retry()
     emit('changed')
   } catch (reason) {
-    ElMessage.error(reason instanceof Error ? reason.message : String(reason))
+    notifyError(reason)
   }
 }
 
 function continueFromStep(message: Message) {
   const raw = message as any
   const role = String(raw.role ?? '')
-  const labels: Record<string, string> = { read: '读取文件', write: '保存文件', edit: '修改文件', glob: '查找文件', grep: '搜索内容', bash: '执行任务', task: '协同处理' }
+  const labels: Record<string, string> = { ...tm('chat.toolLabels') as any }
   const firstTool = Array.isArray(raw.toolCalls) ? raw.toolCalls[0]?.function?.name : ''
-  const label = role === 'reasoning' ? '思考与方案整理'
-    : role === 'tool' ? (raw.error ? '失败的工具步骤' : '工具执行结果')
-      : firstTool ? (labels[String(firstTool).toLowerCase()] ?? '工具执行步骤')
-        : role === 'activity' ? '执行状态'
-          : messageText(message).replace(/\s+/g, ' ').trim().slice(0, 48) || '该执行步骤'
-  senderRef.value?.setText?.(`请从“${label}”继续执行，并保留已经完成的结果。`)
+  const label = role === 'reasoning' ? t('chat.reasoningStep')
+    : role === 'tool' ? (raw.error ? t('chat.failedToolStep') : t('chat.toolResult'))
+      : firstTool ? (labels[String(firstTool).toLowerCase()] ?? t('chat.toolStep'))
+        : role === 'activity' ? t('chat.runStatus')
+          : messageText(message).replace(/\s+/g, ' ').trim().slice(0, 48) || t('chat.stepFallback')
+  senderRef.value?.setText?.(t('chat.continuePrompt', { label }))
   void nextTick(() => senderRef.value?.focus?.('last'))
 }
 
 function exportConversation() {
-  const title = userFacingSessionName(props.displayName) || 'Data Agent 对话'
+  const title = userFacingSessionName(props.displayName) || t('chat.exportTitle')
   const body = messages.value.map(message => {
-    const role = message.role === 'user' ? '用户' : message.role === 'assistant' ? 'Data Agent' : message.role === 'reasoning' ? '执行过程' : '工具结果'
+    const role = message.role === 'user' ? t('chat.roleUser') : message.role === 'assistant' ? t('chat.roleAgent') : message.role === 'reasoning' ? t('chat.roleProcess') : t('chat.roleTool')
     return `## ${role}\n\n${messageText(message) || String((message as any).content ?? '')}`
   }).join('\n\n')
   const blob = new Blob([`# ${title}\n\n${body}\n`], { type: 'text/markdown;charset=utf-8' })
@@ -307,7 +384,7 @@ function exportConversation() {
   anchor.download = `${title.replace(/[\\/:*?"<>|]/g, '_')}.md`
   anchor.click()
   window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-  ElMessage.success('对话已导出')
+  ElMessage.success(t('chat.exported'))
 }
 
 function onGlobalKeydown(event: KeyboardEvent) {
@@ -339,25 +416,54 @@ async function resumeFileApproval(entries: ResumeEntry[]) {
 async function confirmDelivery(interruptId: string) {
   if (running.value) return
   if (pendingInterrupts.value.length !== 1) {
-    ElMessage.warning('当前有多项待确认内容，请在完整审批界面统一处理')
+    ElMessage.warning(t('chat.multipleApprovals'))
     return
   }
   const interrupt = pendingInterrupts.value.find(item => item.id === interruptId)
   if (!interrupt) return
   const entry = buildConfirmationResumeEntry(interrupt)
   if (!entry) {
-    ElMessage.warning('这项审批需要查看完整选项后处理')
+    ElMessage.warning(t('chat.fullApproval'))
     return
   }
   await resumeRun([entry])
 }
 
+async function cancelDelivery(interruptId: string) {
+  if (running.value) return
+  if (pendingInterrupts.value.length !== 1) {
+    ElMessage.warning(t('chat.multipleApprovals'))
+    return
+  }
+  const interrupt = pendingInterrupts.value.find(item => item.id === interruptId)
+  if (!interrupt) return
+  const entry = buildCancellationResumeEntry(interrupt)
+  if (!entry) return
+  await resumeRun([entry])
+}
+
+function generatedFilesForProcess(steps: any[]) {
+  const ids = new Set(steps.map(step => step?.message?.id).filter(Boolean))
+  return deliverables.value.filter(file => file.sourceMessageId && ids.has(file.sourceMessageId))
+}
+
+async function handleA2uiAction(action: unknown) {
+  try {
+    if (await sendA2uiAction(action)) {
+      emit('changed')
+      scrollToBottom()
+    }
+  } catch (reason) {
+    notifyError(reason)
+  }
+}
+
 async function stopRun() {
   try {
     await stop()
-    ElMessage.success('已停止生成')
+    ElMessage.success(t('chat.stopped'))
   } catch {
-    ElMessage.warning('已停止生成，状态将在稍后同步')
+    ElMessage.warning(t('chat.stopPending'))
   }
 }
 
@@ -376,8 +482,12 @@ watch(messages, () => {
 }, { deep: true })
 
 watch(error, value => {
-  if (value) ElMessage.warning(value)
-})
+  if (!value) {
+    lastNotifiedError = ''
+    return
+  }
+  notifyError(value)
+}, { flush: 'sync' })
 
 onMounted(() => {
   scrollToBottom()
@@ -394,17 +504,17 @@ onBeforeUnmount(() => {
   <section class="agent-chat" :class="{ 'agent-chat--empty': !sessionId && !messages.length }">
     <header v-if="sessionId" class="agent-chat__header">
       <div class="agent-chat__identity">
-        <small>当前对话</small>
+        <small>{{ t('chat.current') }}</small>
         <b>{{ userFacingSessionName(displayName) }}</b>
         <small>{{ sessionId }}</small>
       </div>
       <div class="agent-chat__header-actions">
-        <button type="button" :class="{ active: auditOpen }" @click="toggleAudit">记录</button>
+        <button type="button" :class="{ active: auditOpen }" @click="toggleAudit">{{ t('chat.record') }}</button>
         <button type="button" :class="{ active: deliverablesOpen || activePreview }" @click="toggleDeliverables">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 6.5h4l1.4 1.8h7.6v7.2h-13z"/><path d="M5.5 4.5h4l1.2 2"/></svg>
-          交付物 <small>{{ deliverables.length + pendingInterrupts.length }}</small>
+          {{ t('chat.deliverables') }} <small>{{ deliverables.length }}</small>
         </button>
-        <span :class="{ active: running }"><i></i>{{ running ? '执行中' : '已就绪' }}</span>
+        <span :class="{ active: running }"><i></i>{{ running ? t('chat.running') : t('chat.ready') }}</span>
       </div>
     </header>
 
@@ -419,18 +529,18 @@ onBeforeUnmount(() => {
 
       <div v-else-if="!messages.length && !running" class="agent-welcome">
         <div class="agent-welcome__brand">
-          <span class="agent-welcome__eyebrow">DATA DELIVERY WORKSPACE</span>
+          <span class="agent-welcome__eyebrow">{{ t('chat.eyebrow') }}</span>
           <div class="agent-welcome__title">
             <AgentMark />
             <h1>DATA AGENT</h1>
           </div>
           <Welcome
             variant="borderless"
-            :description="WELCOME_DESCRIPTION"
+            :description="welcomeDescription"
           />
-          <div class="starter-prompts" aria-label="常用需求模板">
+          <div class="starter-prompts" :aria-label="t('chat.starterAria')">
             <button
-              v-for="item in STARTER_PROMPTS"
+              v-for="item in starterPrompts"
               :key="item.title"
               type="button"
               @click="useStarterPrompt(item.prompt)"
@@ -445,23 +555,34 @@ onBeforeUnmount(() => {
 
       <div v-else class="message-list">
         <div v-if="nextCursor" class="load-older">
-          <el-button text :loading="loadingOlder" @click="loadOlder">加载更早消息</el-button>
+          <el-button text :loading="loadingOlder" @click="loadOlder">{{ t('chat.loadEarlier') }}</el-button>
         </div>
         <template v-for="item in presentationItems" :key="item.key">
           <section v-if="item.kind === 'turn'" class="conversation-turn">
-            <div :data-message-id="item.user.id"><ConversationMessage :message="item.user" :running="running" :pending-interrupt-ids="pendingInterruptIds" @preview="openFilePreview" @confirm="confirmDelivery" /></div>
+            <div :data-message-id="item.user.id"><ConversationMessage :message="item.user" :running="running" :pending-interrupt-ids="pendingInterruptIds" @preview="openFilePreview" @confirm="confirmDelivery" @cancel="cancelDelivery" @a2ui-action="handleA2uiAction" /></div>
             <div class="conversation-turn__response">
               <template v-for="child in item.children" :key="child.key">
-                <ConversationProcessGroup
-                  v-if="child.kind === 'process'"
-                  :steps="child.steps"
-                  :running="child.running"
-                  :busy="running"
-                  :settled="child.settled"
-                  :active-reasoning-id="child.activeReasoningId"
-                  @preview="openFilePreview"
-                  @continue="continueFromStep"
-                />
+                <template v-if="child.kind === 'process'">
+                  <ConversationProcessGroup
+                    :steps="child.steps"
+                    :running="child.running"
+                    :busy="running"
+                    :settled="child.settled"
+                    :active-reasoning-id="child.activeReasoningId"
+                    @preview="openFilePreview"
+                    @continue="continueFromStep"
+                  />
+                  <GeneratedArtifactCard
+                    v-for="file in generatedFilesForProcess(child.steps)"
+                    :key="`generated-card-${file.id}`"
+                    :file="file"
+                    :pending="file.approvalInterruptId ? pendingInterruptIds.includes(file.approvalInterruptId) : false"
+                    :busy="running"
+                    @preview="openFilePreview"
+                    @confirm="confirmDelivery"
+                    @cancel="cancelDelivery"
+                  />
+                </template>
                 <ConversationMessage
                   v-else
                   :message="child.message"
@@ -473,39 +594,52 @@ onBeforeUnmount(() => {
                   :data-message-id="child.message.id"
                   @preview="openFilePreview"
                   @confirm="confirmDelivery"
+                  @cancel="cancelDelivery"
+                  @a2ui-action="handleA2uiAction"
                 />
               </template>
             </div>
           </section>
-          <ConversationProcessGroup
-            v-else-if="item.kind === 'process'"
-            :steps="item.steps"
-            :running="item.running"
-            :busy="running"
-            :settled="item.settled"
-            :active-reasoning-id="item.activeReasoningId"
-            @preview="openFilePreview"
-            @continue="continueFromStep"
-          />
-          <ConversationMessage v-else :message="item.message" :running="running" :animate="animatedMessageIds.has(item.message.id)" :streaming="running && activeTextId === item.message.id" :pending-interrupt-ids="pendingInterruptIds" :data-message-id="item.message.id" @reveal="followTextReveal" @preview="openFilePreview" @confirm="confirmDelivery" />
+          <template v-else-if="item.kind === 'process'">
+            <ConversationProcessGroup
+              :steps="item.steps"
+              :running="item.running"
+              :busy="running"
+              :settled="item.settled"
+              :active-reasoning-id="item.activeReasoningId"
+              @preview="openFilePreview"
+              @continue="continueFromStep"
+            />
+            <GeneratedArtifactCard
+              v-for="file in generatedFilesForProcess(item.steps)"
+              :key="`generated-card-${file.id}`"
+              :file="file"
+              :pending="file.approvalInterruptId ? pendingInterruptIds.includes(file.approvalInterruptId) : false"
+              :busy="running"
+              @preview="openFilePreview"
+              @confirm="confirmDelivery"
+              @cancel="cancelDelivery"
+            />
+          </template>
+          <ConversationMessage v-else :message="item.message" :running="running" :animate="animatedMessageIds.has(item.message.id)" :streaming="running && activeTextId === item.message.id" :pending-interrupt-ids="pendingInterruptIds" :data-message-id="item.message.id" @reveal="followTextReveal" @preview="openFilePreview" @confirm="confirmDelivery" @cancel="cancelDelivery" @a2ui-action="handleA2uiAction" />
         </template>
         <div v-if="showResponsePending" class="response-pending" role="status" aria-live="polite">
           <span class="response-pending__dots" aria-hidden="true"><i></i><i></i><i></i></span>
-          <span>{{ responsePhase === 'responding' ? '正在组织回答…' : '正在等待响应…' }}</span>
+          <span>{{ responsePhase === 'responding' ? t('chat.responseOrganizing') : t('chat.responseWaiting') }}</span>
         </div>
       </div>
     </div>
 
     <Transition name="jump-latest">
       <button v-if="showJumpToLatest" class="jump-latest" type="button" @click="scrollToBottom">
-        <span aria-hidden="true">↓</span> 回到最新
+        <span aria-hidden="true">↓</span> {{ t('chat.backLatest') }}
       </button>
     </Transition>
 
     <div class="agent-chat__composer-wrap">
       <div v-if="error && !running" class="run-recovery" role="status">
-        <span><b>本次生成未完成</b><small>{{ error }}</small></span>
-        <button type="button" @click="retryRun">重试</button>
+        <span><b>{{ t('chat.incomplete') }}</b><small>{{ error }}</small></span>
+        <button type="button" @click="retryRun">{{ t('chat.retry') }}</button>
       </div>
       <InterruptCard
         v-if="composerInterrupts.length"
@@ -519,7 +653,7 @@ onBeforeUnmount(() => {
           <div v-for="item in attachments" :key="item.id" class="attachment-chip">
             <span>{{ item.file.name }}</span>
             <small>{{ Math.max(1, Math.ceil(item.file.size / 1024)) }} KB</small>
-            <button type="button" aria-label="移除附件" @click="removeAttachment(item.id)">×</button>
+            <button type="button" :aria-label="t('chat.removeAttachment')" @click="removeAttachment(item.id)">×</button>
           </div>
         </div>
 
@@ -528,7 +662,7 @@ onBeforeUnmount(() => {
           variant="updown"
           :loading="running"
           :disabled="Boolean(pendingInterrupts.length)"
-          placeholder="描述你的数据需求或业务目标"
+          :placeholder="t('chat.placeholder')"
           :custom-style="{ maxHeight: '10rem' }"
           @submit="submit"
           @cancel="stopRun"
@@ -538,8 +672,8 @@ onBeforeUnmount(() => {
               <el-button
                 class="composer-file-button"
                 text
-                title="添加文件"
-                aria-label="添加文件"
+                :title="t('chat.addFile')"
+                :aria-label="t('chat.addFile')"
                 :disabled="running || Boolean(pendingInterrupts.length)"
                 @click="chooseFiles"
               ><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10"/></svg></el-button>
@@ -562,7 +696,7 @@ onBeforeUnmount(() => {
         />
         <div class="composer-assurance">
           <span><i></i> DATA AGENT WORKFLOW</span>
-          <small>Agent 可能调用工具，请核对关键交付结果</small>
+          <small>{{ t('chat.assurance') }}</small>
         </div>
       </div>
     </div>

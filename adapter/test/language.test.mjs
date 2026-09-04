@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { languageFromCookie, languageInstruction, normalizeLanguage, parseCookies } from '../src/language.mjs'
+import { promptWithContext } from '../src/server.mjs'
 
 test('parses and decodes cookie values', () => {
   assert.deepEqual(parseCookies('session=abc; locale=zh_CN; name=a%20b'), {
@@ -34,4 +35,12 @@ test('builds a bounded model language instruction', () => {
   assert.match(instruction, /Respond to the user in zh-CN/)
   assert.match(instruction, /code, identifiers, API names, filenames/)
   assert.equal(languageInstruction(undefined), undefined)
+})
+
+test('runtime context makes native approval a hard publication gate', () => {
+  const prompt = promptWithContext({ context: [{ description: 'catalog', value: '{}' }] }, '发布应用', [], 'zh-CN')
+  assert.match(prompt, /Native approval forms are hard gates/)
+  assert.match(prompt, /must not claim that the next phase, release, or publication is complete/)
+  assert.match(prompt, /After an affirmative resume, update the canonical status/)
+  assert.match(prompt, /发布应用$/)
 })

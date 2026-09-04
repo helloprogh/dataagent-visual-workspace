@@ -1,0 +1,1 @@
+{"appId":"demo-sales","metrics":[{"name":"销售额","expr":"SUM(paid_amount)-SUM(return_amount)","unit":"CNY"},{"name":"订单量","expr":"COUNT(DISTINCT order_id)"},{"name":"客单价","expr":"销售额/订单量"},{"name":"退货率","expr":"SUM(return_amount)/SUM(paid_amount)"},{"name":"目标完成率","expr":"销售额/target_amount"}],"freshness":"T+1","timezone":"Asia/Shanghai"}

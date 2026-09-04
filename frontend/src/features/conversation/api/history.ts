@@ -188,6 +188,9 @@ export function normalizeAssistant(value: UnknownRecord, id: string): Message[] 
 function normalizeMessage(value: unknown): Message[] {
   if (!isRecord(value)) return []
   const id = requiredString(value.id, 'message.id', '解析历史消息失败')
+  if (value.role === 'activity' && value.activityType === 'a2ui-surface' && isRecord(value.content)) {
+    return [{ ...value, id, role: 'activity', activityType: 'a2ui-surface', content: value.content } as Message]
+  }
   const type = requiredString(value.type, 'message.type', '解析历史消息失败')
   if (type === 'user') return [normalizeUser(value, id)]
   if (type === 'assistant') return normalizeAssistant(value, id)
@@ -201,10 +204,10 @@ export function normalizeHistoryPage(data: unknown[], activities: unknown[] = []
     if (!isRecord(value)) return messages
     for (const activity of activities) {
       if (!isRecord(activity) || activity.parentMessageId !== value.id
-        || activity.activityType !== 'dataagent.ui' || typeof activity.messageId !== 'string'
+        || !['dataagent.ui', 'a2ui-surface'].includes(String(activity.activityType)) || typeof activity.messageId !== 'string'
         || !isRecord(activity.content) || seen.has(activity.messageId)) continue
       seen.add(activity.messageId)
-      messages.push({ id: activity.messageId, role: 'activity', activityType: 'dataagent.ui', content: activity.content } as Message)
+      messages.push({ id: activity.messageId, role: 'activity', activityType: activity.activityType, content: activity.content } as Message)
     }
     return messages
   })

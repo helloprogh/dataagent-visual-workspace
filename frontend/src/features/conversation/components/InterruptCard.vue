@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue'
 import type { Interrupt, ResumeEntry } from '@ag-ui/client'
+import { useI18n } from 'vue-i18n'
 
 const props = withDefaults(defineProps<{
   interrupts: Interrupt[]
@@ -11,6 +12,7 @@ const props = withDefaults(defineProps<{
   variant: 'default',
 })
 const emit = defineEmits<{ resume: [entries: ResumeEntry[]] }>()
+const { t } = useI18n()
 
 type Schema = Record<string, any>
 const answers = reactive<Record<string, Record<string, any>>>({})
@@ -18,10 +20,10 @@ const rootAnswers = reactive<Record<string, any>>({})
 
 const title = computed(() => {
   const reason = props.interrupts[0]?.reason
-  if (reason === 'input_required') return '需要补充信息'
-  if (reason === 'confirmation') return '请确认'
-  if (reason === 'tool_call') return '操作确认'
-  return '需要你的处理'
+  if (reason === 'input_required') return t('interrupt.inputRequired')
+  if (reason === 'confirmation') return t('interrupt.confirmation')
+  if (reason === 'tool_call') return t('interrupt.toolCall')
+  return t('interrupt.needsAction')
 })
 
 function schemaOf(interrupt: Interrupt): Schema {
@@ -51,18 +53,21 @@ function choicesOf(schema: Schema) {
   return schema.enum.map((value: any, index: number) => ({ label: String(names[index] ?? value), value }))
 }
 
-function quickChoicesOf(interrupt: Interrupt) {
-  if (props.interrupts.length !== 1) return []
-  const fields = fieldsOf(interrupt)
-  if (!fields.length) {
-    return choicesOf(schemaOf(interrupt)).map(choice => ({ ...choice, payload: choice.value }))
-  }
-  if (fields.length !== 1 || fields[0].schema.type === 'array' || fields[0].schema['x-custom']) return []
-  return choicesOf(fields[0].schema).map(choice => ({
-    ...choice,
-    payload: { [fields[0].name]: choice.value },
+const interruptViews = computed(() => props.interrupts.map(interrupt => {
+  const schema = schemaOf(interrupt)
+  const fields = fieldsOf(interrupt).map(field => ({
+    ...field,
+    choices: choicesOf(field.schema),
+    itemChoices: choicesOf(field.schema.items ?? {}),
   }))
-}
+  const rootChoices = choicesOf(schema)
+  const quickChoices = !fields.length
+    ? rootChoices.map(choice => ({ ...choice, payload: choice.value }))
+    : fields.length === 1 && fields[0].schema.type !== 'array' && !fields[0].schema['x-custom']
+      ? fields[0].choices.map(choice => ({ ...choice, payload: { [fields[0].name]: choice.value } }))
+      : []
+  return { interrupt, schema, fields, rootChoices, quickChoices }
+}))
 
 function payloadOf(interrupt: Interrupt) {
   return fieldsOf(interrupt).length ? { ...(answers[interrupt.id] ?? {}) } : rootAnswers[interrupt.id]
@@ -85,7 +90,7 @@ function complete(interrupt: Interrupt) {
 }
 
 const canSubmit = computed(() => props.interrupts.length > 0 && props.interrupts.every(complete))
-const hasQuickChoices = computed(() => props.interrupts.length === 1 && quickChoicesOf(props.interrupts[0]).length > 0)
+const hasQuickChoices = computed(() => interruptViews.value.length === 1 && interruptViews.value[0].quickChoices.length > 0)
 
 function submit() {
   if (!canSubmit.value || props.busy) return
@@ -129,67 +134,67 @@ watch(() => props.interrupts, interrupts => {
     <header class="interrupt-card__header">
       <div>
         <b>{{ title }}</b>
-        <span v-if="interrupts.length > 1">{{ interrupts.length }} 项待处理</span>
+        <span v-if="interrupts.length > 1">{{ t('interrupt.pendingCount', { count: interrupts.length }) }}</span>
       </div>
-      <small>等待用户</small>
+      <small>{{ t('interrupt.waitingUser') }}</small>
     </header>
 
-    <article v-for="interrupt in interrupts" :key="interrupt.id" class="interrupt-card__item">
-      <p>{{ interrupt.message || 'Agent 需要你的输入后才能继续。' }}</p>
+    <article v-for="item in interruptViews" :key="item.interrupt.id" class="interrupt-card__item">
+      <p>{{ item.interrupt.message || t('interrupt.defaultMessage') }}</p>
 
-      <div v-if="quickChoicesOf(interrupt).length" class="interrupt-choices">
+      <div v-if="item.quickChoices.length" class="interrupt-choices">
         <el-button
-          v-for="choice in quickChoicesOf(interrupt)"
+          v-for="choice in item.quickChoices"
           :key="JSON.stringify(choice.value)"
           :disabled="busy"
-          @click="submitChoice(interrupt, choice.payload)"
+          @click="submitChoice(item.interrupt, choice.payload)"
         >{{ choice.label }}</el-button>
       </div>
 
-      <template v-else-if="fieldsOf(interrupt).length">
-        <div v-for="field in fieldsOf(interrupt)" :key="field.name" class="interrupt-field">
+      <template v-else-if="item.fields.length">
+        <div v-for="field in item.fields" :key="field.name" class="interrupt-field">
           <label>{{ field.schema.title || field.name }}<em v-if="field.required">*</em></label>
 
           <el-select
-            v-if="choicesOf(field.schema).length && field.schema.type !== 'array'"
-            v-model="answers[interrupt.id][field.name]"
+            v-if="field.choices.length && field.schema.type !== 'array'"
+            v-model="answers[item.interrupt.id][field.name]"
             :disabled="busy"
             :filterable="Boolean(field.schema['x-custom'])"
             :allow-create="Boolean(field.schema['x-custom'])"
             default-first-option
           >
-            <el-option v-for="choice in choicesOf(field.schema)" :key="JSON.stringify(choice.value)" :label="choice.label" :value="choice.value" />
+            <el-option v-for="choice in field.choices" :key="JSON.stringify(choice.value)" :label="choice.label" :value="choice.value" />
           </el-select>
 
           <el-checkbox-group
-            v-else-if="field.schema.type === 'array' && choicesOf(field.schema.items ?? {}).length"
-            v-model="answers[interrupt.id][field.name]"
+            v-else-if="field.schema.type === 'array' && field.itemChoices.length"
+            v-model="answers[item.interrupt.id][field.name]"
             :disabled="busy"
           >
-            <el-checkbox v-for="choice in choicesOf(field.schema.items)" :key="JSON.stringify(choice.value)" :value="choice.value">{{ choice.label }}</el-checkbox>
+            <el-checkbox v-for="choice in field.itemChoices" :key="JSON.stringify(choice.value)" :value="choice.value">{{ choice.label }}</el-checkbox>
           </el-checkbox-group>
 
-          <el-switch v-else-if="field.schema.type === 'boolean'" v-model="answers[interrupt.id][field.name]" :disabled="busy" />
-          <el-input-number v-else-if="field.schema.type === 'number' || field.schema.type === 'integer'" v-model="answers[interrupt.id][field.name]" :disabled="busy" />
-          <el-date-picker v-else-if="field.schema.format === 'date' || field.schema.format === 'date-time'" v-model="answers[interrupt.id][field.name]" type="date" value-format="YYYY-MM-DD" :disabled="busy" />
-          <el-input v-else v-model="answers[interrupt.id][field.name]" :type="field.schema['x-multiline'] ? 'textarea' : 'text'" :placeholder="field.schema.description" :disabled="busy" />
+          <el-switch v-else-if="field.schema.type === 'boolean'" v-model="answers[item.interrupt.id][field.name]" :disabled="busy" />
+          <el-input-number v-else-if="field.schema.type === 'number' || field.schema.type === 'integer'" v-model="answers[item.interrupt.id][field.name]" :disabled="busy" />
+          <el-date-picker v-else-if="field.schema.format === 'date' || field.schema.format === 'date-time'" v-model="answers[item.interrupt.id][field.name]" type="date" value-format="YYYY-MM-DD" :disabled="busy" />
+          <el-input v-else v-model="answers[item.interrupt.id][field.name]" :type="field.schema['x-multiline'] ? 'textarea' : 'text'" :placeholder="field.schema.description" :disabled="busy" />
         </div>
       </template>
 
       <template v-else>
-        <div v-if="choicesOf(schemaOf(interrupt)).length" class="interrupt-choices">
-          <el-radio-group v-model="rootAnswers[interrupt.id]" :disabled="busy">
-            <el-radio-button v-for="choice in choicesOf(schemaOf(interrupt))" :key="JSON.stringify(choice.value)" :value="choice.value">{{ choice.label }}</el-radio-button>
+        <div v-if="item.rootChoices.length" class="interrupt-choices">
+          <el-radio-group v-model="rootAnswers[item.interrupt.id]" :disabled="busy">
+            <el-radio-button v-for="choice in item.rootChoices" :key="JSON.stringify(choice.value)" :value="choice.value">{{ choice.label }}</el-radio-button>
           </el-radio-group>
         </div>
-        <el-switch v-else-if="schemaOf(interrupt).type === 'boolean'" v-model="rootAnswers[interrupt.id]" :disabled="busy" />
-        <el-input-number v-else-if="schemaOf(interrupt).type === 'number' || schemaOf(interrupt).type === 'integer'" v-model="rootAnswers[interrupt.id]" :disabled="busy" />
-        <el-input v-else-if="schemaOf(interrupt).type === 'string'" v-model="rootAnswers[interrupt.id]" :disabled="busy" :placeholder="schemaOf(interrupt).description || '请输入内容'" />
+        <el-switch v-else-if="item.schema.type === 'boolean'" v-model="rootAnswers[item.interrupt.id]" :disabled="busy" />
+        <el-input-number v-else-if="item.schema.type === 'number' || item.schema.type === 'integer'" v-model="rootAnswers[item.interrupt.id]" :disabled="busy" />
+        <el-input v-else-if="item.schema.type === 'string'" v-model="rootAnswers[item.interrupt.id]" :disabled="busy" :placeholder="item.schema.description || t('message.responseSchemaInput')" />
       </template>
     </article>
 
     <footer v-if="!hasQuickChoices" class="interrupt-card__actions">
-      <el-button type="primary" :loading="busy" :disabled="!canSubmit" @click="submit">继续</el-button>
+      <el-button type="primary" :loading="busy" :disabled="!canSubmit" @click="submit">{{ t('interrupt.continue') }}</el-button>
     </footer>
   </section>
 </template>

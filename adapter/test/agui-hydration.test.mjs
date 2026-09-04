@@ -98,15 +98,19 @@ test('AG-UI hydration recovers an OpenCode form missed before adapter restart', 
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'dataagent-hydrate-form-'))
   const stateFile = path.join(directory, 'sessions.json')
   const registry = new SessionRegistry(stateFile)
-  await registry.set('session-form', 'session-form')
+  await registry.set('thread-form', 'opencode-session-form')
+  let listedSessionId = ''
   const client = {
-    listForms: async sessionId => [{
-      id: 'frm_restore',
-      sessionID: sessionId,
-      title: '文件审批',
-      metadata: { kind: 'question', tool: { id: 'question-restore' } },
-      fields: [{ key: 'q0', type: 'string', title: '审批决定', options: [{ value: '通过', label: '通过' }] }],
-    }],
+    listForms: async sessionId => {
+      listedSessionId = sessionId
+      return [{
+        id: 'frm_restore',
+        sessionID: sessionId,
+        title: '文件审批',
+        metadata: { kind: 'question', tool: { id: 'question-restore' } },
+        fields: [{ key: 'q0', type: 'string', title: '审批决定', options: [{ value: '通过', label: '通过' }] }],
+      }]
+    },
   }
 
   await withServer(stateFile, async baseUrl => {
@@ -114,7 +118,7 @@ test('AG-UI hydration recovers an OpenCode form missed before adapter restart', 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        threadId: 'session-form',
+        threadId: 'thread-form',
         runId: 'run-form-hydrate',
         messages: [],
         state: {},
@@ -126,6 +130,7 @@ test('AG-UI hydration recovers an OpenCode form missed before adapter restart', 
     const events = parseEvents(await response.text())
     assert.equal(events.at(-1).outcome.type, 'interrupt')
     assert.equal(events.at(-1).outcome.interrupts[0].id, 'frm_restore')
-    assert.equal((await new SessionRegistry(stateFile).pendingInterrupts('session-form'))[0].metadata.kind, 'form')
+    assert.equal(listedSessionId, 'opencode-session-form')
+    assert.equal((await new SessionRegistry(stateFile).pendingInterrupts('thread-form'))[0].metadata.kind, 'form')
   }, client)
 })

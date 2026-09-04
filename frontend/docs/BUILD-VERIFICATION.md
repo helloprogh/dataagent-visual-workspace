@@ -1,43 +1,26 @@
-# Build verification status
+# 构建验证记录
 
-## Dependency baseline
+## 依赖基线
 
-The project is pinned to the same generation of tooling used by `@copilotkit/vue@1.64.1` itself:
+当前前端使用 Vue 3、Element Plus、`@ag-ui/client`、A2UI Web Core、Vue I18n、Vue Router 和 Vite 8；
+不再依赖 CopilotKit runtime。路由使用 `createWebHashHistory`，界面文案由 `vue-i18n` 管理。
 
-- `@copilotkit/vue` / `@copilotkit/core`: 1.64.1
-- `@ag-ui/client`: 0.0.57
-- `zod`: 3.25.76
-- `vue`: 3.5.28
-- `vite`: 6.0.0
-- `@vitejs/plugin-vue`: 5.2.1
-- `typescript`: 5.8.2
-- `vue-tsc`: 2.1.10
+## 已完成检查
 
-This avoids the previous Vite 8 + TypeScript 6 cross-generation toolchain.
+- `npm test -w adapter`：112 个测试通过，覆盖 AG-UI 事件、原生 HITL、A2UI 校验、工作区文件和 ZIP 预览。
+- `npm run typecheck -w frontend`：Vue/TypeScript 类型检查通过。
+- `npm run build -w adapter`：所有 Adapter 模块语法检查通过。
+- `npm run build -w frontend`：Vite 生产构建通过。
+- `npm run check:offline -w frontend`：53 个源文件和依赖声明检查通过。
+- `git diff --check`：无实际格式错误。
 
-## Checks completed in the delivery environment
+## 已知构建提示
 
-- Local source/import integrity: PASS (42 source files)
-- TypeScript syntax transpilation: PASS (40 TS / Vue script blocks, 0 syntax errors)
-- CSS parse: PASS
-- CopilotKit v1.64.1 API source review: PASS
-  - `CopilotKitProvider.selfManagedAgents` exists
-  - `useFrontendTool` accepts Zod parameters, handler and render
-  - `useAgent` accepts reactive agentId/threadId/throttleMs
-  - `CopilotChat` accepts agentId/threadId/throttleMs/labels and emits `submit-message`
-- Static visual preview rendered with Chromium via Playwright: PASS
+- `x-markdown-vue` 依赖的样式仍会触发 lightningcss 对旧式 `:deep` 选择器的提示；不影响构建结果。
+- ECharts/Markdown 依赖使部分产物超过 500 KB，后续可通过动态导入做代码分割；不影响当前功能验收。
 
-## Why `npm install && npm run build` cannot be completed inside this environment
+## 联调前置条件
 
-The execution container has outbound network restrictions. Both npmjs and npmmirror fail before package resolution. The npm failure is `EAI_AGAIN` (DNS), and direct HTTPS to a resolved npm registry IP is refused by the environment. This is infrastructure-level egress blocking rather than a project/npm timeout setting.
-
-Run on a network-enabled machine:
-
-```bash
-npm run diagnose:npm
-npm install
-npm run typecheck
-npm run build
-```
-
-The project intentionally does not hard-code a public or corporate registry in `.npmrc`.
+真实验收时必须启动 `D:\ProjectSpace\opencode-dataagent-v2` 中的参考 OpenCode2，
+并将 Adapter 指向 `http://127.0.0.1:4096`。本地回环请求设置
+`NO_PROXY=127.0.0.1,localhost`，避免 A2UI MCP 请求被系统代理转发。

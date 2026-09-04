@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import { loadCapabilityCatalog, type CapabilityItem } from '../api/tool'
 
 const props = defineProps<{ sessionId?: string }>()
@@ -8,6 +9,7 @@ const tools = ref<CapabilityItem[]>([])
 const warnings = ref<string[]>([])
 const loading = ref(false)
 const keyword = ref('')
+const { t } = useI18n()
 
 const filtered = computed(() => {
   const query = keyword.value.trim().toLowerCase()
@@ -40,25 +42,25 @@ onMounted(refresh)
     <div class="app-page__inner tool-page">
       <header class="app-page__header">
         <div>
-          <h1>工具</h1>
-          <p>读取 OpenCode 当前注册工具和 MCP 连接状态。</p>
+          <h1>{{ t('tool.title') }}</h1>
+          <p>{{ t('tool.description') }}</p>
         </div>
         <div class="tool-summary">
-          <span><b>{{ toolCount }}</b> 工具</span>
-          <span><b>{{ mcpCount }}</b> MCP</span>
+          <span><b>{{ toolCount }}</b> {{ t('tool.tools') }}</span>
+          <span><b>{{ mcpCount }}</b> {{ t('tool.mcp') }}</span>
         </div>
       </header>
 
       <div class="tool-toolbar">
-        <el-input v-model="keyword" clearable placeholder="搜索工具或能力" />
-        <el-button :loading="loading" @click="refresh">刷新</el-button>
+        <el-input v-model="keyword" clearable :placeholder="t('tool.search')" />
+        <el-button :loading="loading" @click="refresh">{{ t('app.refresh') }}</el-button>
       </div>
 
       <el-alert
         v-if="warnings.length"
         type="warning"
         :closable="false"
-        title="部分运行时能力未能读取完整，当前仅展示已确认的数据。"
+        :title="t('tool.warning')"
         class="tool-warning"
       />
 
@@ -76,7 +78,7 @@ onMounted(refresh)
           </div>
           <footer><span>{{ tool.category }}</span><span>{{ tool.source }}</span></footer>
         </article>
-        <div v-if="!loading && !filtered.length" class="empty-state tool-empty">没有匹配的工具</div>
+        <div v-if="!loading && !filtered.length" class="empty-state tool-empty">{{ t('tool.empty') }}</div>
       </div>
     </div>
   </section>

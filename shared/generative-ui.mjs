@@ -5,12 +5,22 @@ const string = (value, limit = 2000) => typeof value === 'string' ? value.slice(
 const scalar = value => typeof value === 'number' && Number.isFinite(value) ? value : string(value)
 const id = value => typeof value === 'string' && /^[\w-]{1,80}$/.test(value)
 const list = (value, limit) => Array.isArray(value) && value.length <= limit
+
+const safeWorkspacePath = value => {
+  if (typeof value !== 'string' || !value.trim() || value.includes('\u0000')
+    || value.startsWith('/') || value.startsWith('\\') || /^[A-Za-z]:[\\/]/.test(value)) return false
+  return !value.split(/[\\/]+/).some(segment => segment === '..')
+}
+
 export function safeUiFileUrl(value) {
-  if (typeof value !== 'string' || !/^\/dataagent\/web\/api\/agui\/file\/[0-9a-f-]{36}(?:\?|$)/i.test(value)) return ''
+  if (typeof value !== 'string') return ''
   try {
     const url = new URL(value, 'http://dataagent.local')
-    return url.origin === 'http://dataagent.local' && /^\/dataagent\/web\/api\/agui\/file\/[0-9a-f-]{36}$/i.test(url.pathname)
-      && !/[\\\u0000-\u0020]/.test(value) ? url.pathname + url.search : ''
+    if (url.origin !== 'http://dataagent.local' || /[\\\u0000-\u0020]/.test(value)) return ''
+    if (/^\/dataagent\/web\/api\/agui\/file\/[0-9a-f-]{36}$/i.test(url.pathname)) return url.pathname + url.search
+    if (!['/dataagent/web/api/agui/workspace-file', '/dataagent/web/api/agui/workspace-archive'].includes(url.pathname)
+      || url.searchParams.size !== 1 || !url.searchParams.has('path') || !safeWorkspacePath(url.searchParams.get('path'))) return ''
+    return url.pathname + url.search
   } catch { return '' }
 }
 

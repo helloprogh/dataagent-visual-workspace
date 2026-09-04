@@ -7,8 +7,11 @@ import ts from 'typescript'
 import { HttpAgent } from '@ag-ui/client'
 import { OpenCodeAguiConverter } from '../src/converter.mjs'
 import { GenerativeUiStream } from '../src/generative-ui.mjs'
+import { A2uiStream } from '../src/a2ui.mjs'
 import { SessionRegistry } from '../src/session-registry.mjs'
 import { normalizeUiContent, applyUiPatch, uiContentFromToolOutput, safeUiFileUrl } from '../../shared/generative-ui.mjs'
+import { A2UI_CATALOG_ID, normalizeA2uiAction, normalizeRenderA2uiArgs } from '../../shared/a2ui.mjs'
+import { artifactPathKey, generatedArtifactsFromTool, removedArtifactPathsFromTool } from '../../shared/generated-artifacts.mjs'
 
 const content = (status = 'ready') => ({ version: 1, surfaceId: 'sales', title: '销售概览', status,
   cards: [{ id: 'total', kind: 'metrics', items: [{ label: '销售额', value: 1200 }] }] })
@@ -116,6 +119,13 @@ test('card schema bounds payloads and only accepts application file previews', (
   assert.equal(normalizeUiContent({ ...content(), summary: 'x'.repeat(65537) }), null)
   for (const url of ['javascript:alert(1)', 'https://evil.example/a', '//evil.example/a', '/dataagent/web/api/agui/file/../../secret']) assert.equal(safeUiFileUrl(url), '')
   assert.equal(safeUiFileUrl('/dataagent/web/api/agui/file/12345678-1234-1234-1234-123456789abc'), '/dataagent/web/api/agui/file/12345678-1234-1234-1234-123456789abc')
+  assert.equal(safeUiFileUrl('/dataagent/web/api/agui/workspace-file?path=data-applications%2Fdemo-sales%2F01-specification%2Fanalysis-spec.json'), '/dataagent/web/api/agui/workspace-file?path=data-applications%2Fdemo-sales%2F01-specification%2Fanalysis-spec.json')
+  assert.equal(safeUiFileUrl('/dataagent/web/api/agui/workspace-archive?path=data-development-delivery.zip'), '/dataagent/web/api/agui/workspace-archive?path=data-development-delivery.zip')
+  for (const url of [
+    '/dataagent/web/api/agui/workspace-file?path=..%2Fsecret',
+    '/dataagent/web/api/agui/workspace-file?path=%2Fabsolute',
+    '/dataagent/web/api/agui/workspace-file?path=report.md&entry=secret',
+  ]) assert.equal(safeUiFileUrl(url), '')
   const approvedFile = normalizeUiContent({ ...content(), cards: [{
     id: 'report',
     kind: 'file',
@@ -127,6 +137,28 @@ test('card schema bounds payloads and only accepts application file previews', (
   }] })
   assert.equal(approvedFile.cards[0].approvalInterruptId, 'frm_report')
   assert.equal(approvedFile.cards[0].approvalMode, 'next-interrupt')
+  const workspaceArchive = normalizeUiContent({ ...content(), cards: [{
+    id: 'archive',
+    kind: 'file',
+    url: '/dataagent/web/api/agui/workspace-archive?path=data-development-delivery.zip',
+    name: 'data-development-delivery.zip',
+    mimeType: 'application/zip',
+  }] })
+  assert.equal(workspaceArchive.cards[0].url, '/dataagent/web/api/agui/workspace-archive?path=data-development-delivery.zip')
+})
+
+test('successful native writes and shell-created archives become previewable artifacts', () => {
+  const completed = new Set(['write-1', 'shell-1'])
+  assert.deepEqual(generatedArtifactsFromTool({ id: 'write-1', function: { name: 'write', arguments: JSON.stringify({ path: 'data-applications/demo/analysis.json' }) } }, completed), [{
+    id: 'generated-write-1', sourcePath: 'data-applications/demo/analysis.json', name: 'analysis.json', mimeType: 'application/json', archive: false,
+  }])
+  const archives = generatedArtifactsFromTool({ id: 'shell-1', function: { name: 'shell', arguments: JSON.stringify({ command: 'Get-Item "D:\\ProjectSpace\\dataagent\\delivery.zip"; [System.IO.Compression.ZipFile]::OpenRead("D:\\ProjectSpace\\dataagent\\delivery.zip")' }) } }, completed)
+  assert.equal(archives.length, 1)
+  assert.equal(archives[0].name, 'delivery.zip')
+  assert.equal(archives[0].archive, true)
+  assert.deepEqual(generatedArtifactsFromTool({ id: 'failed', function: { name: 'shell', arguments: JSON.stringify({ command: 'Compress-Archive input "failed.zip"' }) } }, completed), [])
+  assert.deepEqual(removedArtifactPathsFromTool({ id: 'shell-1', function: { name: 'shell', arguments: JSON.stringify({ command: 'Remove-Item "D:\\workspace\\PENDING.md" -Force; Get-ChildItem .' }) } }, completed), ['D:\\workspace\\PENDING.md'])
+  assert.equal(artifactPathKey('D:\\WORKSPACE\\PENDING.md'), 'd:/workspace/pending.md')
 })
 
 test('actual AG-UI client consumes snapshots/deltas into one card message', async () => {
@@ -164,4 +196,66 @@ test('persisted snapshots recover in their original conversation and parent hist
   const history = normalizeHistoryPage([{ id: 'assistant-ui', type: 'assistant', content: [{ type: 'text', text: '报告正文' }] }], restored)
   assert.deepEqual(history.map(m => m.role), ['assistant', 'activity'])
   assert.deepEqual(normalizeHistoryPage([{ id: 'other', type: 'assistant', content: [] }], restored), [])
+})
+
+test('dataagent-master render_a2ui calls become validated A2UI v0.9 activities', () => {
+  const converter = new OpenCodeAguiConverter({ ...scope, a2uiAvailable: true })
+  const input = {
+    surfaceId: 'sales-dashboard',
+    components: [
+      { component: 'Column', id: 'root', children: [{ component: 'Text', id: 'title', value: '销售概览' }, 'chart'] },
+      { component: 'BarChart', id: 'chart', title: '区域销售', xField: 'region', yField: 'sales', data: { path: '/regions' } },
+    ],
+    data: { regions: [{ region: '华东', sales: 78 }] },
+  }
+  converter.convert({ type: 'session.tool.input.started', data: {
+    sessionID: scope.sessionId, assistantMessageID: 'assistant-a2ui', id: 'a2ui-1', name: 'agui_a2ui_render_a2ui',
+  } })
+  converter.convert({ type: 'session.tool.input.ended', data: {
+    sessionID: scope.sessionId, assistantMessageID: 'assistant-a2ui', id: 'a2ui-1', name: 'agui_a2ui_render_a2ui', text: JSON.stringify(input),
+  } })
+  const events = converter.convert({ type: 'session.tool.success', data: {
+    sessionID: scope.sessionId, assistantMessageID: 'assistant-a2ui', id: 'a2ui-1', name: 'agui_a2ui_render_a2ui', content: 'rendered',
+  } })
+  const activity = events.find(event => event.activityType === 'a2ui-surface')
+  assert.ok(activity)
+  assert.equal(activity.replace, true)
+  assert.equal(activity.messageId, 'a2ui-sales-dashboard')
+  assert.equal(activity.content.a2ui_operations[0].createSurface.catalogId, A2UI_CATALOG_ID)
+  assert.equal(activity.content.a2ui_operations[1].updateComponents.components[1].text, '销售概览')
+  assert.equal(activity.content.a2ui_operations[2].updateDataModel.path, '/')
+})
+
+test('A2UI validation rejects executable components, bad graphs, and retired approvals', () => {
+  assert.equal(normalizeRenderA2uiArgs({ surfaceId: 'unsafe', components: [{ component: 'Script', id: 'root' }] }), null)
+  assert.equal(normalizeRenderA2uiArgs({ surfaceId: 'cycle', components: [
+    { component: 'Column', id: 'root', children: ['child'] },
+    { component: 'Column', id: 'child', children: ['root'] },
+  ] }), null)
+  assert.equal(normalizeA2uiAction({ name: 'request_user_confirm', surfaceId: 'approval' }), null)
+  assert.deepEqual(normalizeA2uiAction({ name: 'refresh', surfaceId: 'sales' }), {
+    version: 'v0.9', action: { name: 'refresh', surfaceId: 'sales' },
+  })
+})
+
+test('frontend A2UI sanitizer preserves a standalone delete snapshot', async () => {
+  const source = await readFile(new URL('../../frontend/src/a2ui/sanitizeOperations.ts', import.meta.url), 'utf8')
+  const { outputText } = ts.transpileModule(source, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
+  })
+  const { sanitizeA2uiOperations } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
+  const operations = sanitizeA2uiOperations([
+    { version: 'v0.9', deleteSurface: { surfaceId: 'sales' } },
+  ], new Set(['Text']))
+  assert.deepEqual(operations, [{ version: 'v0.9', deleteSurface: { surfaceId: 'sales' } }])
+})
+
+test('A2UI surface updates reuse the persisted message and original parent', () => {
+  const firstStream = new A2uiStream('thread-a2ui', 'run-1')
+  const [first] = firstStream.publish({ surfaceId: 'sales', components: [{ component: 'Text', id: 'root', text: '一' }] }, 'assistant-1')
+  const nextStream = new A2uiStream('thread-a2ui', 'run-2', [first])
+  const [updated] = nextStream.publish({ surfaceId: 'sales', components: [{ component: 'Text', id: 'root', text: '二' }] }, 'assistant-2')
+  assert.equal(updated.messageId, first.messageId)
+  assert.equal(updated.parentMessageId, 'assistant-1')
+  assert.equal(updated.runId, 'run-2')
 })

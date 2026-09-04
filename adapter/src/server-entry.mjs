@@ -1,4 +1,6 @@
 import http from 'node:http'
+import { readFile, stat } from 'node:fs/promises'
+import path from 'node:path'
 import { buildCapabilityCatalog } from './capability-catalog.mjs'
 import { interruptFromForm } from './converter.mjs'
 import { runFinished, runStarted, stateSnapshot } from './agui.mjs'
@@ -8,10 +10,39 @@ import { OpenCodeClient } from './opencode-client.mjs'
 import { createOpenCodeManagementHandler } from './opencode-management.mjs'
 import { SessionRegistry } from './session-registry.mjs'
 import { openSse, writeSse } from './sse.mjs'
+import { MAX_ARCHIVE_BYTES, readZipEntries, readZipEntry } from './archive-preview.mjs'
 
 const port = Number(process.env.ADAPTER_PORT ?? 3001)
 const WEB_PREFIX = '/dataagent/web'
 const API_BASE = `${WEB_PREFIX}/api`
+
+const workspaceMimeType = (filename) => ({
+  '.md': 'text/markdown; charset=utf-8',
+  '.markdown': 'text/markdown; charset=utf-8',
+  '.txt': 'text/plain; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.csv': 'text/csv; charset=utf-8',
+  '.yaml': 'application/yaml; charset=utf-8',
+  '.yml': 'application/yaml; charset=utf-8',
+  '.xml': 'application/xml; charset=utf-8',
+  '.sql': 'text/plain; charset=utf-8',
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.zip': 'application/zip',
+}[path.extname(filename).toLowerCase()] ?? 'application/octet-stream')
+
+export const resolveWorkspacePreviewPath = (workspaceDirectory, requestedPath) => {
+  if (typeof requestedPath !== 'string' || !requestedPath.trim()) return null
+  const root = path.resolve(workspaceDirectory)
+  const target = path.resolve(root, requestedPath.trim())
+  const relative = path.relative(root, target)
+  if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return null
+  return target
+}
 
 const isDirectUpstreamApi = (req, url) => {
   if (req.method === 'GET' && url.pathname === `${API_BASE}/skill`) return true
@@ -203,7 +234,9 @@ const hydrateAgent = async (req, res, client) => {
   const registry = new SessionRegistry()
   let pending = await registry.pendingInterrupts(threadId)
   if (!pending.length) {
-    const forms = await client.listForms(threadId).catch(() => [])
+    const mapped = await registry.get(threadId)
+    const sessionId = mapped?.sessionId || threadId
+    const forms = await client.listForms(sessionId).catch(() => [])
     pending = (Array.isArray(forms) ? forms : []).map(interruptFromForm).filter(Boolean)
     if (pending.length) await registry.setPendingInterrupts(threadId, pending)
   }
@@ -264,6 +297,93 @@ export const createServer = ({
         })
         if (req.method === 'HEAD') res.end()
         else res.end(file.bytes)
+        return
+      }
+
+      if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname === `${API_BASE}/agui/workspace-file`) {
+        const target = resolveWorkspacePreviewPath(client.workspaceDirectory ?? process.cwd(), url.searchParams.get('path'))
+        const info = target ? await stat(target).catch(() => null) : null
+        if (!target || !info?.isFile()) {
+          res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' })
+          res.end(JSON.stringify({ error: 'Workspace file not found' }))
+          return
+        }
+        res.writeHead(200, {
+          'Content-Type': workspaceMimeType(target),
+          'Content-Length': info.size,
+          'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(path.basename(target))}`,
+          'Cache-Control': 'private, no-store',
+          'X-Content-Type-Options': 'nosniff',
+        })
+        if (req.method === 'HEAD') res.end()
+        else res.end(await readFile(target))
+        return
+      }
+
+      if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname === `${API_BASE}/agui/workspace-archive`) {
+        const target = resolveWorkspacePreviewPath(client.workspaceDirectory ?? process.cwd(), url.searchParams.get('path'))
+        const info = target ? await stat(target).catch(() => null) : null
+        if (!target || !info?.isFile()) {
+          res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' })
+          res.end(JSON.stringify({ error: 'Workspace archive not found' }))
+          return
+        }
+        if (info.size > MAX_ARCHIVE_BYTES) {
+          res.writeHead(422, { 'Content-Type': 'application/json; charset=utf-8' })
+          res.end(JSON.stringify({ error: '压缩包超过 50 MB 预览限制' }))
+          return
+        }
+        let entries
+        const bytes = await readFile(target)
+        try {
+          entries = readZipEntries(bytes)
+        } catch (reason) {
+          res.writeHead(422, { 'Content-Type': 'application/json; charset=utf-8' })
+          res.end(JSON.stringify({ error: reason instanceof Error ? reason.message : String(reason) }))
+          return
+        }
+        const requestedEntry = url.searchParams.get('entry')
+        if (!requestedEntry) {
+          const body = JSON.stringify({
+            data: {
+              filename: path.basename(target),
+              size: bytes.length,
+              entries: entries.map(({ path: entryPath, kind, size }) => ({ path: entryPath, kind, size })),
+            },
+          })
+          res.writeHead(200, {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Content-Length': Buffer.byteLength(body),
+            'Cache-Control': 'private, no-store',
+            'X-Content-Type-Options': 'nosniff',
+          })
+          if (req.method === 'HEAD') res.end()
+          else res.end(body)
+          return
+        }
+        const entry = entries.find(item => item.kind === 'file' && item.path === requestedEntry)
+        if (!entry) {
+          res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' })
+          res.end(JSON.stringify({ error: 'Archive entry not found' }))
+          return
+        }
+        let content
+        try {
+          content = readZipEntry(bytes, entry)
+        } catch (reason) {
+          res.writeHead(422, { 'Content-Type': 'application/json; charset=utf-8' })
+          res.end(JSON.stringify({ error: reason instanceof Error ? reason.message : String(reason) }))
+          return
+        }
+        res.writeHead(200, {
+          'Content-Type': workspaceMimeType(entry.path),
+          'Content-Length': content.length,
+          'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(path.basename(entry.path))}`,
+          'Cache-Control': 'private, no-store',
+          'X-Content-Type-Options': 'nosniff',
+        })
+        if (req.method === 'HEAD') res.end()
+        else res.end(content)
         return
       }
 

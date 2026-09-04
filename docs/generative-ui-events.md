@@ -1,8 +1,42 @@
 # 生成式 UI 事件契约
 
-本项目只借鉴参考仓库的 AG-UI activity 事件封装，不引入 A2UI 协议、组件树、Java Gateway、报告计算器或 browser-owned tool 的挂起恢复机制。卡片由当前 Vue 前端实现。
+本项目同时支持两种生成式 UI activity：原有应用卡片 `dataagent.ui`，以及 `dataagent-master` 后端的 A2UI v0.9 `a2ui-surface`。A2UI 使用官方 `@a2ui/web_core` 消费声明式组件树；前端只注册白名单组件，不执行模型提供的 HTML、JavaScript、Vue 模板或任意 ECharts option。
 
-## 生产入口与职责
+## dataagent-master A2UI v0.9
+
+后端通过标准 AG-UI `ACTIVITY_SNAPSHOT` 发送完整操作历史：
+
+```json
+{
+  "type": "ACTIVITY_SNAPSHOT",
+  "threadId": "thread-example",
+  "runId": "run-example",
+  "messageId": "a2ui-sales--run-example",
+  "activityType": "a2ui-surface",
+  "replace": true,
+  "content": {
+    "a2ui_operations": [
+      { "version": "v0.9", "createSurface": { "surfaceId": "sales", "catalogId": "https://opencode-agui-app.local/a2ui/data-agent-catalog.json" } },
+      { "version": "v0.9", "updateComponents": { "surfaceId": "sales", "components": [] } },
+      { "version": "v0.9", "updateDataModel": { "surfaceId": "sales", "path": "/", "value": {} } }
+    ]
+  }
+}
+```
+
+支持 `createSurface`、`updateComponents`、`updateDataModel` 和 `deleteSurface`，并兼容同版本的旧字段名 `beginRendering`、`surfaceUpdate`、`dataModelUpdate`。每个请求通过 `RunAgentInput.context` 声明 DataAgent catalog，通过 `forwardedProps.a2uiCatalogAvailable = true` 告知 Gateway 可以调用 `render_a2ui`。
+
+组件 action 由 A2UI runtime 解析数据绑定后产生，前端不把它伪造成用户消息，而是用新的 Agent run 通过 `forwardedProps.a2uiAction` 原样回传。后端收到的结构包含 `name`、`surfaceId`、`sourceComponentId`、`timestamp` 和解析后的 `context`。
+
+当前 Node Adapter 在客户端同时声明 A2UI context 与 `a2uiCatalogAvailable` 时，会向本次 OpenCode workspace 注册服务端 `render_a2ui` MCP 工具。工具参数在 Adapter 端再次经过组件白名单、root、引用完整性、循环、深度和大小校验；成功调用被转换为与 `dataagent-master` 相同的 `a2ui-surface` v0.9 snapshot，并按 surfaceId 跨 run 复用 activity messageId。`forwardedProps.a2uiAction` 会转换成 `A2UI_ACTION` Agent prompt，要求需要改变界面时使用相同 surfaceId 再次调用 `render_a2ui`。
+
+安全边界与 `dataagent-master` 一致：A2UI 仅负责非阻塞展示和普通交互，不能承担审批。`request_user_confirm`、`hitl_confirm`、`hitl_cancel` 等旧审批 action 会被隔离；文档交付确认继续使用标准 AG-UI interrupt/`resume`，文档预览面板不会把 A2UI action 当作审批决定。
+
+当前白名单与后端 `a2ui-delivery-contract.json` 对齐，包括基础布局、媒体、表单组件，以及 `MetricCard`、`DataTable`、`BarChart`、`LineChart`、`PieChart`、`InsightCard`、`WarningCard`、`ActionButton`、`Badge`、`Markdown`。
+
+下文保留原有 `dataagent.ui` 卡片契约，供现有 Adapter 与历史会话兼容。
+
+## 原有 dataagent.ui 入口与职责
 
 - 上游可发送 `ACTIVITY_SNAPSHOT` / `ACTIVITY_DELTA`，`activityType` 必须是 `dataagent.ui`。携带当前 `threadId`、`runId`；snapshot 首次需指定真实原生 assistant 消息的 `parentMessageId`，用于分页历史恢复。
 - 已有工具也可以在成功结果中返回 `{ "dataagentUi": <下述 content> }`，包括 MCP 文本结果中的 JSON。Adapter 将显式结果投影为快照，同时保留真实 tool result；不根据工具名称、正文文字或未完成参数猜测卡片。
@@ -70,7 +104,9 @@ Adapter 统一生成 `messageId = ui-${runId}-${surfaceId}`，并始终输出完
 | table | `columns: [{key,label}], rows: [{字段:标量}]` | 可滚动表格 |
 | file | `name, url, mimeType?, approvalMode?` | 文件卡，点击复用右侧预览；可发起交付确认 |
 
-文件地址只接受现有同源 `/dataagent/web/api/agui/file/{UUID}` 路由，不接受外部 URL、脚本协议或任意本地路径。
+由 `dataagent.ui` 生产的文件卡地址只接受现有同源 `/dataagent/web/api/agui/file/{UUID}`、`workspace-file` 或 `workspace-archive` 路由，不接受外部 URL、脚本协议或任意本地路径。工作区地址只能携带一个安全的相对 `path` 查询参数；Adapter 会再次把路径限制在当前工作区内。对于 `dataagent-master` 生成的 Spec，前端还会把成功的 `write` 工具结果投影为对话内文件卡。
+
+开发阶段的结构化 ZIP 产物使用同源 `/dataagent/web/api/agui/workspace-archive?path=...` 预览：不带 `entry` 返回受限的目录清单，带 `entry` 返回压缩包内单个文件内容。Adapter 只接受安全相对路径、stored/deflate 算法，并限制压缩包、条目和单文件大小；前端右侧预览补齐隐含目录，支持 Markdown、文本、图片和 PDF 文件查看。
 
 ### Spec / 文件确认闭环
 

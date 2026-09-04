@@ -7,6 +7,10 @@ const npmCommand = isWindows ? (process.env.ComSpec || 'cmd.exe') : 'npm'
 const npmArgs = (args) => isWindows ? ['/d', '/s', '/c', 'npm', ...args] : args
 const adapterEnv = {
   ...process.env,
+  // The generative-UI integration is validated against the checked-out
+  // dataagent-master companion service, not whichever OpenCode registration
+  // happens to be present in the user's home directory.
+  OPENCODE_BASE_URL: process.env.OPENCODE_BASE_URL || 'http://127.0.0.1:4096',
   OPENCODE_WORKSPACE_DIRECTORY: process.env.OPENCODE_WORKSPACE_DIRECTORY || process.cwd(),
 }
 const children = [

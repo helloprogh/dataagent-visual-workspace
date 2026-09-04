@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { RouterView, useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import ConversationSidebar from '../features/conversation/components/ConversationSidebar.vue'
-import AgentChat from '../features/conversation/components/AgentChat.vue'
-import HistoryPage from '../features/conversation/pages/HistoryPage.vue'
-import SkillPage from '../features/skill/pages/SkillPage.vue'
-import ToolPage from '../features/tool/pages/ToolPage.vue'
 import { useSessions } from '../features/conversation/composables/useSessions'
 import type { ConversationPage } from '../features/conversation/types'
 import { applyTheme, readTheme, type AppTheme } from '../shared/theme/theme'
 
-const page = ref<ConversationPage>('chat')
+const route = useRoute()
+const router = useRouter()
+const { t } = useI18n()
+const page = computed<ConversationPage>(() => {
+  const value = route.meta.page
+  return value === 'history' || value === 'skills' || value === 'tools' ? value : 'chat'
+})
 const theme = ref<AppTheme>(readTheme())
 const {
   rootSessions,
@@ -26,22 +30,23 @@ const {
 } = useSessions()
 
 function switchPage(next: ConversationPage) {
-  page.value = next
+  const query = next === 'chat' && activeId.value ? { session: activeId.value } : undefined
+  void router.push({ name: next, ...(query ? { query } : {}) })
 }
 
 function newConversation() {
   startNew()
-  page.value = 'chat'
+  void router.push({ name: 'chat' })
 }
 
 function openConversation(id: string) {
   select(id)
-  page.value = 'chat'
+  void router.push({ name: 'chat', query: { session: id } })
 }
 
 function onMaterialized(sessionId: string, displayName: string) {
   materialize(sessionId, displayName)
-  page.value = 'chat'
+  void router.replace({ name: 'chat', query: { session: sessionId } })
   void refresh()
 }
 
@@ -49,18 +54,33 @@ async function renameConversation(id: string) {
   const current = rootSessions.value.find(item => item.id === id)
   if (!current) return
   try {
-    const { value } = await ElMessageBox.prompt('输入需求名称', '重命名', {
+    const { value } = await ElMessageBox.prompt(t('app.renamePrompt'), t('app.renameTitle'), {
       inputValue: current.displayName,
       inputPattern: /\S+/,
-      inputErrorMessage: '名称不能为空',
-      confirmButtonText: '保存',
-      cancelButtonText: '取消',
+      inputErrorMessage: t('app.nameRequired'),
+      confirmButtonText: t('app.save'),
+      cancelButtonText: t('app.cancel'),
     })
     rename(id, value)
   } catch {
     // user cancelled
   }
 }
+
+watch(() => route.query.session, value => {
+  if (page.value !== 'chat') return
+  const sessionId = typeof value === 'string' ? value.trim() : ''
+  if (sessionId === activeId.value) return
+  if (sessionId) select(sessionId)
+  else startNew()
+}, { immediate: true })
+
+watch(activeId, value => {
+  if (page.value !== 'chat') return
+  const routeSession = typeof route.query.session === 'string' ? route.query.session : ''
+  if (routeSession === value) return
+  void router.replace({ query: value ? { session: value } : {} })
+})
 
 function toggleTheme() {
   const root = document.documentElement
@@ -93,12 +113,14 @@ onMounted(async () => {
     </aside>
 
     <section class="dataagent-app__main">
-      <Transition name="da-page" mode="out-in">
+      <RouterView v-slot="{ Component }">
+        <Transition name="da-page" mode="out-in">
         <div v-if="loading && page === 'chat'" key="loading" class="app-loading">
           <el-skeleton :rows="7" animated />
         </div>
 
-        <AgentChat
+        <component
+          :is="Component"
           v-else-if="page === 'chat'"
           key="chat"
           :session-id="activeSession?.id"
@@ -107,7 +129,8 @@ onMounted(async () => {
           @changed="refresh()"
         />
 
-        <HistoryPage
+        <component
+          :is="Component"
           v-else-if="page === 'history'"
           key="history"
           :sessions="rootSessions"
@@ -118,9 +141,10 @@ onMounted(async () => {
           @refresh="refresh()"
         />
 
-        <SkillPage v-else-if="page === 'skills'" key="skills" />
-        <ToolPage v-else key="tools" :session-id="activeId" />
-      </Transition>
+        <component :is="Component" v-else-if="page === 'skills'" key="skills" />
+        <component :is="Component" v-else key="tools" :session-id="activeId" />
+        </Transition>
+      </RouterView>
     </section>
   </main>
 </template>

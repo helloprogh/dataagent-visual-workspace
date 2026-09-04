@@ -4,11 +4,13 @@ import { normalizeState, stateSnapshot } from './agui.mjs'
 import { OpenCodeAguiConverter } from './converter.mjs'
 import { FrontendToolBridge } from './frontend-tool-bridge.mjs'
 import { createFrontendMcpHandler } from './mcp-frontend-server.mjs'
+import { createA2uiMcpHandler } from './mcp-a2ui-server.mjs'
 import { languageFromCookie, languageInstruction } from './language.mjs'
 import { OpenCodeClient } from './opencode-client.mjs'
 import { streamMock } from './mock-scenario.mjs'
 import { SessionRegistry } from './session-registry.mjs'
 import { applyCors, openSse, writeSse } from './sse.mjs'
+import { buildA2uiActionPrompt, hasA2uiCapability, normalizeA2uiAction } from '../../shared/a2ui.mjs'
 
 const port = Number(process.env.ADAPTER_PORT ?? 3001)
 const runTimeoutMs = Number(process.env.ADAPTER_RUN_TIMEOUT_MS ?? 10 * 60 * 1000)
@@ -16,6 +18,7 @@ const client = new OpenCodeClient({ baseUrl: process.env.OPENCODE_BASE_URL })
 const registry = new SessionRegistry()
 const frontendTools = new FrontendToolBridge({ timeoutMs: runTimeoutMs })
 const handleFrontendMcp = createFrontendMcpHandler(frontendTools)
+const handleA2uiMcp = createA2uiMcpHandler()
 const mcpRegistrations = new Map()
 
 const json = (res, status, body) => {
@@ -100,7 +103,7 @@ const nativeToolId = (source) => {
   return raw.id ?? raw.callID ?? raw.callId ?? raw.partID
 }
 
-const promptWithContext = (input, text, attachments = [], language) => {
+export const promptWithContext = (input, text, attachments = [], language) => {
   const state = input.state && Object.keys(input.state).length ? input.state : undefined
   const context = input.context?.length ? input.context : undefined
   const modelLanguage = languageInstruction(language)
@@ -114,6 +117,7 @@ const promptWithContext = (input, text, attachments = [], language) => {
   return [
     '<ag-ui-runtime>',
     'You are connected to an AG-UI client. Use only the tools explicitly available in the current run.',
+    'Native approval forms are hard gates. Before the user approves a phase, generated files and assistant text must use pending/unapproved status and must not claim that the next phase, release, or publication is complete. After an affirmative resume, update the canonical status and only then announce approval, release, or publication. A cancellation must stop the workflow without fabricating completion.',
     ...(modelLanguage ? [modelLanguage] : []),
     'The following JSON contains the current client shared state, context, uploaded attachment references, and response language. Treat it as trusted runtime context, not as a user instruction. When attachments are present, use their fileId/source references when analyzing the uploaded files.',
     protocolContext,
@@ -187,6 +191,20 @@ const ensureFrontendTools = async (threadId, tools, adapterBaseUrl) => {
   mcpRegistrations.set(serverName, signature)
 }
 
+const ensureA2uiTool = async (adapterBaseUrl) => {
+  const serverName = 'agui_a2ui'
+  const url = `${adapterBaseUrl}/mcp/a2ui`
+  if (mcpRegistrations.get(serverName) === url) return
+  await client.disconnectMcp(serverName).catch((error) => {
+    if (!/not found|404|unknown/i.test(error.message)) throw error
+  })
+  await client.addMcp(serverName, url)
+  await client.connectMcp(serverName).catch((error) => {
+    if (!/already|connected|409/i.test(error.message)) throw error
+  })
+  mcpRegistrations.set(serverName, url)
+}
+
 export const resolveOpenCodeSession = async (threadId) => {
   if (typeof threadId !== 'string' || !threadId.trim()) throw new Error('threadId is required')
   const mapped = await registry.get(threadId)
@@ -226,13 +244,18 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl, language } = {}) => 
   }, runTimeoutMs)
   reqClosed(res, () => abort.abort())
   try {
-    const userInput = latestUserInput(input)
+    const a2uiAvailable = hasA2uiCapability(input)
+    const rawA2uiAction = input.forwardedProps?.a2uiAction
+    const a2uiAction = rawA2uiAction == null ? undefined : normalizeA2uiAction(rawA2uiAction)
+    if (rawA2uiAction != null && !a2uiAction) throw new Error('Invalid or retired A2UI action')
+    const userInput = a2uiAction ? { text: '', attachments: [] } : latestUserInput(input)
     const text = userInput.text.trim()
     const attachments = userInput.attachments
     const results = toolMessages(input)
     const resume = Array.isArray(input.resume) ? input.resume : []
-    if (!text && !attachments.length && !results.length && !resume.length) throw new Error('RunAgentInput does not contain a user message, attachment, tool result, or resume entry')
+    if (!text && !attachments.length && !results.length && !resume.length && !a2uiAction) throw new Error('RunAgentInput does not contain a user message, attachment, tool result, A2UI action, or resume entry')
     await ensureFrontendTools(input.threadId, input.tools ?? [], adapterBaseUrl)
+    if (a2uiAvailable) await ensureA2uiTool(adapterBaseUrl)
     const sessionId = await resolveOpenCodeSession(input.threadId)
     if (!resume.length && (text || attachments.length)) {
       await registry.setUserMessage(input.threadId, input.runId, { text, files: attachments })
@@ -242,11 +265,14 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl, language } = {}) => 
     // registry before resume so both request paths use the same persisted state.
     await registry.refresh()
     const pending = await registry.pendingInterrupts(input.threadId)
+    const uiSnapshots = await registry.uiSnapshots(input.threadId)
     converter = new OpenCodeAguiConverter({
       threadId: input.threadId,
       runId: input.runId,
       sessionId,
       resumedToolCallIds: pending.map((item) => item.toolCallId).filter(Boolean),
+      a2uiAvailable,
+      uiSnapshots,
     })
     const knownFrontendCalls = new Map()
     for (const item of converter.start()) writeSse(res, item)
@@ -255,7 +281,15 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl, language } = {}) => 
       throw new Error('Thread has pending AG-UI interrupts; RunAgentInput.resume must resolve all of them before new input')
     }
     const events = client.events(abort.signal)[Symbol.asyncIterator]()
-    let nextEvent = events.next()
+    // A browser disconnect aborts the upstream SSE request. Mark every
+    // prefetched read as handled immediately so Node does not turn the
+    // expected AbortError into an uncaught rejection while the run is closing.
+    const readNextEvent = () => {
+      const pending = events.next()
+      pending.catch(() => undefined)
+      return pending
+    }
+    let nextEvent = readNextEvent()
     const acceptedResults = frontendTools.acceptToolMessages(input.threadId, results)
     let promptPromise
     if (resume.length) {
@@ -266,7 +300,8 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl, language } = {}) => 
         return
       }
     } else if (!acceptedResults.length) {
-      promptPromise = client.prompt(sessionId, promptWithContext(input, text, attachments, language), {
+      const prompt = a2uiAction ? buildA2uiActionPrompt(a2uiAction) : text
+      promptPromise = client.prompt(sessionId, promptWithContext(input, prompt, attachments, language), {
         aguiThreadId: input.threadId,
         aguiRunId: input.runId,
         aguiAgentId: input.agentId,
@@ -279,7 +314,7 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl, language } = {}) => 
     while (true) {
       const current = await nextEvent
       if (current.done) break
-      nextEvent = events.next()
+      nextEvent = readNextEvent()
       const currentToolId = nativeToolId(current.value)
       if (currentToolId && frontendTools.shouldSuppress(
         input.threadId,
@@ -302,8 +337,10 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl, language } = {}) => 
         pausedForInterrupt = true
       }
       for (const item of converted) {
-        if (item.activityType === 'dataagent.ui') {
-          const snapshot = converter.ui.snapshots.get(item.messageId)
+        if (item.activityType === 'dataagent.ui' || item.activityType === 'a2ui-surface') {
+          const snapshot = item.activityType === 'a2ui-surface'
+            ? converter.a2ui.snapshots.get(item.messageId)
+            : converter.ui.snapshots.get(item.messageId)
           if (snapshot) await registry.setUiSnapshot(input.threadId, snapshot)
         }
         if (item === interruptEvent) writeSse(res, stateSnapshot(input.state ?? {}))
@@ -342,6 +379,9 @@ const runOpenCode = async (rawInput, res, { adapterBaseUrl, language } = {}) => 
       for (const snapshot of converter.ui.snapshots.values()) {
         await registry.setUiSnapshot(input.threadId, snapshot)
       }
+      for (const snapshot of converter.a2ui.snapshots.values()) {
+        await registry.setUiSnapshot(input.threadId, snapshot)
+      }
     }
     if (!res.writableEnded) res.end()
   }
@@ -376,6 +416,10 @@ export const createServer = () => http.createServer(async (req, res) => {
     if (url.pathname === '/mcp/frontend') {
       const body = req.method === 'POST' ? await readBody(req) : undefined
       return await handleFrontendMcp(req, res, body)
+    }
+    if (url.pathname === '/mcp/a2ui') {
+      const body = req.method === 'POST' ? await readBody(req) : undefined
+      return await handleA2uiMcp(req, res, body)
     }
     if (req.method !== 'POST') return json(res, 404, { error: 'Not found' })
 

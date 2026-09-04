@@ -12,9 +12,10 @@ function vueTemplate(source) {
 }
 
 test('runtime entry uses the new app, feature and shared architecture', async () => {
-  const [main, app, tsconfig] = await Promise.all([
+  const [main, app, router, tsconfig] = await Promise.all([
     frontend('main.ts'),
     frontend('app/App.vue'),
+    frontend('router/index.ts'),
     fs.readFile(new URL('../../frontend/tsconfig.app.json', import.meta.url), 'utf8'),
   ])
 
@@ -23,8 +24,9 @@ test('runtime entry uses the new app, feature and shared architecture', async ()
   assert.doesNotMatch(main, /CopilotKit|@copilotkit|visual-workspace|workspace\/|genui\//i)
 
   assert.match(app, /features\/conversation/)
-  assert.match(app, /features\/skill/)
-  assert.match(app, /features\/tool/)
+  assert.match(router, /features\/skill/)
+  assert.match(router, /features\/tool/)
+  assert.match(router, /createWebHashHistory/)
   assert.doesNotMatch(app, /CopilotKit|WorkspaceCanvas|GenUIBridge|workspaceController/i)
 
   assert.match(tsconfig, /src\/app\/\*\*\/\*\.vue/)
@@ -41,7 +43,7 @@ test('conversation header omits share and export buttons while keeping other act
   assert.doesNotMatch(header, /分享|导出|shareConversation|exportConversation/)
   assert.match(header, /@click="toggleAudit"/)
   assert.match(header, /@click="toggleDeliverables"/)
-  assert.match(header, /执行中|已就绪/)
+  assert.match(header, /chat\.(?:running|ready)/)
   assert.match(source, /event\.shiftKey && event\.key\.toLocaleLowerCase\(\) === 'e'/)
 })
 
@@ -56,7 +58,7 @@ test('conversation presentation is Element-Plus-X over direct AG-UI client', asy
   assert.match(agentChat, /from 'vue-element-plus-x'/)
   assert.match(agentChat, /<XSender/)
   assert.match(agentChat, /<Welcome/)
-  assert.match(agentChat, /<XSender[\s\S]*<template #prefix>[\s\S]*添加文件[\s\S]*<ModelSelector[\s\S]*<\/XSender>/)
+  assert.match(agentChat, /<XSender[\s\S]*<template #prefix>[\s\S]*chat\.addFile[\s\S]*<ModelSelector[\s\S]*<\/XSender>/)
   assert.match(agentChat, /presentationItems/)
   assert.match(agentChat, /buildPresentation\(messages.value, running.value, activeReasoningId.value\)/)
   assert.match(agentChat, /class="conversation-turn"/)
@@ -88,7 +90,7 @@ test('conversation presentation is Element-Plus-X over direct AG-UI client', asy
 test('conversation activity and tool results use product-facing progressive disclosure', async () => {
   const message = await frontend('features/conversation/components/ConversationMessage.vue')
   assert.doesNotMatch(message.match(/<template>([\s\S]*?)<\/template>/)?.[1] ?? '', /activityType|JSON\.stringify|Tool Result/)
-  assert.match(message, /任务已进入队列/)
+  assert.match(message, /message\.queued/)
   assert.match(message, /<details v-else-if="isTool"/)
   assert.match(message, /visible:\s*status !== 'completed'/)
   assert.match(message, /isActivity && activity\.visible/)
@@ -118,13 +120,18 @@ test('conversation files open a pushed preview panel and approvals stay backend-
   assert.match(chat, /previewInterrupts/)
   assert.match(preview, /<MarkdownRenderer/)
   assert.match(preview, /<InterruptCard/)
+  assert.match(preview, /kind === 'archive'/)
+  assert.match(preview, /workspace-archive/)
   assert.match(preview, /file-preview-panel__confirm/)
-  assert.match(preview, /确认并继续/)
-  assert.match(preview, /其他处理/)
+  assert.match(preview, /preview\.(?:approval|other|confirm|collapse)/)
   assert.match(generated, /generated-card__confirm/)
-  assert.match(generated, /查看完整内容/)
+  assert.match(generated, /generated\.viewFull/)
   assert.match(chat, /deliveryApprovalIds/)
   assert.match(chat, /confirmDelivery/)
+  assert.match(chat, /generatedFilesFromTool/)
+  assert.match(chat, /agui\/workspace-archive/)
+  assert.match(chat, /deliverables\.length \}\}<\/small>/)
+  assert.doesNotMatch(chat, /deliverables\.length \+ pendingInterrupts\.length/)
   assert.match(interrupt, /responseSchema/)
   assert.doesNotMatch(vueTemplate(preview), /取消本次运行/)
 })
@@ -225,7 +232,7 @@ test('tool page exposes the factual runtime capability catalog without workspace
     frontend('features/tool/api/tool.ts'),
   ])
 
-  assert.match(page, /搜索工具或能力/)
+  assert.match(page, /tool\.search/)
   assert.match(page, /MCP/)
   assert.match(api, /dataAgentWebApi\('\/tools'\)/)
   assert.doesNotMatch(page, /工作空间管理|WorkspaceCanvas|workspace\.render/i)

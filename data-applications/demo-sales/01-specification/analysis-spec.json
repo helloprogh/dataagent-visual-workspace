@@ -1,0 +1,42 @@
+{
+  "appId": "demo-sales",
+  "phase": "01-specification",
+  "version": "v1",
+  "title": "区域销售分析看板 — Specification (demo-sales)",
+  "background": "区域销售数据分散在 ERP / CRM / 手工台账，管理层无法按区域/渠道/时间快速对比业绩，月度复盘依赖人工拉数，耗时且口径不一致。",
+  "goals": [
+    "G1: 全国 6 大区、32 省销售业绩一屏可视",
+    "G2: 核心指标 T+1 更新，查询 P90 < 3s",
+    "G3: 统一指标口径，差异解释可追溯"
+  ],
+  "nonGoals": ["销售预测", "移动端原生 App"],
+  "scope": {
+    "inScope": [
+      "区域/省份/城市三级下钻，日/周/月/季/年时间维度",
+      "核心指标: 销售额、订单量、客单价、退货率、回款额、同比/环比、目标完成率",
+      "权限按大区隔离，管理层看全国",
+      "导出 CSV、订阅邮件周报"
+    ],
+    "outOfScope": ["销售预测", "库存联动", "绩效自动算薪"]
+  },
+  "metrics": [
+    { "name": "销售额", "definition": "已审核订单金额（含税），剔除取消/关闭，退货单独扣减", "source": "ERP.sales_order", "refresh": "T+1 02:00" },
+    { "name": "订单量", "definition": "已审核订单数，去重 order_id", "source": "ERP.sales_order", "refresh": "T+1 02:00" },
+    { "name": "客单价", "definition": "销售额 / 订单量", "source": "计算", "refresh": "实时" },
+    { "name": "退货率", "definition": "退货金额 / 销售额", "source": "ERP.return_order", "refresh": "T+1 02:00" },
+    { "name": "回款额", "definition": "实际到账金额", "source": "CRM.receipt", "refresh": "T+1 03:00" },
+    { "name": "同比/环比", "definition": "对应周期对比，需满周期才显示", "source": "计算", "refresh": "实时" },
+    { "name": "目标完成率", "definition": "实际销售额 / 分配目标", "source": "CRM + 导入表", "refresh": "每月1日" }
+  ],
+  "acceptance": [
+    "A1: 筛选任意大区+月份，KPI 与 SQL 复核误差 < 0.1%",
+    "A2: P90 查询 < 3s（100 万订单量级测试集）",
+    "A3: 权限测试：华东用户无法访问华南数据",
+    "A4: T+1 任务连续 7 天成功率 100%，失败自动告警",
+    "A5: 导出 CSV 字段与明细表一致，UTF-8 with BOM",
+    "A6: 周报邮件 100% 送达测试邮箱，PDF 排版无错位"
+  ],
+  "mockNote": "本产物为 mock 数据演示，用于审批流程验证，口径以本文件为准。",
+  "nextPhase": "02-design",
+  "status": "待审批"
+}
