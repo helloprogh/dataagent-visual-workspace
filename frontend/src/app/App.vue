@@ -171,6 +171,7 @@ onMounted(async () => {
 
 .dataagent-app__main {
   position: relative;
+  container: workspace / inline-size;
   overflow: hidden;
   background:
     radial-gradient(52rem 28rem at 75% -10%, var(--da-brand-glow), transparent 66%),

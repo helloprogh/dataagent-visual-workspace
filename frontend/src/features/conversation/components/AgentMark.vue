@@ -12,6 +12,6 @@
 .agent-mark { display: grid; width: 3rem; height: 3rem; place-items: center; border: 0.0625rem solid color-mix(in srgb, var(--da-accent-primary) 32%, var(--da-border)); border-radius: var(--da-radius-lg); background: radial-gradient(circle at 65% 20%, var(--da-brand-orange-soft), transparent 44%), linear-gradient(145deg, var(--da-surface-3), var(--da-surface-1)); box-shadow: inset 0 0.0625rem rgb(255 255 255 / 7%), 0 0.75rem 2rem var(--da-brand-glow); }
 .agent-mark svg { width: 2rem; height: 2rem; }
 .agent-mark__frame { fill: none; stroke: var(--da-accent-primary); stroke-width: 1.5; }
-.agent-mark__signal { fill: color-mix(in srgb, var(--da-accent-orange) 20%, transparent); stroke: var(--da-accent-orange); stroke-linejoin: round; stroke-width: 1.5; }
+.agent-mark__signal { fill: color-mix(in srgb, var(--da-brand-cyan) 16%, transparent); stroke: var(--da-brand-cyan); stroke-linejoin: round; stroke-width: 1.5; }
 .agent-mark__core { fill: var(--da-text-emphasis); filter: drop-shadow(0 0 0.25rem var(--da-brand-cyan)); }
 </style>

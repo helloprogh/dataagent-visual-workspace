@@ -6,7 +6,7 @@ import { MarkdownRenderer } from 'x-markdown-vue'
 import { appTheme } from '../../../shared/theme/theme'
 import { dataAgentWebApi } from '../../../shared/config/api'
 import { buildCancellationResumeEntry, buildConfirmationResumeEntry } from '../approval'
-import { fileKindLabel, formatFileSize, type ArchiveEntry, type ConversationFilePreview } from '../types/filePreview'
+import { fileBadgeLabel, fileDownloadUrl, fileKindLabel, formatFileSize, type ArchiveEntry, type ConversationFilePreview } from '../types/filePreview'
 import InterruptCard from './InterruptCard.vue'
 
 const props = withDefaults(defineProps<{
@@ -62,7 +62,9 @@ const archiveUrl = computed(() => {
 })
 const archiveTreeEntries = computed(() => {
   const entries = new Map<string, ArchiveEntry>()
-  for (const entry of archiveEntries.value) {
+  for (const rawEntry of archiveEntries.value) {
+    const entry = { ...rawEntry, path: rawEntry.kind === 'directory' ? rawEntry.path.replace(/\/+$/, '') : rawEntry.path }
+    if (!entry.path) continue
     entries.set(entry.path, entry)
     const segments = entry.path.split('/')
     for (let index = 1; index < segments.length; index += 1) {
@@ -212,7 +214,7 @@ onBeforeUnmount(() => {
   <aside class="file-preview-panel" :aria-label="t('preview.label')" data-testid="file-preview-panel">
     <header class="file-preview-panel__header">
       <div class="file-preview-panel__identity">
-        <span class="file-preview-panel__mark">{{ fileKindLabel(file).slice(0, 2) }}</span>
+        <span class="file-preview-panel__mark">{{ fileBadgeLabel(file) }}</span>
         <div>
           <b :title="file.name">{{ file.name }}</b>
           <small>{{ [fileKindLabel(file), formatFileSize(file.size)].filter(Boolean).join(' · ') }}</small>
@@ -220,8 +222,8 @@ onBeforeUnmount(() => {
       </div>
       <div class="file-preview-panel__actions">
         <span v-if="file.version" class="file-preview-panel__version">v{{ file.version }}</span>
-        <a :href="file.url" :download="file.name" :aria-label="t('preview.download')" :title="t('preview.download')">↓</a>
-        <a :href="file.url" target="_blank" rel="noreferrer" :aria-label="t('preview.openNew')">↗</a>
+        <a :href="fileDownloadUrl(file)" :download="file.name" :aria-label="t('preview.download')" :title="t('preview.download')">↓</a>
+        <a :href="fileDownloadUrl(file)" target="_blank" rel="noreferrer" :aria-label="t('preview.openNew')">↗</a>
         <button type="button" :aria-label="t('preview.close')" @click="emit('close')">×</button>
       </div>
     </header>
@@ -276,6 +278,8 @@ onBeforeUnmount(() => {
               :class="{ 'archive-preview__entry--active': entry.path === archiveEntryPath, 'archive-preview__entry--directory': entry.kind === 'directory' }"
               :style="{ paddingLeft: `${0.625 + archiveDepth(entry.path) * 0.875}rem` }"
               :disabled="entry.kind === 'directory' || archiveLoading"
+              :title="entry.path"
+              :aria-pressed="entry.kind === 'file' ? entry.path === archiveEntryPath : undefined"
               @click="openArchiveEntry(entry)"
             >
               <span aria-hidden="true">{{ entry.kind === 'directory' ? '▾' : '·' }}</span>
@@ -285,6 +289,7 @@ onBeforeUnmount(() => {
           </template>
         </aside>
         <div class="archive-preview__content">
+          <div v-if="archiveEntryPath" class="archive-preview__path" :title="archiveEntryPath">{{ archiveEntryPath }}</div>
           <el-skeleton v-if="archiveLoading && archiveEntryPath" :rows="12" animated />
           <div v-else-if="archiveError" class="file-preview-panel__state">
             <strong>{{ t('preview.unavailable') }}</strong>
@@ -363,7 +368,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.file-preview-panel { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-width: 0; min-height: 0; border-left: 0.0625rem solid var(--da-border-strong); background: var(--da-surface-1); box-shadow: -1.5rem 0 4rem rgb(0 0 0 / 18%); }
+.file-preview-panel { container: preview / inline-size; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-width: 0; min-height: 0; border-left: 0.0625rem solid var(--da-border-strong); background: var(--da-surface-1); box-shadow: -1.5rem 0 4rem rgb(0 0 0 / 12%); animation: preview-enter 240ms var(--da-ease-out); }
 .file-preview-panel__header { display: flex; min-height: 3.75rem; align-items: center; justify-content: space-between; gap: var(--da-space-4); padding: 0 var(--da-space-4); border-bottom: 0.0625rem solid var(--da-border); }
 .file-preview-panel__identity { display: flex; min-width: 0; align-items: center; gap: var(--da-space-3); }
 .file-preview-panel__identity > div { display: grid; min-width: 0; gap: 0.125rem; }
@@ -400,10 +405,12 @@ onBeforeUnmount(() => {
 .file-preview-panel__state p { max-width: 22rem; margin: 0; line-height: 1.6; }
 .file-preview-panel__state a { padding: var(--da-space-2) var(--da-space-3); border: 0.0625rem solid var(--da-border-strong); border-radius: var(--da-radius-sm); color: var(--da-text-primary); text-decoration: none; }
 .file-preview-panel__notice { margin-top: var(--da-space-4); color: var(--da-text-muted); font-size: var(--da-font-size-xs); }
-.archive-preview { display: grid; min-height: 100%; grid-template-columns: minmax(11rem, 35%) minmax(0, 1fr); gap: var(--da-space-4); }
+.archive-preview { display: grid; height: 100%; min-height: 20rem; grid-template-columns: minmax(13rem, 40%) minmax(0, 1fr); gap: var(--da-space-3); }
+.archive-preview__path { position: sticky; top: calc(-1 * var(--da-space-3)); z-index: 1; margin: calc(-1 * var(--da-space-3)) calc(-1 * var(--da-space-3)) var(--da-space-4); padding: var(--da-space-3); border-bottom: 0.0625rem solid var(--da-border); color: var(--da-brand-cyan); background: var(--da-surface-2); font: 0.6875rem/1.6 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
 .archive-preview__tree { min-width: 0; overflow: auto; padding: var(--da-space-2); border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-md); background: var(--da-surface-2); }
 .archive-preview__entry { display: grid; width: 100%; grid-template-columns: 1rem minmax(0, 1fr) auto; align-items: center; gap: var(--da-space-1); min-height: 1.875rem; padding-top: var(--da-space-1); padding-right: var(--da-space-2); padding-bottom: var(--da-space-1); border: 0; border-radius: var(--da-radius-sm); color: var(--da-text-secondary); background: transparent; cursor: pointer; font: inherit; text-align: left; }
 .archive-preview__entry:hover, .archive-preview__entry--active { color: var(--da-text-emphasis); background: var(--da-surface-3); }
+.archive-preview__entry--active { color: var(--da-accent-primary); background: var(--da-accent-primary-soft); box-shadow: inset 0.125rem 0 var(--da-accent-primary); }
 .archive-preview__entry--directory { color: var(--da-text-muted); cursor: default; }
 .archive-preview__entry > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .archive-preview__entry small { color: var(--da-text-subtle); font-size: 0.625rem; }
@@ -415,5 +422,7 @@ onBeforeUnmount(() => {
 .archive-preview__media { display: block; width: 100%; height: auto; object-fit: contain; }
 .archive-preview__frame { width: 100%; height: 100%; min-height: 24rem; border: 0; background: white; }
 @media (max-width: 40rem) { .file-preview-panel__approval { grid-template-columns: 1fr; } .file-preview-panel__confirm, .file-preview-panel__cancel, .file-preview-panel__more { grid-column: 1; grid-row: auto; width: 100%; text-align: center; } }
-@media (max-width: 40rem) { .archive-preview { grid-template-columns: 1fr; grid-template-rows: minmax(10rem, 35%) minmax(16rem, 1fr); } }
+@container preview (max-width: 34rem) { .archive-preview { grid-template-columns: 1fr; grid-template-rows: minmax(8rem, 32%) minmax(12rem, 1fr); } }
+@keyframes preview-enter { from { opacity: 0; transform: translateX(1rem); } }
+@media (prefers-reduced-motion: reduce) { .file-preview-panel { animation: none; } }
 </style>

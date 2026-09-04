@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { fileKindLabel, formatFileSize, type ConversationFilePreview } from '../types/filePreview'
+import { fileBadgeLabel, fileDownloadUrl, fileKindLabel, formatFileSize, type ConversationFilePreview } from '../types/filePreview'
 
 const props = defineProps<{
   files: ConversationFilePreview[]
@@ -37,18 +37,18 @@ const outputFiles = computed(() => props.files.filter(file => file.category !== 
       <section v-if="outputFiles.length" class="deliverable-section">
         <div class="deliverable-section__title"><b>{{ t('deliverables.generated') }}</b><small>{{ outputFiles.length }}</small></div>
         <div v-for="file in outputFiles" :key="file.id" class="deliverable-item">
-          <span>{{ fileKindLabel(file).slice(0, 2) }}</span>
+          <span>{{ fileBadgeLabel(file) }}</span>
           <button type="button" @click="emit('select', file)"><b>{{ file.name }}</b><small>{{ [fileKindLabel(file), formatFileSize(file.size)].filter(Boolean).join(' · ') }}</small></button>
-          <div class="deliverable-item__actions"><em v-if="file.version">v{{ file.version }}</em><a :href="file.url" :download="file.name" :title="t('deliverables.download')" :aria-label="t('deliverables.download')">↓</a></div>
+          <div class="deliverable-item__actions"><em v-if="file.version">v{{ file.version }}</em><a :href="fileDownloadUrl(file)" :download="file.name" :title="t('deliverables.download')" :aria-label="t('deliverables.download')">↓</a></div>
         </div>
       </section>
 
       <section v-if="inputFiles.length" class="deliverable-section">
         <div class="deliverable-section__title"><b>{{ t('deliverables.inputs') }}</b><small>{{ inputFiles.length }}</small></div>
         <div v-for="file in inputFiles" :key="file.id" class="deliverable-item">
-          <span>{{ fileKindLabel(file).slice(0, 2) }}</span>
+          <span>{{ fileBadgeLabel(file) }}</span>
           <button type="button" @click="emit('select', file)"><b>{{ file.name }}</b><small>{{ [fileKindLabel(file), formatFileSize(file.size)].filter(Boolean).join(' · ') }}</small></button>
-          <div class="deliverable-item__actions"><a :href="file.url" :download="file.name" :title="t('deliverables.download')" :aria-label="t('deliverables.download')">↓</a></div>
+          <div class="deliverable-item__actions"><a :href="fileDownloadUrl(file)" :download="file.name" :title="t('deliverables.download')" :aria-label="t('deliverables.download')">↓</a></div>
         </div>
       </section>
 

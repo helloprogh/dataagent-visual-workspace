@@ -28,11 +28,11 @@
   --da-accent-orange-muted: rgb(255 128 31 / 36%);
   --da-accent-orange-glow: rgb(255 89 0 / 18%);
   --da-accent-blue: var(--da-accent-primary);
-  --da-accent-green: #11ff99;
+  --da-accent-green: #43d9a3;
   --da-accent-green-soft: rgb(17 255 153 / 12%);
   --da-accent-yellow: #ffc53d;
   --da-accent-yellow-soft: rgb(255 197 61 / 12%);
-  --da-accent-red: #ff2047;
+  --da-accent-red: #ff6780;
   --da-accent-red-soft: rgb(255 32 71 / 12%);
   --da-brand-cyan: #6de7f2;
   --da-brand-orange-soft: rgb(255 138 61 / 18%);
@@ -67,6 +67,10 @@
   --da-shadow-soft: 0 1.125rem 3.375rem rgb(0 0 0 / 38%);
   --da-shadow-raised: 0 1.75rem 5rem rgb(0 0 0 / 58%);
   --da-gradient-accent: linear-gradient(135deg, #6de7f2 0%, #5b8cff 55%, #775ee8 100%);
+  --da-ambient: radial-gradient(ellipse at 62% 0%, rgb(73 114 221 / 12%), transparent 58%);
+  --da-shadow-hover: 0 0.5rem 1.5rem rgb(0 0 0 / 18%), 0 0 0 0.0625rem var(--da-accent-primary-soft);
+  --da-motion-fast: 180ms;
+  --da-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 :root[data-theme='light'] {
@@ -78,8 +82,8 @@
   --da-text-subtle: #949aa4;
   --da-text-link: #1a6fd1;
   --da-text-on-accent: #ffffff;
-  --da-surface-0: #f3f2f0;
-  --da-surface-1: #f9f8f7;
+  --da-surface-0: #f5f7fb;
+  --da-surface-1: #f9fbff;
   --da-surface-2: #ffffff;
   --da-surface-3: #ededeb;
   --da-surface-4: #e6e5e2;
@@ -96,6 +100,9 @@
   --da-accent-primary-active: #0057a8;
   --da-accent-primary-soft: rgb(0 117 222 / 9%);
   --da-accent-blue: var(--da-accent-primary);
+  --da-accent-green: #087e5a;
+  --da-accent-yellow: #a96908;
+  --da-accent-red: #cf3655;
   --da-accent-green-soft: rgb(0 168 94 / 10%);
   --da-accent-yellow-soft: rgb(190 124 8 / 10%);
   --da-accent-red-soft: rgb(206 20 51 / 10%);
@@ -113,4 +120,6 @@
   --da-shadow-soft: 0 1.125rem 3.375rem rgb(36 39 43 / 8%);
   --da-shadow-raised: 0 1.75rem 5rem rgb(36 39 43 / 12%);
   --da-gradient-accent: linear-gradient(135deg, #1983e6 0%, #0075de 60%, #0057a8 100%);
+  --da-ambient: radial-gradient(ellipse at 62% 0%, rgb(78 131 233 / 9%), transparent 58%);
+  --da-shadow-hover: 0 0.75rem 2rem rgb(35 65 112 / 9%), 0 0 0 0.0625rem var(--da-accent-primary-soft);
 }

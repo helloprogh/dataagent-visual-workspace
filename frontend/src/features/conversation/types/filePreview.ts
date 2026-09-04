@@ -1,3 +1,5 @@
+import { dataAgentWebApi } from '../../../shared/config/api'
+
 export type ConversationFilePreview = {
   id: string
   name: string
@@ -19,6 +21,19 @@ export type ArchiveEntry = {
   path: string
   kind: 'file' | 'directory'
   size: number
+}
+
+/** Archive manifests are for preview; downloads must return the original bytes. */
+export function fileDownloadUrl(file: Pick<ConversationFilePreview, 'url'>) {
+  const archiveRoute = dataAgentWebApi('/agui/workspace-archive')
+  return file.url.startsWith(`${archiveRoute}?`)
+    ? `${dataAgentWebApi('/agui/workspace-file')}${file.url.slice(archiveRoute.length)}`
+    : file.url
+}
+
+export function fileBadgeLabel(file: Pick<ConversationFilePreview, 'name' | 'mimeType'>) {
+  const extension = file.name.includes('.') ? file.name.split('.').pop() : ''
+  return extension?.slice(0, 4).toUpperCase() || fileKindLabel(file).slice(0, 3)
 }
 
 export function fileKindLabel(file: Pick<ConversationFilePreview, 'name' | 'mimeType'>) {
