@@ -83,6 +83,20 @@ const activity = computed(() => {
       visible: true,
     }
   }
+  if (type === 'dataagent.subagent') {
+    const name = String(content.name ?? content.agentName ?? content.agentId ?? toolDisplayName('task'))
+    const detail = String(content.task ?? content.description ?? '').trim()
+    return {
+      title: ['completed', 'success'].includes(status)
+        ? t('message.completedNamed', { name })
+        : ['failed', 'error'].includes(status)
+          ? t('message.failedNamed', { name })
+          : t('message.runningNamed', { name }),
+      detail,
+      tone: ['failed', 'error'].includes(status) ? 'warning' : ['completed', 'success'].includes(status) ? 'success' : 'active',
+      visible: true,
+    }
+  }
   return { title: t('message.runUpdated'), detail: '', tone: 'active', visible: true }
 })
 
@@ -304,7 +318,11 @@ function previewFile(file: any, index: number) {
 
 <style scoped>
 .message-bubble { width: 100%; }
-.message-bubble--user { --elx-bubble-bg-color: var(--da-surface-3); }
+.message-bubble--user {
+  --elx-bubble-bg-color: var(--da-bubble-user-bg);
+  --elx-bubble-border-color: var(--da-bubble-user-border);
+}
+.message-bubble--user :deep(.elx-bubble__content) { border: 0.0625rem solid var(--da-bubble-user-border); }
 .message-bubble--assistant :deep(.elx-bubble__content) {
   width: 100%;
   min-width: 0;

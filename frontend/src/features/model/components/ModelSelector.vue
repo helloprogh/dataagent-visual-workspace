@@ -50,6 +50,7 @@ async function load() {
 async function change(key: string) {
   const model = modelByKey.value.get(key)
   if (!model) return
+  const previousKey = selectedKey.value
   selectedKey.value = key
   if (props.draft || !props.sessionId) {
     emit('selected', model)
@@ -60,6 +61,7 @@ async function change(key: string) {
     await switchSessionModel(props.sessionId, model)
     emit('selected', model)
   } catch (error) {
+    selectedKey.value = previousKey
     ElMessage.error(error instanceof Error ? error.message : String(error))
   } finally {
     changing.value = false
@@ -75,6 +77,7 @@ onMounted(load)
 
 <template>
   <el-select
+    data-testid="conversation-model-selector"
     class="model-selector"
     popper-class="model-selector-popper"
     :model-value="selectedKey"

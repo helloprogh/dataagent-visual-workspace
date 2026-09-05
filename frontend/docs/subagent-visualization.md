@@ -1,32 +1,34 @@
-# Multi-Agent Visualization Contract
+# Sub-Agent Presentation Contract
 
-V5 新增三类子 Agent 可视化：
+The current Element Plus X + AG-UI frontend presents child-agent work inside the parent conversation process. It does not create a second nested AG-UI run for each sub-agent and it does not depend on the retired `workspace.agents` / `ui.agentGraph` demo catalog.
 
-- `ui.agentGraph`：主 Agent / 子 Agent 拓扑、状态、进度、工具和结果。
-- `ui.agentTimeline`：并行 / 串行执行时序与耗时。
-- `ui.agentActivity`：实时活动事件流。
+## Runtime event
 
-## 模型控制
-
-前端工具 `workspace.agents` 会同时刷新上述三个模块，适合 Demo 或模型已经掌握子 Agent 状态的场景。
-
-## AG-UI 子 Agent 事件
-
-保持一个外层 AG-UI Run，不为每个子 Agent再创建嵌套 RUN_STARTED / RUN_FINISHED。内部子 Agent 状态使用标准 `ACTIVITY_SNAPSHOT`：
+The adapter emits sub-agent state as the standard AG-UI activity event with the Data Agent activity type `dataagent.subagent`:
 
 ```json
 {
   "type": "ACTIVITY_SNAPSHOT",
-  "messageId": "activity-sql-agent",
-  "activityType": "subagent",
+  "messageId": "subagent-sql-agent",
+  "activityType": "dataagent.subagent",
   "content": {
     "agentId": "sql-agent",
     "name": "SQL Agent",
     "parentAgentId": "orchestrator",
-    "task": "查询最近30天销售趋势",
+    "task": "查询最近 30 天销售趋势",
     "status": "running"
   }
 }
 ```
 
-`content.status` 使用 `queued`、`running`、`completed` 或 `failed`；工具本身仍使用标准 `TOOL_CALL_*` 生命周期。
+`content.status` uses `queued`, `running`, `completed`, or `failed` (the renderer also tolerates the equivalent terminal values `success` and `error`). Native tool execution still uses the standard `TOOL_CALL_*` lifecycle.
+
+## Presentation rules
+
+- Keep one outer `RUN_STARTED` / `RUN_FINISHED` lifecycle for the user turn.
+- Do not synthesize nested AG-UI runs for child agents.
+- `buildPresentation()` may suppress a `dataagent.subagent` activity when the same work is already represented by a matching tool call id / agent id, avoiding duplicate rows.
+- An unmatched `dataagent.subagent` activity must remain visible and show the agent name, task, and status in the process flow.
+- Top-level session navigation contains only root OpenCode sessions. Child sessions identified by `parentID` are execution details of their parent conversation, not independent sidebar conversations.
+
+A richer graph/timeline view is a separate product capability and must be designed independently if it becomes a priority; it is not part of the current conversation UI contract.
