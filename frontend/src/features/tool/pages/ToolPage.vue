@@ -62,7 +62,11 @@ onMounted(refresh)
         :closable="false"
         :title="t('tool.warning')"
         class="tool-warning"
-      />
+      >
+        <ul class="tool-warning__list">
+          <li v-for="warning in warnings" :key="warning">{{ warning }}</li>
+        </ul>
+      </el-alert>
 
       <div v-loading="loading" class="tool-grid">
         <article v-for="tool in filtered" :key="tool.id" class="tool-card">
@@ -93,6 +97,8 @@ onMounted(refresh)
 .tool-toolbar { display: flex; gap: var(--da-space-2); margin-bottom: var(--da-space-4); }
 .tool-toolbar .el-input { max-width: 28rem; }
 .tool-warning { margin-bottom: var(--da-space-4); }
+.tool-warning__list { margin: var(--da-space-2) 0 0; padding-left: 1.25rem; color: var(--da-text-secondary); line-height: 1.6; }
+.tool-warning__list li + li { margin-top: var(--da-space-1); }
 .tool-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--da-space-3); min-height: 12rem; }
 .tool-card { min-width: 0; padding: var(--da-space-5); border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-lg); background: var(--da-surface-1); }
 .tool-card header, .tool-card footer { display: flex; align-items: center; justify-content: space-between; gap: var(--da-space-2); }
