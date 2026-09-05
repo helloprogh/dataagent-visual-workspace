@@ -100,7 +100,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run core browser flows
-        run: npx playwright test --config frontend/playwright.config.ts
+        run: npm run test:e2e -w frontend
 
   gallery:
     name: Component gallery build
