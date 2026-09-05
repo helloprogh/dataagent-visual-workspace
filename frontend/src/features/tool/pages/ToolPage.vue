@@ -1,13 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
-import { loadCapabilityCatalog, type CapabilityItem } from '../api/tool'
+import { loadCapabilityCatalog, type CapabilityCatalog } from '../api/tool'
+import { useAsyncResource } from '../../../shared/composables/useAsyncResource'
 
 const props = defineProps<{ sessionId?: string }>()
-const tools = ref<CapabilityItem[]>([])
-const warnings = ref<string[]>([])
-const loading = ref(false)
+const { data: catalog, loading, refresh } = useAsyncResource<CapabilityCatalog>({
+  initial: () => ({ items: [], warnings: [] }),
+  load: () => loadCapabilityCatalog(props.sessionId),
+  resetOnError: true,
+  onError: error => ElMessage.error(error instanceof Error ? error.message : String(error)),
+})
+const tools = computed(() => catalog.value.items)
+const warnings = computed(() => catalog.value.warnings)
 const keyword = ref('')
 const { t } = useI18n()
 
@@ -20,21 +26,7 @@ const filtered = computed(() => {
 const toolCount = computed(() => tools.value.filter(item => item.kind === 'tool').length)
 const mcpCount = computed(() => tools.value.filter(item => item.kind === 'mcp-server' && item.status === 'ready').length)
 
-async function refresh() {
-  loading.value = true
-  try {
-    const catalog = await loadCapabilityCatalog(props.sessionId)
-    tools.value = catalog.items
-    warnings.value = catalog.warnings
-  } catch (error) {
-    tools.value = []
-    warnings.value = []
-    ElMessage.error(error instanceof Error ? error.message : String(error))
-  } finally { loading.value = false }
-}
-
-watch(() => props.sessionId, refresh)
-onMounted(refresh)
+watch(() => props.sessionId, refresh, { immediate: true })
 </script>
 
 <template>

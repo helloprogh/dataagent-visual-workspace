@@ -3,10 +3,14 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { deleteSkill, listSkills, uploadSkill, type AgentSkill } from '../api/skill'
+import { useAsyncResource } from '../../../shared/composables/useAsyncResource'
 
-const skills = ref<AgentSkill[]>([])
+const { data: skills, loading, refresh } = useAsyncResource<AgentSkill[]>({
+  initial: () => [],
+  load: listSkills,
+  onError: error => ElMessage.error(error instanceof Error ? error.message : String(error)),
+})
 const keyword = ref('')
-const loading = ref(false)
 const uploading = ref(false)
 const deleting = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -18,13 +22,6 @@ const filtered = computed(() => {
   return skills.value.filter(skill => [skill.name, skill.description, skill.id]
     .some(value => String(value ?? '').toLowerCase().includes(query)))
 })
-
-async function refresh() {
-  loading.value = true
-  try { skills.value = await listSkills() }
-  catch (error) { ElMessage.error(error instanceof Error ? error.message : String(error)) }
-  finally { loading.value = false }
-}
 
 function chooseFile() { fileInput.value?.click() }
 

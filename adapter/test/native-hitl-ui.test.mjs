@@ -67,8 +67,10 @@ test('A2UI stays a non-blocking delivery beside native document approval', async
   assert.doesNotMatch(surface, /emit\(['"]resume['"]/)
   assert.match(preview, /emit\(['"]resume['"]/)
   assert.doesNotMatch(preview, /A2uiSurface|a2uiAction/)
-  assert.match(chat, /watch\(deliverables, files =>/)
-  assert.match(chat, /right-side approval footer/i)
+  const artifacts = await readConversation('composables/useConversationArtifacts.ts')
+  assert.match(chat, /useConversationArtifacts\(messages, pendingInterrupts, attachments, activePreview\)/)
+  assert.match(artifacts, /watch\(deliverables, files =>/)
+  assert.match(artifacts, /right-side approval footer/i)
 })
 
 test('user-facing conversation UI does not expose protocol or framework terminology', async () => {
