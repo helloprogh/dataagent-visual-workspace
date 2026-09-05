@@ -7,6 +7,9 @@ import { Welcome, XSender } from 'vue-element-plus-x'
 import type { ModelSelection } from '../../model/types'
 import ModelSelector from '../../model/components/ModelSelector.vue'
 import { useAgentConversation } from '../composables/useAgentConversation'
+import { useConversationPanels } from '../composables/useConversationPanels'
+import { useConversationScroll } from '../composables/useConversationScroll'
+import { useDeliverables } from '../composables/useDeliverables'
 import AgentMark from './AgentMark.vue'
 import ConversationMessage from './ConversationMessage.vue'
 import ConversationProcessGroup from './ConversationProcessGroup.vue'
@@ -19,9 +22,6 @@ import type { ConversationFilePreview } from '../types/filePreview'
 import { buildCancellationResumeEntry, buildConfirmationResumeEntry } from '../approval'
 import { userFacingSessionName } from '../presentation'
 import { buildPresentation, messageText } from '../processPresentation'
-import { normalizeUiContent } from '../../../../../shared/generative-ui.mjs'
-import { artifactPathKey, generatedArtifactsFromTool, removedArtifactPathsFromTool } from '../../../../../shared/generated-artifacts.mjs'
-import { dataAgentWebApi } from '../../../shared/config/api'
 
 const props = defineProps<{
   sessionId?: string
@@ -62,16 +62,43 @@ const {
 
 const senderRef = ref<any>(null)
 const selectedModel = ref<ModelSelection | null>(null)
-const messageScroller = ref<HTMLElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
-const activePreview = ref<ConversationFilePreview | null>(null)
-const deliverablesOpen = ref(false)
-const auditOpen = ref(false)
-const previewApprovalSubmitted = ref(false)
-const showJumpToLatest = ref(false)
-let followBottom = true
-let previousScrollHeight = 0
 let lastNotifiedError = ''
+
+const {
+  deliverables,
+  pendingDelivery,
+  deliveryApprovalIds,
+  generatedFilesForProcess,
+} = useDeliverables(messages, attachments, pendingInterrupts)
+
+const {
+  activePreview,
+  previewApprovalSubmitted,
+  deliverablesOpen,
+  auditOpen,
+  anyInspectorOpen,
+  openPreview,
+  openDeliverable,
+  toggleDeliverables,
+  toggleAudit,
+  closePreview,
+  closeInspector,
+} = useConversationPanels()
+
+const {
+  messageScroller,
+  showJumpToLatest,
+  scrollToBottom,
+  followTextReveal,
+  handleScroll,
+  resetFollowBottom,
+} = useConversationScroll({
+  hasMessages: () => Boolean(messages.value.length),
+  hasOlder: () => Boolean(nextCursor.value),
+  loadingOlder: () => loadingOlder.value,
+  loadOlder,
+})
 
 const welcomeDescription = computed(() => t('chat.welcomeDescription'))
 const starterPrompts = computed(() => [
@@ -88,115 +115,6 @@ const showResponsePending = computed(() => {
   return false
 })
 
-function previewFromPart(message: Message, part: any, index: number): ConversationFilePreview | null {
-  if (!['image', 'audio', 'video', 'document', 'file'].includes(part?.type)) return null
-  const url = String(part?.metadata?.clientPreviewUrl ?? part?.source?.value ?? '').trim()
-  if (!url) return null
-  return {
-    id: String(part?.metadata?.fileId ?? `${message.id}-${index}`),
-    name: String(part?.metadata?.filename ?? `${t('common.file')} ${index + 1}`),
-    url,
-    mimeType: String(part?.source?.mimeType ?? part?.mimeType ?? 'application/octet-stream'),
-    ...(Number(part?.metadata?.size) > 0 ? { size: Number(part.metadata.size) } : {}),
-    ...(String(part?.metadata?.approvalInterruptId ?? part?.metadata?.approval?.interruptId ?? '').trim()
-      ? { approvalInterruptId: String(part.metadata.approvalInterruptId ?? part.metadata.approval.interruptId).trim() }
-      : {}),
-    category: message.role === 'user' ? 'input' : 'output',
-  }
-}
-
-function generatedFilesFromTool(call: any, successfulToolIds: Set<string>, sourceMessageId: string): ConversationFilePreview[] {
-  return generatedArtifactsFromTool(call, successfulToolIds).map((artifact: any) => {
-    const query = new URLSearchParams({ path: artifact.sourcePath })
-    const route = artifact.archive ? '/agui/workspace-archive' : '/agui/workspace-file'
-    return {
-      id: artifact.id,
-      name: artifact.name,
-      url: `${dataAgentWebApi(route)}?${query.toString()}`,
-      mimeType: artifact.mimeType,
-      category: 'output',
-      sourceMessageId,
-      sourcePath: artifact.sourcePath,
-    }
-  })
-}
-
-const deliverables = computed(() => {
-  const result: ConversationFilePreview[] = []
-  const known = new Set<string>()
-  const successfulToolIds = new Set(messages.value
-    .filter(message => message.role === 'tool' && !(message as any).error && (message as any).toolCallId)
-    .map(message => String((message as any).toolCallId)))
-  for (const message of messages.value) {
-    const content = (message as any).content
-    if ((message as any).activityType === 'dataagent.ui') {
-      const delivery = normalizeUiContent(content)
-      if (delivery && delivery.status !== 'removed') {
-        for (const card of delivery.cards) {
-          const id = `${message.id}-${card.id}`
-          if (card.kind !== 'file' || known.has(id)) continue
-          known.add(id)
-          result.push({
-            id,
-            name: card.name,
-            url: card.url,
-            mimeType: card.mimeType,
-            ...(card.approvalInterruptId ? { approvalInterruptId: card.approvalInterruptId } : {}),
-            ...(card.approvalInterruptId ? { approvalResolved: !pendingInterrupts.value.some(interrupt => interrupt.id === card.approvalInterruptId) } : {}),
-            category: 'output',
-          })
-        }
-      }
-      continue
-    }
-    if (Array.isArray(content)) {
-      content.forEach((part, index) => {
-        const file = previewFromPart(message, part, index)
-        if (!file || known.has(file.id)) return
-        known.add(file.id)
-        result.push(file)
-      })
-    }
-    for (const call of (message as any).toolCalls ?? []) {
-      for (const removedPath of removedArtifactPathsFromTool(call, successfulToolIds)) {
-        const key = artifactPathKey(removedPath)
-        for (let index = result.length - 1; index >= 0; index -= 1) {
-          if (!result[index]?.sourcePath || artifactPathKey(result[index].sourcePath) !== key) continue
-          known.delete(result[index].id)
-          result.splice(index, 1)
-        }
-      }
-      for (const file of generatedFilesFromTool(call, successfulToolIds, message.id)) {
-        if (known.has(file.id)) continue
-        known.add(file.id)
-        result.push(file)
-      }
-    }
-  }
-  for (const item of attachments.value) {
-    if (known.has(item.id)) continue
-    result.push({ id: item.id, name: item.file.name, url: item.previewUrl, mimeType: item.file.type || 'application/octet-stream', size: item.file.size, category: 'input' })
-  }
-  const approval = pendingInterrupts.value.length === 1
-    && pendingInterrupts.value[0]?.metadata?.kind === 'form'
-    && !result.some(file => file.approvalInterruptId)
-    ? pendingInterrupts.value[0]
-    : undefined
-  const approvalTarget = approval ? [...result].reverse().find(file => file.category === 'output') : undefined
-  const versions = new Map<string, number>()
-  return result.map(file => {
-    if (file.category === 'input') return file
-    const key = file.name.trim().toLocaleLowerCase()
-    const version = (versions.get(key) ?? 0) + 1
-    versions.set(key, version)
-    return { ...file, version, ...(file === approvalTarget ? { approvalInterruptId: approval!.id } : {}) }
-  })
-})
-
-// A native write result can arrive a moment before its following form. Keep an
-// already-open preview synchronized when the adapter later binds that form to
-// the latest delivery, so the right-side approval footer does not disappear
-// during this normal streaming race.
 watch(deliverables, files => {
   const current = activePreview.value
   if (!current) return
@@ -230,14 +148,6 @@ const previewInterrupts = computed(() => {
 })
 
 const pendingInterruptIds = computed(() => pendingInterrupts.value.map(interrupt => interrupt.id))
-const deliveryApprovalIds = computed(() => new Set(deliverables.value
-  .map(file => file.approvalInterruptId)
-  .filter((id): id is string => Boolean(id))))
-const pendingDelivery = computed(() => deliverables.value.find(file =>
-  file.approvalInterruptId && pendingInterruptIds.value.includes(file.approvalInterruptId)))
-// A single delivery approval can be acted on from its file card. When a run
-// has multiple interrupts, keep the aggregate card visible because the API
-// requires all decisions to be resumed together.
 const composerInterrupts = computed(() => {
   if (pendingInterrupts.value.length !== 1) return pendingInterrupts.value
   return pendingInterrupts.value.filter(interrupt => !deliveryApprovalIds.value.has(interrupt.id))
@@ -248,32 +158,6 @@ function notifyError(reason: unknown) {
   if (!message || message === lastNotifiedError) return
   lastNotifiedError = message
   ElMessage.error(message)
-}
-
-function scrollToBottom() {
-  void nextTick().then(() => {
-    const element = messageScroller.value
-    if (!element) return
-    element.scrollTop = element.scrollHeight
-    followBottom = true
-    showJumpToLatest.value = false
-  })
-}
-
-function followTextReveal() {
-  if (followBottom) scrollToBottom()
-}
-
-async function handleScroll() {
-  const element = messageScroller.value
-  if (!element) return
-  followBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 5 * 16
-  showJumpToLatest.value = !followBottom && Boolean(messages.value.length)
-  if (element.scrollTop > 6 * 16 || !nextCursor.value || loadingOlder.value) return
-  previousScrollHeight = element.scrollHeight
-  await loadOlder()
-  await nextTick()
-  element.scrollTop += Math.max(0, element.scrollHeight - previousScrollHeight)
 }
 
 function chooseFiles() {
@@ -295,7 +179,7 @@ async function submit() {
   }
   if (!text && !attachments.value.length) return
   try {
-    followBottom = true
+    resetFollowBottom()
     await send(text, selectedModel.value, prepared => {
       if (String(senderRef.value?.getModelValue?.()?.text ?? '').trim() === text) senderRef.value?.clear?.()
       if (prepared.created) emit('materialized', prepared.sessionId, prepared.initialName ?? t('app.newRequest'))
@@ -325,29 +209,7 @@ function useStarterPrompt(prompt: string) {
 }
 
 function openFilePreview(file: ConversationFilePreview) {
-  deliverablesOpen.value = false
-  auditOpen.value = false
-  activePreview.value = file
-  previewApprovalSubmitted.value = false
-}
-
-function openDeliverable(file: ConversationFilePreview) {
-  deliverablesOpen.value = true
-  auditOpen.value = false
-  activePreview.value = file
-  previewApprovalSubmitted.value = false
-}
-
-function toggleDeliverables() {
-  activePreview.value = null
-  auditOpen.value = false
-  deliverablesOpen.value = !deliverablesOpen.value
-}
-
-function toggleAudit() {
-  activePreview.value = null
-  deliverablesOpen.value = false
-  auditOpen.value = !auditOpen.value
+  openPreview(file)
 }
 
 async function retryRun() {
@@ -391,9 +253,7 @@ function exportConversation() {
 
 function onGlobalKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
-    closeFilePreview()
-    deliverablesOpen.value = false
-    auditOpen.value = false
+    closeInspector()
     return
   }
   const target = event.target as HTMLElement | null
@@ -405,11 +265,6 @@ function onGlobalKeydown(event: KeyboardEvent) {
     event.preventDefault()
     exportConversation()
   }
-}
-
-function closeFilePreview() {
-  activePreview.value = null
-  previewApprovalSubmitted.value = false
 }
 
 async function resumeFileApproval(entries: ResumeEntry[]) {
@@ -445,11 +300,6 @@ async function cancelDelivery(interruptId: string) {
   await resumeRun([entry])
 }
 
-function generatedFilesForProcess(steps: any[]) {
-  const ids = new Set(steps.map(step => step?.message?.id).filter(Boolean))
-  return deliverables.value.filter(file => file.sourceMessageId && ids.has(file.sourceMessageId))
-}
-
 async function handleA2uiAction(action: unknown) {
   try {
     if (await sendA2uiAction(action)) {
@@ -472,16 +322,14 @@ async function stopRun() {
 
 watch(() => props.sessionId, id => {
   if ((id ?? '') === threadId.value) return
-  closeFilePreview()
-  deliverablesOpen.value = false
-  auditOpen.value = false
+  closeInspector()
   selectedModel.value = null
   senderRef.value?.clear?.()
   void open(id ?? '')
 }, { immediate: true })
 
 watch(messages, () => {
-  if (followBottom) scrollToBottom()
+  followTextReveal()
 }, { deep: true })
 
 watch(error, value => {
@@ -503,7 +351,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="agent-chat-layout" :class="{ 'agent-chat-layout--preview': activePreview || deliverablesOpen || auditOpen }">
+  <section data-testid="conversation-chat" class="agent-chat-layout" :class="{ 'agent-chat-layout--preview': anyInspectorOpen }">
   <section class="agent-chat" :class="{ 'agent-chat--empty': !sessionId && !messages.length }">
     <header v-if="sessionId" class="agent-chat__header">
       <div class="agent-chat__identity">
@@ -523,6 +371,7 @@ onBeforeUnmount(() => {
 
     <div
       ref="messageScroller"
+      data-testid="conversation-messages"
       class="agent-chat__messages"
       @scroll.passive="handleScroll"
     >
@@ -642,7 +491,7 @@ onBeforeUnmount(() => {
       </button>
     </Transition>
 
-    <div class="agent-chat__composer-wrap">
+    <div data-testid="conversation-composer" class="agent-chat__composer-wrap">
       <div v-if="pendingDelivery && !running && !composerInterrupts.length" class="approval-dock" role="status">
         <span class="approval-dock__icon" aria-hidden="true">◇</span>
         <div><b>{{ t('chat.approvalDetail') }}</b><small>{{ pendingDelivery.name }}</small></div>
@@ -719,20 +568,20 @@ onBeforeUnmount(() => {
     :interrupts="previewInterrupts"
     :busy="running"
     :approval-submitted="previewApprovalSubmitted"
-    @close="closeFilePreview"
+    @close="closePreview"
     @resume="resumeFileApproval"
   />
   <DeliverablesPanel
     v-else-if="deliverablesOpen"
     :files="deliverables"
     :pending-approvals="pendingInterrupts.length"
-    @close="deliverablesOpen = false"
+    @close="closeInspector"
     @select="openDeliverable"
   />
   <AuditPanel
     v-else-if="auditOpen"
     :entries="auditEntries"
-    @close="auditOpen = false"
+    @close="closeInspector"
   />
   </section>
 </template>
