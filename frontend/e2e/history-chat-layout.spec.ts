@@ -1,12 +1,5 @@
-import { expect, test, type Page, type Route } from '@playwright/test'
-
-const ACTIVE_KEY = 'dataagent.conversations.active.v2.session-thread'
-
-const json = (route: Route, body: unknown, status = 200) => route.fulfill({
-  status,
-  contentType: 'application/json',
-  body: JSON.stringify(body),
-})
+import { expect, test, type Page } from '@playwright/test'
+import { ACTIVE_SESSION_KEY, json } from './helpers/dataagent'
 
 async function mockApi(page: Page, options?: { history?: boolean }) {
   await page.route('**/dataagent/web/api/**', async route => {
@@ -25,25 +18,15 @@ async function mockApi(page: Page, options?: { history?: boolean }) {
         cursor: {},
       })
     }
-    if (request.method() === 'GET' && url.pathname.endsWith('/model')) {
-      return json(route, {
-        data: [{ providerID: 'openai', id: 'gpt-a', name: 'GPT A', enabled: true }],
-      })
-    }
     if (request.method() === 'GET' && url.pathname.endsWith('/model/default')) {
-      return json(route, {
-        data: { providerID: 'openai', id: 'gpt-a', name: 'GPT A', enabled: true },
-      })
+      return json(route, { data: { providerID: 'openai', id: 'gpt-a', name: 'GPT A', enabled: true } })
+    }
+    if (request.method() === 'GET' && url.pathname.endsWith('/model')) {
+      return json(route, { data: [{ providerID: 'openai', id: 'gpt-a', name: 'GPT A', enabled: true }] })
     }
     if (request.method() === 'GET' && url.pathname.endsWith('/session/history-session/message')) {
       return json(route, {
         data: [
-          {
-            id: 'history-user-message',
-            type: 'user',
-            text: '分析去年各区域订单趋势',
-            time: { created: 1 },
-          },
           {
             id: 'history-assistant-message',
             type: 'assistant',
@@ -53,57 +36,61 @@ async function mockApi(page: Page, options?: { history?: boolean }) {
             time: { created: 2, completed: 3 },
             finish: 'stop',
           },
+          {
+            id: 'history-user-message',
+            type: 'user',
+            text: '分析去年各区域订单趋势',
+            time: { created: 1 },
+          },
         ],
         cursor: {},
       })
+    }
+    if (request.method() === 'GET' && url.pathname.endsWith('/tools')) {
+      return json(route, { data: { items: [], warnings: [] } })
+    }
+    if (request.method() === 'POST' && url.pathname.endsWith('/agui')) {
+      return route.fulfill({ status: 200, contentType: 'text/event-stream', body: '' })
     }
     return json(route, { data: {} })
   })
 }
 
-test('new conversation uses the concise welcome and has no duplicate header action', async ({ page }) => {
+test('new conversation exposes one sidebar create action and the current conversation-first welcome/composer', async ({ page }) => {
   await mockApi(page)
   await page.goto('/')
 
-  const welcome = page.locator('.conversation-welcome')
-  await expect(welcome).toBeVisible()
-  await expect(page.getByText('我是 Data Agent，你的 SA 数据需求开发与交付助手。', { exact: true })).toHaveCount(0)
-  await expect(welcome.getByText('DATA AGENT', { exact: true })).toBeVisible()
-  await expect(welcome.getByText('描述你的数据业务目标，我将与你逐步澄清需求，并自主完成Specification、数据方案、数据集成、ETL开发、治理验证与交付。', { exact: true })).toBeVisible()
-  await expect(welcome.getByText('从一个清晰的数据目标开始', { exact: true })).toHaveCount(0)
-  await expect(welcome.locator('.conversation-welcome__capabilities')).toHaveCount(0)
-  await expect(page.locator('.assistant-header button[title="新建会话"]')).toHaveCount(0)
+  await expect(page.getByTestId('conversation-chat')).toBeVisible()
+  await expect(page.getByText('描述你的业务目标，让 Agent 规划、构建并验证。关键节点，由你确认。', { exact: true })).toBeVisible()
+  await expect(page.getByText('分析数据', { exact: true })).toBeVisible()
+  await expect(page.getByTestId('conversation-composer')).toBeVisible()
+  await expect(page.getByRole('button', { name: '新建需求', exact: true })).toHaveCount(1)
+  await expect(page.locator('.agent-chat__header')).toHaveCount(0)
 })
 
-test('opening an existing history session restores its messages and keeps the composer at the bottom', async ({ page }) => {
+test('opening an existing history session restores messages and keeps the composer below the scrollable conversation', async ({ page }) => {
   await mockApi(page, { history: true })
-  await page.addInitScript(activeKey => {
-    localStorage.setItem(activeKey, 'history-session')
-  }, ACTIVE_KEY)
+  await page.addInitScript(activeKey => localStorage.setItem(activeKey, 'history-session'), ACTIVE_SESSION_KEY)
 
   await page.goto('/')
-  await page.getByRole('button', { name: '查看全部会话' }).click()
-  await expect(page.getByRole('heading', { name: '历史对话' })).toBeVisible()
+  await page.getByRole('button', { name: '查看全部', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '历史需求' })).toBeVisible()
 
-  await page.locator('.history-table__row').filter({ hasText: '历史订单分析' }).click()
+  await page.locator('.history-item').filter({ hasText: '历史订单分析' }).getByRole('button').first().click()
 
-  const panel = page.locator('.assistant-panel--existing')
-  const body = page.locator('.assistant-body')
-  const overlay = page.getByTestId('copilot-input-overlay')
-
-  await expect(panel).toBeVisible()
+  await expect(page.getByTestId('conversation-chat')).toBeVisible()
   await expect(page.getByText('分析去年各区域订单趋势', { exact: true })).toBeVisible()
   await expect(page.getByText('历史分析结果已经恢复。', { exact: true })).toBeVisible()
-  await expect(page.locator('.conversation-welcome')).not.toBeVisible()
-  await expect(overlay).toBeVisible()
 
-  const bodyBox = await body.boundingBox()
-  const overlayBox = await overlay.boundingBox()
-  expect(bodyBox).not.toBeNull()
-  expect(overlayBox).not.toBeNull()
+  const scroller = page.getByTestId('conversation-messages')
+  const composer = page.getByTestId('conversation-composer')
+  await expect(scroller).toBeVisible()
+  await expect(composer).toBeVisible()
 
-  const bodyBottom = bodyBox!.y + bodyBox!.height
-  const overlayBottom = overlayBox!.y + overlayBox!.height
-  expect(overlayBox!.y).toBeGreaterThan(bodyBox!.y + bodyBox!.height / 2)
-  expect(Math.abs((bodyBottom - overlayBottom) - 14)).toBeLessThanOrEqual(3)
+  const scrollerBox = await scroller.boundingBox()
+  const composerBox = await composer.boundingBox()
+  expect(scrollerBox).not.toBeNull()
+  expect(composerBox).not.toBeNull()
+  expect(composerBox!.y).toBeGreaterThan(scrollerBox!.y)
+  expect(composerBox!.y + composerBox!.height).toBeLessThanOrEqual((await page.viewportSize())!.height + 1)
 })
