@@ -35,8 +35,10 @@ test('light mode applies current design tokens and the real user bubble uses its
   expect(tokens.surface.toUpperCase()).toBe('#F5F7FB')
   expect(tokens.neutralBubble.toUpperCase()).toBe('#EDEDEB')
   expect(tokens.primary.toUpperCase()).toBe('#0075DE')
-  expect(tokens.userBubble).toContain('var(--da-accent-primary) 8%')
-  expect(tokens.userBorder).toContain('var(--da-accent-primary) 16%')
+  expect(tokens.userBubble.toLowerCase()).toContain('color-mix')
+  expect(tokens.userBubble.toLowerCase()).toContain('#0075de 8%')
+  expect(tokens.userBorder.toLowerCase()).toContain('color-mix')
+  expect(tokens.userBorder.toLowerCase()).toContain('#0075de 16%')
 
   await expect(page.getByText('检查浅色用户消息', { exact: true })).toBeVisible()
   const bubble = page.locator('.message-bubble--user').first()
