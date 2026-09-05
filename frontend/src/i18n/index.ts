@@ -364,7 +364,7 @@ const messages = {
       justNow: 'Just now',
       minutesAgo: '{count} min ago',
       hoursAgo: '{count} hr ago',
-      daysAgo: '{count} days ago',
+      daysAgo: '{count} day ago | {count} days ago',
       close: 'Close',
     },
   },

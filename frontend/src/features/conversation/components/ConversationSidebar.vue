@@ -41,7 +41,7 @@ function relativeTime(timestamp: number) {
   const hours = Math.floor(minutes / 60)
   if (hours < 24) return t('common.hoursAgo', { count: hours })
   const days = Math.floor(hours / 24)
-  if (days < 7) return t('common.daysAgo', { count: days })
+  if (days < 7) return t('common.daysAgo', { count: days }, days)
   return new Intl.DateTimeFormat(locale.value, { month: '2-digit', day: '2-digit' }).format(new Date(timestamp))
 }
 </script>
