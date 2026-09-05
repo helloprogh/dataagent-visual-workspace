@@ -1,16 +1,8 @@
-import { expect, test, type Page, type Route } from '@playwright/test'
-
-const ACTIVE_KEY = 'dataagent.conversations.active.v2.session-thread'
-const LEGACY_CONVERSATIONS_KEY = 'dataagent.conversations.v3.session-thread'
-
-const json = (route: Route, body: unknown, status = 200) => route.fulfill({
-  status,
-  contentType: 'application/json',
-  body: JSON.stringify(body),
-})
+import { expect, test, type Page } from '@playwright/test'
+import { ACTIVE_SESSION_KEY, LEGACY_CONVERSATIONS_KEY, json } from './helpers/dataagent'
 
 // OpenCode V2 returns order=desc pages newest-first. The UI reverses each page
-// before rendering so the chat itself remains oldest-to-newest.
+// before rendering so the chat remains oldest-to-newest.
 const history = (sessionId: string, label: string) => [
   {
     id: `msg_${sessionId}_assistant`,
@@ -76,20 +68,23 @@ async function mockApis(page: Page, options: {
       await json(route, pageBody(pages, cursorPage(url.searchParams.get('cursor')), `message:${sessionId}`)).catch(() => undefined)
       return
     }
-    if (request.method() === 'GET' && url.pathname.endsWith('/model')) {
-      return json(route, { data: [{ providerID: 'openai', id: 'gpt-a', name: 'GPT A', enabled: true }] })
-    }
     if (request.method() === 'GET' && url.pathname.endsWith('/model/default')) {
       return json(route, { data: { providerID: 'openai', id: 'gpt-a', name: 'GPT A', enabled: true } })
     }
+    if (request.method() === 'GET' && url.pathname.endsWith('/model')) {
+      return json(route, { data: [{ providerID: 'openai', id: 'gpt-a', name: 'GPT A', enabled: true }] })
+    }
     if (request.method() === 'GET' && url.pathname.endsWith('/tools')) {
       return json(route, { data: { items: [], warnings: [] } })
+    }
+    if (request.method() === 'POST' && url.pathname.endsWith('/agui')) {
+      return route.fulfill({ status: 200, contentType: 'text/event-stream', body: '' })
     }
     return json(route, {})
   })
 }
 
-test('loads OpenCode V2 sessions and hydrates the active conversation from the latest V2 message page without persisting conversations', async ({ page }) => {
+test('loads V2 sessions and hydrates the active conversation from the latest message page without persisting conversations', async ({ page }) => {
   const listUrls: URL[] = []
   const messageUrls: URL[] = []
   await page.addInitScript(({ activeKey, legacyKey }) => {
@@ -102,25 +97,13 @@ test('loads OpenCode V2 sessions and hydrates the active conversation from the l
       createdAt: 1,
       updatedAt: 1,
     }]))
-  }, { activeKey: ACTIVE_KEY, legacyKey: LEGACY_CONVERSATIONS_KEY })
+  }, { activeKey: ACTIVE_SESSION_KEY, legacyKey: LEGACY_CONVERSATIONS_KEY })
+
   await mockApis(page, {
     sessions: [
-      {
-        id: 'session-a',
-        title: '远端订单分析',
-        time: { created: 1_780_000_000_000, updated: 1_780_000_100_000 },
-      },
-      {
-        id: 'session-child',
-        parentID: 'session-a',
-        title: 'SQL 子 Agent',
-        time: { created: 1_780_000_010_000, updated: 1_780_000_020_000 },
-      },
-      {
-        id: 'session-archived',
-        title: '已归档需求',
-        time: { created: 1_779_000_000_000, updated: 1_779_000_010_000, archived: 1_780_000_200_000 },
-      },
+      { id: 'session-a', title: '远端订单分析', time: { created: 1_780_000_000_000, updated: 1_780_000_100_000 } },
+      { id: 'session-child', parentID: 'session-a', title: 'SQL 子 Agent', time: { created: 1_780_000_010_000, updated: 1_780_000_020_000 } },
+      { id: 'session-archived', title: '已归档需求', time: { created: 1_779_000_000_000, updated: 1_779_000_010_000, archived: 1_780_000_200_000 } },
     ],
     messages: { 'session-a': history('session-a', '订单') },
     onList: url => listUrls.push(url),
@@ -135,9 +118,12 @@ test('loads OpenCode V2 sessions and hydrates the active conversation from the l
   await expect(page.getByText('旧缓存不应回显', { exact: true })).toHaveCount(0)
   await expect(page.getByText('订单历史问题', { exact: true })).toBeVisible()
   await expect(page.getByText('订单历史回复', { exact: true })).toBeVisible()
-  await page.getByTestId('agent-reasoning-card').getByRole('button').click()
+
+  const processHeader = page.locator('.process-group__header').first()
+  await expect(processHeader).toBeVisible()
+  await processHeader.click()
   await expect(page.getByText('订单历史思考', { exact: true })).toBeVisible()
-  await expect(page.locator('.conversation-welcome')).not.toBeVisible()
+  await expect(page.locator('.agent-welcome')).toHaveCount(0)
 
   expect(listUrls).toHaveLength(1)
   expect(listUrls[0].searchParams.get('order')).toBe('desc')
@@ -149,7 +135,7 @@ test('loads OpenCode V2 sessions and hydrates the active conversation from the l
 })
 
 test('a slow V2 history response cannot overwrite a newer conversation selection', async ({ page }) => {
-  await page.addInitScript(activeKey => localStorage.setItem(activeKey, 'session-a'), ACTIVE_KEY)
+  await page.addInitScript(activeKey => localStorage.setItem(activeKey, 'session-a'), ACTIVE_SESSION_KEY)
   await mockApis(page, {
     sessions: [
       { id: 'session-a', title: '远端会话 A', time: { created: 1, updated: 2 } },
@@ -198,16 +184,11 @@ test('loads every V2 session page before sorting conversations by remote updated
 
 test('loads only the latest message page initially and prepends older history when scrolled to the top', async ({ page }) => {
   const messageUrls: URL[] = []
-  await page.addInitScript(activeKey => localStorage.setItem(activeKey, 'session-a'), ACTIVE_KEY)
+  await page.addInitScript(activeKey => localStorage.setItem(activeKey, 'session-a'), ACTIVE_SESSION_KEY)
 
   const latestPage = Array.from({ length: 100 }, (_, index) => {
     const seq = 200 - index
-    return {
-      id: `msg_latest_${seq}`,
-      type: 'user',
-      text: `最近消息 ${seq}`,
-      time: { created: seq },
-    }
+    return { id: `msg_latest_${seq}`, type: 'user', text: `最近消息 ${seq}`, time: { created: seq } }
   })
   const olderPage = history('session-a-older', '更早')
 
@@ -218,7 +199,7 @@ test('loads only the latest message page initially and prepends older history wh
   })
 
   await page.goto('/')
-  const scroller = page.getByTestId('copilot-chat-view-scroll')
+  const scroller = page.getByTestId('conversation-messages')
   await expect(scroller).toBeVisible()
   await expect(page.getByText('最近消息 200', { exact: true })).toHaveCount(1)
   await expect.poll(() => messageUrls.length).toBe(1)
