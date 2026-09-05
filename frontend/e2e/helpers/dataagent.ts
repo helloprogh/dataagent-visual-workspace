@@ -2,7 +2,7 @@ import type { Page, Route } from '@playwright/test'
 
 export const ACTIVE_SESSION_KEY = 'dataagent.conversations.active.v3'
 export const LEGACY_CONVERSATIONS_KEY = 'dataagent.conversations.v3.session-thread'
-export const MODEL_SELECTION_KEY = 'dataagent.model.selection.v4.by-session'
+export const MODEL_SELECTION_KEY = 'dataagent.model.selection.v5.by-session'
 export const THEME_KEY = 'dataagent.theme.v2'
 
 export const DEFAULT_MODELS = [
@@ -95,7 +95,7 @@ export function composer(page: Page) {
 }
 
 export function composerTextbox(page: Page) {
-  return composer(page).getByRole('textbox').first()
+  return composer(page).locator('[contenteditable="true"], textarea').first()
 }
 
 export async function sendMessage(page: Page, text: string) {
