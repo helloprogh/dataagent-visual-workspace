@@ -15,6 +15,7 @@
     "build:gallery": "npm run build:gallery -w frontend",
     "check:offline": "npm run check:offline -w frontend",
     "test": "npm test -w adapter",
+    "test:e2e": "npm run test:e2e -w frontend",
     "typecheck": "npm run typecheck -w frontend",
     "build": "npm run build -w adapter && npm run build -w frontend",
     "check": "npm test && npm run typecheck && npm run build"
