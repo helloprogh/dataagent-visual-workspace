@@ -1,16 +1,13 @@
-import { expect, test, type Page, type Route } from '@playwright/test'
-
-const LEGACY_CONVERSATIONS_KEY = 'dataagent.conversations.v3.session-thread'
-const ACTIVE_KEY = 'dataagent.conversations.active.v2.session-thread'
-const MODELS_KEY = 'dataagent.model.selection.v4.by-session'
-
-const json = (route: Route, body: unknown, status = 200) => route.fulfill({
-  status,
-  contentType: 'application/json',
-  body: JSON.stringify(body),
-})
-
-const sse = (events: unknown[]) => events.map(item => `data: ${JSON.stringify(item)}\n\n`).join('')
+import { expect, test, type Page } from '@playwright/test'
+import {
+  ACTIVE_SESSION_KEY,
+  LEGACY_CONVERSATIONS_KEY,
+  MODEL_SELECTION_KEY,
+  composer,
+  json,
+  sendMessage,
+  sse,
+} from './helpers/dataagent'
 
 async function mockLazyApi(page: Page, hooks?: {
   onCreateSession?: (body: any) => void
@@ -25,16 +22,16 @@ async function mockLazyApi(page: Page, hooks?: {
     if (request.method() === 'GET' && url.pathname === '/dataagent/web/api/session') {
       return json(route, { data: [], cursor: {} })
     }
+    if (request.method() === 'GET' && url.pathname.endsWith('/model/default')) {
+      return json(route, { data: { providerID: 'openai', id: 'gpt-a', name: 'GPT A', enabled: true } })
+    }
     if (request.method() === 'GET' && url.pathname.endsWith('/model')) {
       return json(route, { data: [
         { providerID: 'openai', id: 'gpt-a', name: 'GPT A', enabled: true },
         { providerID: 'anthropic', id: 'claude-b', name: 'Claude B', enabled: true },
       ] })
     }
-    if (request.method() === 'GET' && url.pathname.endsWith('/model/default')) {
-      return json(route, { data: { providerID: 'openai', id: 'gpt-a', name: 'GPT A', enabled: true } })
-    }
-    if (request.method() === 'POST' && url.pathname.endsWith('/session')) {
+    if (request.method() === 'POST' && url.pathname === '/dataagent/web/api/session') {
       hooks?.onCreateSession?.(request.postDataJSON())
       return json(route, { data: { id: 'session-created' } })
     }
@@ -88,17 +85,16 @@ test('new conversation stays local until first send, then creates one session wi
   })
 
   await page.goto('/')
-  await expect(page.locator('.draft-model-selector__select')).toContainText('GPT A')
-  await expect(page.getByText('首次发送后创建', { exact: true })).toBeVisible()
+  await expect(page.getByTestId('conversation-chat')).toBeVisible()
+  await expect(page.getByTestId('conversation-model-selector')).toContainText('GPT A')
   expect(createCalls).toBe(0)
 
-  // Clicking New is still a local UI reset and must not allocate a backend session.
-  await page.getByRole('button', { name: '新建会话', exact: true }).click()
-  await expect(page.locator('.draft-model-selector__select')).toContainText('GPT A')
+  // New remains a local reset and must not allocate a backend session.
+  await page.getByRole('button', { name: '新建需求', exact: true }).click()
+  await expect(page.getByTestId('conversation-model-selector')).toContainText('GPT A')
   expect(createCalls).toBe(0)
 
-  await page.getByTestId('copilot-chat-input-textarea').fill('分析本月订单')
-  await page.getByTestId('copilot-chat-input-send').click()
+  await sendMessage(page, '分析本月订单')
 
   await expect.poll(() => createCalls).toBe(1)
   expect(createBody).toEqual({ model: { providerID: 'openai', id: 'gpt-a' } })
@@ -109,7 +105,11 @@ test('new conversation stays local until first send, then creates one session wi
     legacyConversations: localStorage.getItem(legacyConversationsKey),
     active: localStorage.getItem(activeKey),
     models: JSON.parse(localStorage.getItem(modelsKey) ?? '{}'),
-  }), { legacyConversationsKey: LEGACY_CONVERSATIONS_KEY, activeKey: ACTIVE_KEY, modelsKey: MODELS_KEY })
+  }), {
+    legacyConversationsKey: LEGACY_CONVERSATIONS_KEY,
+    activeKey: ACTIVE_SESSION_KEY,
+    modelsKey: MODEL_SELECTION_KEY,
+  })
 
   expect(stored.legacyConversations).toBeNull()
   expect(stored.active).toBe('session-created')
@@ -132,9 +132,9 @@ test('draft attachment is not uploaded until send and then uses the real session
   })
 
   await page.goto('/')
-  await expect(page.locator('.draft-model-selector__select')).toContainText('GPT A')
+  await expect(page.getByTestId('conversation-model-selector')).toContainText('GPT A')
 
-  await page.locator('input[type="file"]').setInputFiles({
+  await composer(page).locator('input[type="file"]').setInputFiles({
     name: 'notes.txt',
     mimeType: 'text/plain',
     buffer: Buffer.from('draft attachment'),
@@ -143,8 +143,7 @@ test('draft attachment is not uploaded until send and then uses the real session
   expect(createCalls).toBe(0)
   expect(uploadCalls).toBe(0)
 
-  await page.getByTestId('copilot-chat-input-textarea').fill('分析这个文件')
-  await page.getByTestId('copilot-chat-input-send').click()
+  await sendMessage(page, '分析这个文件')
 
   await expect.poll(() => createCalls).toBe(1)
   await expect.poll(() => uploadCalls).toBe(1)
