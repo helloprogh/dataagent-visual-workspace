@@ -14,6 +14,8 @@
     "build:gallery": "vue-tsc -b && vite build --mode gallery",
     "preview": "vite preview",
     "typecheck": "vue-tsc -b",
+    "test:e2e": "playwright test",
+    "test:e2e:list": "playwright test --list",
     "check:offline": "node scripts/offline-check.mjs",
     "diagnose:npm": "node scripts/npm-diagnose.mjs"
   },
