@@ -77,6 +77,7 @@ onMounted(load)
 
 <template>
   <el-select
+    data-testid="conversation-model-selector"
     class="model-selector"
     popper-class="model-selector-popper"
     :model-value="selectedKey"
