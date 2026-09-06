@@ -4,12 +4,13 @@ import { assertA2uiCatalogComponents } from '../../../shared/a2ui-catalog.mjs'
 import { DATA_AGENT_CATALOG_ID } from './capability'
 import { dataAgentBasicComponents } from './basicCatalog'
 import { dataAgentBusinessComponents } from './businessCatalog'
+import { ArtifactCard } from './artifactCatalog'
 
 export { A2UI_ALLOWED_COMPONENTS, DATA_AGENT_CATALOG_ID } from './capability'
 
 // Explicit override order: application Button replaces the basic renderer.
 const components = new Map(
-  [...dataAgentBasicComponents, ...dataAgentBusinessComponents].map(component => [component.name, component]),
+  [...dataAgentBasicComponents, ...dataAgentBusinessComponents, ArtifactCard].map(component => [component.name, component]),
 )
 assertA2uiCatalogComponents(components.keys())
 

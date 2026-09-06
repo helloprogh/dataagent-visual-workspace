@@ -115,7 +115,7 @@ test('conversation files open a pushed preview panel and approvals stay backend-
     frontend('features/conversation/components/ConversationMessage.vue'),
     frontend('features/conversation/components/FilePreviewPanel.vue'),
     frontend('features/conversation/components/InterruptCard.vue'),
-    frontend('features/conversation/components/GenerativeUiCard.vue'),
+    frontend('features/conversation/components/GeneratedArtifactCard.vue'),
   ])
   assert.match(message, /class="attachment-card"/)
   assert.match(message, /approvalInterruptId/)
@@ -133,8 +133,8 @@ test('conversation files open a pushed preview panel and approvals stay backend-
   assert.match(preview, /workspace-archive/)
   assert.match(preview, /file-preview-panel__confirm/)
   assert.match(preview, /preview\.(?:approval|other|confirm|collapse)/)
-  assert.match(generated, /generated-card__confirm/)
-  assert.match(generated, /generated\.viewFull/)
+  assert.match(generated, /generated-artifact-card__confirm/)
+  assert.match(generated, /artifact\.open/)
   assert.match(await frontend('features/conversation/composables/useConversationPresentation.ts'), /deliveryApprovalIds/)
   assert.match(chat, /confirmDelivery/)
   const artifacts = await frontend('features/conversation/composables/useConversationArtifacts.ts')

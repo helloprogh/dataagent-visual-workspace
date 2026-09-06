@@ -1,21 +1,37 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, provide, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { dataAgentCatalog, A2UI_ALLOWED_COMPONENTS } from '../../../a2ui/catalog'
 import { containsRetiredA2uiApproval, operationSurfaceId, sanitizeA2uiOperations } from '../../../a2ui/sanitizeOperations'
 import NativeA2uiSurface from '../../../a2ui/NativeA2uiSurface.vue'
+import { legacyUiToA2ui } from '../../../../../shared/legacy-a2ui.mjs'
+import { A2UI_ARTIFACTS } from '../../../a2ui/artifactContext'
+import type { ConversationFilePreview } from '../types/filePreview'
 
 const props = withDefaults(defineProps<{
   content: { operations?: unknown; a2ui_operations?: unknown }
   messageId: string
   busy?: boolean
+  legacy?: boolean
+  approvalBusy?: boolean
+  pendingInterruptIds?: string[]
 }>(), { busy: false })
-const emit = defineEmits<{ action: [action: unknown] }>()
+const emit = defineEmits<{ action: [action: unknown]; preview: [file: ConversationFilePreview]; confirm: [id: string]; cancel: [id: string] }>()
 const { t } = useI18n()
 const expanded = ref(true)
 watch(() => props.messageId, () => { expanded.value = true })
 
-const rawOperations = computed(() => props.content?.operations ?? props.content?.a2ui_operations ?? [])
+const legacyProjection = computed(() => props.legacy ? legacyUiToA2ui(props.content, props.messageId) : null)
+const artifactIndex = computed(() => new Map(legacyProjection.value?.artifacts.map(file => [file.id, file]) ?? []))
+provide(A2UI_ARTIFACTS, {
+  lookup: id => artifactIndex.value.get(id),
+  pending: id => Boolean(props.pendingInterruptIds?.includes(id)),
+  busy: () => Boolean(props.approvalBusy),
+  preview: file => emit('preview', file),
+  confirm: id => emit('confirm', id),
+  cancel: id => emit('cancel', id),
+})
+const rawOperations = computed(() => props.legacy ? legacyProjection.value?.operations ?? [] : props.content?.operations ?? props.content?.a2ui_operations ?? [])
 const blocked = computed(() => containsRetiredA2uiApproval(rawOperations.value))
 const operations = computed(() => sanitizeA2uiOperations(rawOperations.value, new Set(A2UI_ALLOWED_COMPONENTS)))
 const surfaceIds = computed(() => [...new Set(operations.value.map(operationSurfaceId))])
@@ -39,10 +55,11 @@ function handleAction(action: unknown) {
     <button class="a2ui-card__header" type="button" :aria-expanded="expanded" @click="expanded = !expanded">
       <span class="a2ui-card__mark" aria-hidden="true">▦</span>
       <span class="a2ui-card__heading">
-        <b>{{ surfaceIds.length === 1 ? surfaceIds[0].replace(/[-_]+/g, ' ') : t('a2ui.generated') }}</b>
+        <b>{{ legacyProjection?.title || (surfaceIds.length === 1 ? surfaceIds[0].replace(/[-_]+/g, ' ') : t('a2ui.generated')) }}</b>
+        <small v-if="legacyProjection?.summary">{{ legacyProjection.summary }}</small>
         <small>{{ t('a2ui.interaction') }} · {{ t('a2ui.components', { count: componentCount }) }}{{ busy ? t('a2ui.busy') : '' }}</small>
       </span>
-      <span class="a2ui-card__status"><i></i>{{ busy ? t('a2ui.processing') : t('a2ui.interactive') }}</span>
+      <span class="a2ui-card__status" role="status"><i></i>{{ legacyProjection ? t(`generated.${legacyProjection.status}`) : busy ? t('a2ui.processing') : t('a2ui.interactive') }}</span>
       <span class="a2ui-card__chevron" :class="{ expanded }" aria-hidden="true">›</span>
     </button>
     <div v-show="expanded" class="a2ui-card__body">

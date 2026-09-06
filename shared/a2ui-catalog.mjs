@@ -5,7 +5,7 @@ export const A2UI_COMPONENT_NAMES = Object.freeze([
   'Text', 'Image', 'Icon', 'Video', 'AudioPlayer', 'Row', 'Column', 'List', 'Card', 'Tabs', 'Divider',
   'Modal', 'Button', 'TextField', 'CheckBox', 'ChoicePicker', 'Slider', 'DateTimeInput', 'MetricCard',
   'DataTable', 'BarChart', 'LineChart', 'PieChart', 'InsightCard', 'WarningCard', 'ActionButton', 'Badge',
-  'Markdown',
+  'Markdown', 'ArtifactCard',
 ])
 
 export function assertA2uiCatalogComponents(names) {

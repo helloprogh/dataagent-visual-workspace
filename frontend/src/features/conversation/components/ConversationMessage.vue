@@ -7,7 +7,6 @@ import { MarkdownRenderer } from 'x-markdown-vue'
 import { appTheme } from '../../../shared/theme/theme'
 import { fileKindLabel, formatFileSize, type ConversationFilePreview } from '../types/filePreview'
 import { nextRevealLength } from '../textReveal'
-import GenerativeUiCard from './GenerativeUiCard.vue'
 import A2uiSurfaceCard from './A2uiSurfaceCard.vue'
 
 const props = withDefaults(defineProps<{ message: Message; running?: boolean; animate?: boolean; streaming?: boolean; pendingInterruptIds?: string[] }>(), {
@@ -274,22 +273,17 @@ function previewFile(file: any, index: number) {
     <pre>{{ text }}</pre>
   </details>
 
-  <GenerativeUiCard
-    v-else-if="isActivity && raw.activityType === 'dataagent.ui'"
+  <A2uiSurfaceCard
+    v-else-if="isActivity && ['dataagent.ui', 'a2ui-surface'].includes(raw.activityType)"
     :content="raw.content"
+    :legacy="raw.activityType === 'dataagent.ui'"
     :message-id="message.id"
     :pending-interrupt-ids="pendingInterruptIds"
-    :busy="running"
+    :approval-busy="running"
+    :busy="running || pendingInterruptIds.length > 0"
     @preview="emit('preview', $event)"
     @confirm="emit('confirm', $event)"
     @cancel="emit('cancel', $event)"
-  />
-
-  <A2uiSurfaceCard
-    v-else-if="isActivity && raw.activityType === 'a2ui-surface'"
-    :content="raw.content"
-    :message-id="message.id"
-    :busy="running || pendingInterruptIds.length > 0"
     @action="emit('a2uiAction', $event)"
   />
 
