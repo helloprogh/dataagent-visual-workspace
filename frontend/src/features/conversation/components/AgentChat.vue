@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRef, watch } from 'vue'
 import type { Message, ResumeEntry } from '@ag-ui/client'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
@@ -8,6 +8,7 @@ import type { ModelSelection } from '../../model/types'
 import ModelSelector from '../../model/components/ModelSelector.vue'
 import { useAgentConversation } from '../composables/useAgentConversation'
 import { useConversationArtifacts } from '../composables/useConversationArtifacts'
+import { useConversationScroll } from '../composables/useConversationScroll'
 import AgentMark from './AgentMark.vue'
 import ConversationMessage from './ConversationMessage.vue'
 import ConversationProcessGroup from './ConversationProcessGroup.vue'
@@ -60,15 +61,14 @@ const {
 
 const senderRef = ref<any>(null)
 const selectedModel = ref<ModelSelection | null>(null)
-const messageScroller = ref<HTMLElement | null>(null)
+const { messageScroller, showJumpToLatest, enableFollowing, scrollToBottom, followTextReveal, handleScroll, loadEarlier } = useConversationScroll({
+  sessionId: toRef(props, 'sessionId'), messages, hydrating, loadingOlder, nextCursor, loadOlder,
+})
 const fileInput = ref<HTMLInputElement | null>(null)
 const activePreview = ref<ConversationFilePreview | null>(null)
 const deliverablesOpen = ref(false)
 const auditOpen = ref(false)
 const previewApprovalSubmitted = ref(false)
-const showJumpToLatest = ref(false)
-let followBottom = true
-let previousScrollHeight = 0
 let lastNotifiedError = ''
 
 const welcomeDescription = computed(() => t('chat.welcomeDescription'))
@@ -115,32 +115,6 @@ function notifyError(reason: unknown) {
   ElMessage.error(message)
 }
 
-function scrollToBottom() {
-  void nextTick().then(() => {
-    const element = messageScroller.value
-    if (!element) return
-    element.scrollTop = element.scrollHeight
-    followBottom = true
-    showJumpToLatest.value = false
-  })
-}
-
-function followTextReveal() {
-  if (followBottom) scrollToBottom()
-}
-
-async function handleScroll() {
-  const element = messageScroller.value
-  if (!element) return
-  followBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 5 * 16
-  showJumpToLatest.value = !followBottom && Boolean(messages.value.length)
-  if (element.scrollTop > 6 * 16 || !nextCursor.value || loadingOlder.value) return
-  previousScrollHeight = element.scrollHeight
-  await loadOlder()
-  await nextTick()
-  element.scrollTop += Math.max(0, element.scrollHeight - previousScrollHeight)
-}
-
 function chooseFiles() {
   if (!running.value && !pendingInterrupts.value.length) fileInput.value?.click()
 }
@@ -160,7 +134,7 @@ async function submit() {
   }
   if (!text && !attachments.value.length) return
   try {
-    followBottom = true
+    enableFollowing()
     await send(text, selectedModel.value, prepared => {
       if (String(senderRef.value?.getModelValue?.()?.text ?? '').trim() === text) senderRef.value?.clear?.()
       if (prepared.created) emit('materialized', prepared.sessionId, prepared.initialName ?? t('app.newRequest'))
@@ -345,16 +319,6 @@ watch(() => props.sessionId, id => {
   void open(id ?? '')
 }, { immediate: true })
 
-watch(messages, () => {
-  if (followBottom) scrollToBottom()
-}, { deep: true })
-
-// History messages arrive while the skeleton is still mounted. Scroll once
-// hydration reveals the actual message list and its final layout height.
-watch(hydrating, value => {
-  if (!value) scrollToBottom()
-})
-
 watch(error, value => {
   if (!value) {
     lastNotifiedError = ''
@@ -432,7 +396,7 @@ onBeforeUnmount(() => {
 
       <div v-else class="message-list">
         <div v-if="nextCursor" class="load-older">
-          <el-button text :loading="loadingOlder" @click="loadOlder">{{ t('chat.loadEarlier') }}</el-button>
+          <el-button text :loading="loadingOlder" @click="loadEarlier">{{ t('chat.loadEarlier') }}</el-button>
         </div>
         <template v-for="item in presentationItems" :key="item.key">
           <section v-if="item.kind === 'turn'" class="conversation-turn">

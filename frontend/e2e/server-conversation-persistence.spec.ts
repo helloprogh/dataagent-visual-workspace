@@ -277,6 +277,9 @@ test('late pagination from another session preserves the current session cursor'
   await expect.poll(() => oldPageRequested).toBe(true)
   await page.getByText('B分页', { exact: true }).click()
   await expect(page.getByText('B message 0', { exact: true })).toBeVisible()
+  // The same DOM scroller is reused. Reading B must not be disturbed by A.
+  await scroller.evaluate(el => { el.scrollTop = 500; el.dispatchEvent(new Event('scroll')) })
+  await expect.poll(() => scroller.evaluate(el => el.scrollTop)).toBe(500)
   const response = page.waitForResponse(response => {
     const url = new URL(response.url())
     return url.pathname.endsWith('/session/session-a/message') && url.searchParams.has('cursor')
@@ -284,7 +287,7 @@ test('late pagination from another session preserves the current session cursor'
   release()
   await response
   await expect(page.getByText('A旧页历史回复', { exact: true })).toHaveCount(0)
-  await expect.poll(() => scroller.evaluate(el => el.scrollTop)).toBeGreaterThan(0)
+  await expect.poll(() => scroller.evaluate(el => el.scrollTop)).toBe(500)
   await scroller.evaluate(el => { el.scrollTop = 0; el.dispatchEvent(new Event('scroll')) })
   await expect(page.getByText('B旧页历史回复', { exact: true })).toHaveCount(1)
 })

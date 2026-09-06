@@ -1,6 +1,6 @@
 # UI 功能与重构说明
 
-本次依据本地工作区代码梳理，未同步远程分支。前端为 Vue 3、TypeScript、Element Plus，使用 Hash 路由；浏览器通过统一 `/dataagent/web/api` 前缀访问 Adapter。
+前端为 Vue 3、TypeScript、Element Plus，使用 Hash 路由；浏览器通过统一 `/dataagent/web/api` 前缀访问 Adapter。逐轮验证和推送记录见 `UI-REFACTOR-PROGRESS.md`。
 
 ## 功能和代码职责
 
@@ -11,6 +11,7 @@
 | 对话界面 | `AgentChat.vue` | 输入、模型选择、消息编排、附件操作、面板切换、审批提交、快捷键、导出 |
 | 会话运行状态 | `useAgentConversation.ts` | AG-UI 订阅、历史恢复与分页、流式状态、上传、发送、停止、重试、恢复审批 |
 | 消息展示 | `processPresentation.ts`、`ConversationMessage.vue`、`ConversationProcessGroup.vue` | 将消息组织成正文和执行过程，展示推理、工具调用与结果 |
+| 会话视口 | `useConversationScroll.ts` | 流式跟随、跳至最新、分页位置恢复；会话切换和卸载使旧位置调整失效 |
 | 交付与审计派生 | `useConversationArtifacts.ts` | 聚合消息附件、生成式文件卡、工具生成文件；处理删除、版本编号、审批关联和预览同步；派生审计记录 |
 | 文件预览 | `FilePreviewPanel.vue` | Markdown、图片、PDF、文本、ZIP 目录及内部文件预览，文件审批入口 |
 | 人工审批 | `InterruptCard.vue`、`approval.ts` | 根据 responseSchema 展示表单，生成确认/取消的恢复参数 |
@@ -34,13 +35,15 @@
 
 两页保留各自的失败策略：工具目录失败时清空列表及警告；技能列表失败时保留已加载内容。上传、删除和确认弹窗仍归技能页管理。请求编号用于防止界面被旧结果覆盖，并不取消底层网络请求。
 
-模板、CSS、API 地址及 AG-UI 协议没有调整。
+### 会话滚动独立管理
+
+`useConversationScroll` 只管理视口，不复制消息或运行状态。自动触顶和手动加载共用分页去重与高度补偿；读取旧消息时暂停流式跟随。会话切换、卸载使排队的滚动和旧分页补偿失效，避免同一个 DOM 容器被旧请求移动。保留恢复历史后滚动到底部的行为。
 
 ## 后续可独立处理的部分
 
-- AgentChat 的滚动跟随、历史分页位置恢复可以继续提取为组合函数，需覆盖切换会话期间分页返回的交互。
+- AgentChat 的展示派生、面板、输入区和快捷键仍可继续拆分。
 - FilePreviewPanel 同时管理普通文件和 ZIP 内部文件请求，可按预览数据源继续拆分，保留现有 AbortController。
-- ModelSelector 切换失败后没有恢复下拉框的原选择；加载期间会话变化被 watcher 跳过。建议独立补充会话切换/失败恢复测试后修正。
+- ModelSelector 已补充失败回滚和会话请求隔离，行为由浏览器回归覆盖。
 - 消息和生成式内容边界仍有较多 `any`，后续可在协议归一化层收窄类型，避免在模板层重复猜测数据形态。
 - 构建仍报告较大 JS 分包以及 CSS `:deep` 警告；当前重构未涉及依赖样式或打包策略。
 
@@ -49,6 +52,6 @@
 - `npm run typecheck`：Vue/TypeScript 静态检查。
 - `npm test`：现有协议、审批、交付和 UI 契约回归，以及新增的异步资源行为测试。
 - `npm run build`：Adapter 语法检查和前端生产构建。
-- 浏览器回归位于 `frontend/e2e`；当前本地没有 `@playwright/test`，本次未运行这些用例，也未验证真实 OpenCode 服务交互。
+- `npm run test:e2e`：`frontend/e2e` 中的 Chromium 回归。Playwright 已纳入锁文件和 CI；浏览器使用模拟 API/SSE，真实 OpenCode 服务交互需另行联调。
 
 异步资源测试覆盖旧请求晚到、旧请求失败时当前请求仍保持 loading、当前请求失败的两种数据保留策略，以及页面卸载后的响应处理。现有 UI 源码契约测试已改为检查新的职责边界。
