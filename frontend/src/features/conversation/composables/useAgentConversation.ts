@@ -4,6 +4,7 @@ import { createAgentClient, createHydrationClient } from '../../../agui/client'
 import { fetchConversationMessagePage } from '../api/history'
 import { createConversation, interruptConversation, uploadConversationFile } from '../api/session'
 import type { ModelSelection } from '../../model/types'
+import { rememberSelectedModel } from '../../model/api/model'
 import { publishAndRun } from '../sendLifecycle'
 import { A2UI_RUN_CAPABILITY } from '../../../a2ui/capability'
 
@@ -239,6 +240,7 @@ export function useAgentConversation() {
   async function ensureAgent(model: ModelSelection, initialText: string) {
     if (agent.value && threadId.value) return { client: agent.value, sessionId: threadId.value, created: false }
     const sessionId = await createConversation(model)
+    rememberSelectedModel(sessionId, model)
     const client = createAgentClient(sessionId)
     agent.value = client
     threadId.value = sessionId

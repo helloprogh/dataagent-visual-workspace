@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   CI: true
@@ -29,21 +29,6 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      - name: Refresh lockfile
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-
-      - name: Commit lockfile when changed
-        run: |
-          if git diff --quiet -- package-lock.json; then
-            echo "package-lock.json is already current"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git commit -m "chore: refresh dependency lock"
-          git push origin HEAD:refactor/element-plus-x-agui-vite8
-
       - name: Install from lockfile
         run: npm ci --no-audit --no-fund
 
@@ -58,3 +43,18 @@ jobs:
 
       - name: Build frontend
         run: npm run build -w frontend
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser regression tests
+        run: npm run test:e2e
+
+      - name: Upload browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: refactor-browser-diagnostics
+          path: |
+            frontend/test-results/
+            frontend/playwright-report/

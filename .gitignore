@@ -11,3 +11,7 @@ dist/
 adapter/.data/
 .runtime/
 artifacts/
+.local/npm-cache/
+.local/playwright/
+test-results/
+playwright-report/

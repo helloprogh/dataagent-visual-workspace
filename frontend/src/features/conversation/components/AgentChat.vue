@@ -349,6 +349,12 @@ watch(messages, () => {
   if (followBottom) scrollToBottom()
 }, { deep: true })
 
+// History messages arrive while the skeleton is still mounted. Scroll once
+// hydration reveals the actual message list and its final layout height.
+watch(hydrating, value => {
+  if (!value) scrollToBottom()
+})
+
 watch(error, value => {
   if (!value) {
     lastNotifiedError = ''

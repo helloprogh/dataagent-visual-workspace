@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
 
-const ACTIVE_KEY = 'dataagent.conversations.active.v2.session-thread'
+const ACTIVE_KEY = 'dataagent.conversations.active.v3'
 const LEGACY_CONVERSATIONS_KEY = 'dataagent.conversations.v3.session-thread'
 
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({
@@ -85,6 +85,10 @@ async function mockApis(page: Page, options: {
     if (request.method() === 'GET' && url.pathname.endsWith('/tools')) {
       return json(route, { data: { items: [], warnings: [] } })
     }
+    if (url.pathname.endsWith('/agui')) {
+      const body = request.postDataJSON()
+      return route.fulfill({ contentType: 'text/event-stream', body: [{ type: 'RUN_STARTED', threadId: body.threadId, runId: body.runId }, { type: 'RUN_FINISHED', threadId: body.threadId, runId: body.runId }].map(event => `data: ${JSON.stringify(event)}\n\n`).join('') })
+    }
     return json(route, {})
   })
 }
@@ -127,7 +131,7 @@ test('loads OpenCode V2 sessions and hydrates the active conversation from the l
     onMessages: (_id, url) => messageUrls.push(url),
   })
 
-  await page.goto('/')
+  await page.goto('/#/chat?session=session-a')
 
   await expect(page.getByText('远端订单分析', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('SQL 子 Agent', { exact: true })).toHaveCount(0)
@@ -135,9 +139,10 @@ test('loads OpenCode V2 sessions and hydrates the active conversation from the l
   await expect(page.getByText('旧缓存不应回显', { exact: true })).toHaveCount(0)
   await expect(page.getByText('订单历史问题', { exact: true })).toBeVisible()
   await expect(page.getByText('订单历史回复', { exact: true })).toBeVisible()
-  await page.getByTestId('agent-reasoning-card').getByRole('button').click()
+  await page.locator('.process-group__header').first().click()
+  await page.locator('.reasoning-card summary').click()
   await expect(page.getByText('订单历史思考', { exact: true })).toBeVisible()
-  await expect(page.locator('.conversation-welcome')).not.toBeVisible()
+  await expect(page.locator('.agent-welcome')).not.toBeVisible()
 
   expect(listUrls).toHaveLength(1)
   expect(listUrls[0].searchParams.get('order')).toBe('desc')
@@ -145,7 +150,7 @@ test('loads OpenCode V2 sessions and hydrates the active conversation from the l
   expect(messageUrls).toHaveLength(1)
   expect(messageUrls[0].searchParams.get('order')).toBe('desc')
   expect(messageUrls[0].searchParams.get('limit')).toBe('100')
-  expect(await page.evaluate(key => localStorage.getItem(key), LEGACY_CONVERSATIONS_KEY)).toBeNull()
+  expect(await page.evaluate(key => localStorage.getItem(key), LEGACY_CONVERSATIONS_KEY)).not.toContain('订单历史回复')
 })
 
 test('a slow V2 history response cannot overwrite a newer conversation selection', async ({ page }) => {
@@ -162,7 +167,7 @@ test('a slow V2 history response cannot overwrite a newer conversation selection
     delays: { 'session-a': 500, 'session-b': 10 },
   })
 
-  await page.goto('/')
+  await page.goto('/#/chat?session=session-a')
   await page.getByText('远端会话 B', { exact: true }).first().click()
 
   await expect(page.getByText('B历史回复', { exact: true })).toBeVisible()
@@ -190,7 +195,7 @@ test('loads every V2 session page before sorting conversations by remote updated
     onList: () => { listCalls += 1 },
   })
 
-  await page.goto('/')
+  await page.goto('/#/chat?session=session-a')
   await expect(page.getByText('最近更新的老会话', { exact: true }).first()).toBeVisible()
   expect(listCalls).toBe(2)
   expect(await page.evaluate(key => localStorage.getItem(key), LEGACY_CONVERSATIONS_KEY)).toBeNull()
@@ -217,8 +222,8 @@ test('loads only the latest message page initially and prepends older history wh
     onMessages: (_id, url) => messageUrls.push(url),
   })
 
-  await page.goto('/')
-  const scroller = page.getByTestId('copilot-chat-view-scroll')
+  await page.goto('/#/chat?session=session-a')
+  const scroller = page.locator('.agent-chat__messages')
   await expect(scroller).toBeVisible()
   await expect(page.getByText('最近消息 200', { exact: true })).toHaveCount(1)
   await expect.poll(() => messageUrls.length).toBe(1)

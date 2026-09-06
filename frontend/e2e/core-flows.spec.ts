@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
 
-const ACTIVE_KEY = 'dataagent.conversations.active.v2.session-thread'
-const MODELS_KEY = 'dataagent.model.selection.v4.by-session'
+const ACTIVE_KEY = 'dataagent.conversations.active.v3'
+const MODELS_KEY = 'dataagent.model.selection.v5.by-session'
 
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({
   status,
@@ -14,13 +14,17 @@ const sse = (events: unknown[]) => events.map(item => `data: ${JSON.stringify(it
 async function seed(page: Page, options?: { active?: string }) {
   const active = options?.active ?? 'session-a'
   await page.addInitScript(({ active }) => {
-    localStorage.setItem('dataagent.conversations.active.v2.session-thread', active)
+    localStorage.setItem('dataagent.conversations.active.v3', active)
   }, { active })
 }
 
-async function mockBaseApi(page: Page, handler?: (route: Route, url: URL) => Promise<boolean> | boolean) {
+async function mockBaseApi(page: Page, handler?: (route: Route, url: URL) => Promise<boolean> | boolean, interrupts: unknown[] = []) {
   await page.route('**/dataagent/web/api/**', async route => {
     const url = new URL(route.request().url())
+    if (url.searchParams.get('mode') === 'hydrate') {
+      const body = route.request().postDataJSON()
+      return route.fulfill({ contentType: 'text/event-stream', body: sse([{ type: 'RUN_STARTED', threadId: body.threadId, runId: body.runId }, { type: 'RUN_FINISHED', threadId: body.threadId, runId: body.runId, ...(interrupts.length ? { outcome: { type: 'interrupt', interrupts } } : {}) }]) })
+    }
     if (handler && await handler(route, url)) return
     if (route.request().method() === 'GET' && url.pathname === '/dataagent/web/api/session') {
       return json(route, {
@@ -66,7 +70,7 @@ async function mockBaseApi(page: Page, handler?: (route: Route, url: URL) => Pro
 test('model selection stays isolated per conversation and entering a thread does not switch backend model', async ({ page }) => {
   await seed(page)
   await page.addInitScript(() => {
-    localStorage.setItem('dataagent.model.selection.v4.by-session', JSON.stringify({
+    localStorage.setItem('dataagent.model.selection.v5.by-session', JSON.stringify({
       'session-a': { providerID: 'openai', id: 'gpt-a' },
       'session-b': { providerID: 'anthropic', id: 'claude-b' },
     }))
@@ -81,10 +85,10 @@ test('model selection stays isolated per conversation and entering a thread does
     return false
   })
 
-  await page.goto('/')
-  await expect(page.locator('.model-selector__select')).toContainText('GPT A')
+  await page.goto('/#/chat?session=session-a')
+  await expect(page.locator('.model-selector')).toContainText('GPT A')
   await page.getByText('会话 B', { exact: true }).click()
-  await expect(page.locator('.model-selector__select')).toContainText('Claude B')
+  await expect(page.locator('.model-selector')).toContainText('Claude B')
   expect(switchCalls).toBe(0)
 })
 
@@ -102,11 +106,11 @@ test('tool catalog is runtime-backed and searchable without category filters', a
     return false
   })
 
-  await page.goto('/')
+  await page.goto('/#/chat?session=session-a')
   await page.getByRole('button', { name: '工具', exact: true }).click()
   await expect(page.locator('.tool-card')).toHaveCount(3)
   await expect(page.locator('.tool-filters')).toHaveCount(0)
-  await page.getByRole('searchbox', { name: '搜索工具或能力' }).fill('warehouse')
+  await page.getByPlaceholder('搜索工具或能力').fill('warehouse')
   await expect(page.locator('.tool-card')).toHaveCount(1)
   await expect(page.locator('.tool-card')).toContainText('warehouse')
 })
@@ -114,9 +118,10 @@ test('tool catalog is runtime-backed and searchable without category filters', a
 test('stop control interrupts the matching OpenCode session', async ({ page }) => {
   await seed(page)
   let interruptCalls = 0
+  let finishRun = () => {}
   await mockBaseApi(page, async (route, url) => {
     if (route.request().method() === 'POST' && url.pathname.endsWith('/agui')) {
-      await new Promise(resolve => setTimeout(resolve, 10_000))
+      await new Promise<void>(resolve => { finishRun = resolve })
       if (!route.request().isNavigationRequest()) {
         await route.fulfill({ status: 200, contentType: 'text/event-stream', body: '' }).catch(() => undefined)
       }
@@ -130,13 +135,14 @@ test('stop control interrupts the matching OpenCode session', async ({ page }) =
     return false
   })
 
-  await page.goto('/')
-  const input = page.getByTestId('copilot-chat-input-textarea')
+  await page.goto('/#/chat?session=session-a')
+  const input = page.locator('.agent-chat__composer [contenteditable="true"]').first()
   await input.fill('执行一个长任务')
-  await page.getByTestId('copilot-chat-input-send').click()
-  await expect(page.getByTestId('copilot-chat-input-send')).toHaveAttribute('aria-label', '停止生成')
-  await page.getByTestId('copilot-chat-input-send').click()
+  await page.locator('.elx-x-sender__send-button').click()
+  await expect(page.locator('.elx-x-sender__loading-button')).toBeVisible()
+  await page.locator('.elx-x-sender__loading-button').click()
   await expect.poll(() => interruptCalls).toBe(1)
+  finishRun()
 })
 
 test('AG-UI interrupt renders schema choices and resolves through resume payload', async ({ page }) => {
@@ -189,45 +195,88 @@ test('AG-UI interrupt renders schema choices and resolves through resume payload
     return true
   })
 
-  await page.goto('/')
-  await page.getByTestId('copilot-chat-input-textarea').fill('触发审批')
-  await page.getByTestId('copilot-chat-input-send').click()
-  await expect(page.getByText('操作确认', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '拒绝', exact: true }).click()
+  await page.goto('/#/chat?session=session-a')
+  await page.locator('.agent-chat__composer [contenteditable="true"]').first().fill('触发审批')
+  await page.locator('.elx-x-sender__send-button').click()
+  await expect(page.locator('.interrupt-card')).toBeVisible()
+  await page.getByRole('button', { name: 'reject', exact: true }).click()
   await expect.poll(() => resumePayload?.payload?.decision).toBe('reject')
   expect(resumePayload?.interruptId).toBe('approval-1')
 })
 
-test('workspace render tool reveals the generated workspace', async ({ page }) => {
-  await seed(page)
-  let runCount = 0
+test('A2UI activity renders a metric through the native surface', async ({ page }) => {
   await mockBaseApi(page, (route, url) => {
     if (route.request().method() !== 'POST' || !url.pathname.endsWith('/agui')) return false
-    runCount += 1
-    const body = route.request().postDataJSON() as any
-    const events = runCount === 1
-      ? [
-          { type: 'RUN_STARTED', threadId: body.threadId, runId: body.runId },
-          { type: 'TOOL_CALL_START', toolCallId: 'workspace-1', toolCallName: 'workspace.render' },
-          { type: 'TOOL_CALL_ARGS', toolCallId: 'workspace-1', delta: JSON.stringify({
-            title: 'E2E 分析结果',
-            widgets: [{ id: 'metric-1', component: 'ui.metric', colSpan: 12, props: { title: '订单量', value: 128 } }],
-          }) },
-          { type: 'TOOL_CALL_END', toolCallId: 'workspace-1' },
-          { type: 'RUN_FINISHED', threadId: body.threadId, runId: body.runId, outcome: { type: 'success' } },
-        ]
-      : [
-          { type: 'RUN_STARTED', threadId: body.threadId, runId: body.runId },
-          { type: 'RUN_FINISHED', threadId: body.threadId, runId: body.runId, outcome: { type: 'success' } },
-        ]
-    route.fulfill({ status: 200, contentType: 'text/event-stream', body: sse(events) })
+    const body = route.request().postDataJSON()
+    void route.fulfill({ contentType: 'text/event-stream', body: sse([
+      { type: 'RUN_STARTED', threadId: body.threadId, runId: body.runId },
+      { type: 'ACTIVITY_SNAPSHOT', messageId: 'metric-ui', activityType: 'a2ui-surface', content: { operations: [
+        { createSurface: { surfaceId: 'sales', catalogId: 'https://opencode-agui-app.local/a2ui/data-agent-catalog.json' } },
+        { updateComponents: { surfaceId: 'sales', components: [
+          { id: 'root', component: 'Column', children: ['orders'] },
+          { id: 'orders', component: 'MetricCard', title: '订单量', value: 128 },
+        ] } },
+      ] } },
+      { type: 'RUN_FINISHED', threadId: body.threadId, runId: body.runId },
+    ]) })
     return true
   })
+  await page.goto('/#/chat?session=session-a')
+  await expect(page.locator('.model-selector')).toContainText('GPT A')
+  await page.locator('.agent-chat__composer [contenteditable="true"]').first().fill('生成指标')
+  await page.locator('.elx-x-sender__send-button').click()
+  await expect(page.locator('.a2ui-card').getByText('订单量', { exact: true })).toBeVisible()
+  await expect(page.locator('.a2ui-card').getByText('128', { exact: true })).toBeVisible()
+})
 
-  await page.goto('/')
-  await page.getByTestId('copilot-chat-input-textarea').fill('生成一个指标工作区')
-  await page.getByTestId('copilot-chat-input-send').click()
-  await expect(page.locator('.dynamic-workspace-shell')).toBeVisible()
-  await expect(page.getByText('E2E 分析结果', { exact: true })).toBeVisible()
-  await expect(page.getByText('128', { exact: true })).toBeVisible()
+test('pending approval survives reload and resumes the matching interrupt', async ({ page }) => {
+  const pending = [{ id: 'restored-form', reason: 'confirmation', message: '确认交付', responseSchema: { type: 'string', enum: ['确认', '取消'] } }]
+  let resumePayload: any
+  await mockBaseApi(page, (route, url) => {
+    if (url.pathname !== '/dataagent/web/api/agui') return false
+    const body = route.request().postDataJSON()
+    resumePayload = body.resume
+    pending.splice(0)
+    void route.fulfill({ contentType: 'text/event-stream', body: sse([
+      { type: 'RUN_STARTED', threadId: body.threadId, runId: body.runId },
+      { type: 'RUN_FINISHED', threadId: body.threadId, runId: body.runId },
+    ]) })
+    return true
+  }, pending)
+  await page.goto('/#/chat?session=session-a')
+  await expect(page.locator('.interrupt-card')).toContainText('确认交付')
+  await page.reload()
+  await expect(page.locator('.interrupt-card')).toContainText('确认交付')
+  await page.locator('.interrupt-card').getByRole('button', { name: '确认', exact: true }).click()
+  await expect.poll(() => resumePayload).toEqual([{ interruptId: 'restored-form', status: 'resolved', payload: '确认' }])
+  await expect(page.locator('.interrupt-card')).toHaveCount(0)
+})
+
+test('text deltas render and retry does not duplicate the submitted user message', async ({ page }) => {
+  const requests: any[] = []
+  await mockBaseApi(page, (route, url) => {
+    if (url.pathname !== '/dataagent/web/api/agui') return false
+    const body = route.request().postDataJSON()
+    requests.push(body)
+    void route.fulfill({ contentType: 'text/event-stream', body: sse([
+      { type: 'RUN_STARTED', threadId: body.threadId, runId: body.runId },
+      ...(requests.length === 1 ? [
+        { type: 'TEXT_MESSAGE_START', messageId: 'answer-one', role: 'assistant' },
+        { type: 'TEXT_MESSAGE_CONTENT', messageId: 'answer-one', delta: '分析' },
+        { type: 'TEXT_MESSAGE_CONTENT', messageId: 'answer-one', delta: '结果' },
+        { type: 'TEXT_MESSAGE_END', messageId: 'answer-one' },
+        { type: 'RUN_ERROR', message: '测试连接中断' },
+      ] : [{ type: 'RUN_FINISHED', threadId: body.threadId, runId: body.runId }]),
+    ]) })
+    return true
+  })
+  await page.goto('/#/chat?session=session-a')
+  await expect(page.locator('.model-selector')).toContainText('GPT A')
+  await page.locator('.agent-chat__composer [contenteditable="true"]').first().fill('分析订单')
+  await page.locator('.elx-x-sender__send-button').click()
+  await expect(page.getByText('分析结果', { exact: true })).toBeVisible()
+  await page.locator('.run-recovery button').click()
+  await expect.poll(() => requests.length).toBe(2)
+  expect(requests[1].messages.filter((message: any) => message.role === 'user')).toHaveLength(1)
+  await expect(page.locator('.run-recovery')).toHaveCount(0)
 })
