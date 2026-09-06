@@ -3,9 +3,9 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRef, watch } fro
 import type { Message, ResumeEntry } from '@ag-ui/client'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
-import { Welcome, XSender } from 'vue-element-plus-x'
+import { Welcome } from 'vue-element-plus-x'
 import type { ModelSelection } from '../../model/types'
-import ModelSelector from '../../model/components/ModelSelector.vue'
+import ConversationComposer from './ConversationComposer.vue'
 import { useAgentConversation } from '../composables/useAgentConversation'
 import { useConversationArtifacts } from '../composables/useConversationArtifacts'
 import { useConversationScroll } from '../composables/useConversationScroll'
@@ -59,12 +59,11 @@ const {
   stop,
 } = useAgentConversation()
 
-const senderRef = ref<any>(null)
+const composerRef = ref<InstanceType<typeof ConversationComposer> | null>(null)
 const selectedModel = ref<ModelSelection | null>(null)
 const { messageScroller, showJumpToLatest, enableFollowing, scrollToBottom, followTextReveal, handleScroll, loadEarlier } = useConversationScroll({
   sessionId: toRef(props, 'sessionId'), messages, hydrating, loadingOlder, nextCursor, loadOlder,
 })
-const fileInput = ref<HTMLInputElement | null>(null)
 const { activePreview, deliverablesOpen, auditOpen, previewApprovalSubmitted,
   openFilePreview, openDeliverable, toggleDeliverables, toggleAudit, closeFilePreview, closePanels, resumePreviewApproval,
 } = useConversationPanels()
@@ -89,19 +88,9 @@ function notifyError(reason: unknown) {
   ElMessage.error(message)
 }
 
-function chooseFiles() {
-  if (!running.value && !pendingInterrupts.value.length) fileInput.value?.click()
-}
-
-function onFilesSelected(event: Event) {
-  const target = event.target as HTMLInputElement
-  if (target.files?.length) stageFiles(target.files)
-  target.value = ''
-}
-
 async function submit() {
   if (running.value || hydrating.value || pendingInterrupts.value.length) return
-  const text = String(senderRef.value?.getModelValue?.()?.text ?? '').trim()
+  const text = (composerRef.value?.getText() ?? '').trim()
   if (!selectedModel.value) {
     ElMessage.warning(t('chat.modelNotReady'))
     return
@@ -110,7 +99,7 @@ async function submit() {
   try {
     enableFollowing()
     await send(text, selectedModel.value, prepared => {
-      if (String(senderRef.value?.getModelValue?.()?.text ?? '').trim() === text) senderRef.value?.clear?.()
+      if ((composerRef.value?.getText() ?? '').trim() === text) composerRef.value?.clear()
       if (prepared.created) emit('materialized', prepared.sessionId, prepared.initialName ?? t('app.newRequest'))
       scrollToBottom()
     })
@@ -133,8 +122,8 @@ async function resumeRun(entries: ResumeEntry[]) {
 }
 
 function useStarterPrompt(prompt: string) {
-  senderRef.value?.setText?.(prompt)
-  void nextTick(() => senderRef.value?.focus?.('last'))
+  composerRef.value?.setText(prompt)
+  void nextTick(() => composerRef.value?.focus())
 }
 
 async function retryRun() {
@@ -156,8 +145,8 @@ function continueFromStep(message: Message) {
       : firstTool ? (labels[String(firstTool).toLowerCase()] ?? t('chat.toolStep'))
         : role === 'activity' ? t('chat.runStatus')
           : messageText(message).replace(/\s+/g, ' ').trim().slice(0, 48) || t('chat.stepFallback')
-  senderRef.value?.setText?.(t('chat.continuePrompt', { label }))
-  void nextTick(() => senderRef.value?.focus?.('last'))
+  composerRef.value?.setText(t('chat.continuePrompt', { label }))
+  void nextTick(() => composerRef.value?.focus())
 }
 
 function exportConversation() {
@@ -184,7 +173,7 @@ function onGlobalKeydown(event: KeyboardEvent) {
   const target = event.target as HTMLElement | null
   if (event.key === '/' && !target?.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')) {
     event.preventDefault()
-    senderRef.value?.focus?.('last')
+    composerRef.value?.focus()
   }
   if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLocaleLowerCase() === 'e' && props.sessionId) {
     event.preventDefault()
@@ -249,7 +238,7 @@ watch(() => props.sessionId, id => {
   if ((id ?? '') === threadId.value) return
   closePanels()
   selectedModel.value = null
-  senderRef.value?.clear?.()
+  composerRef.value?.clear()
   void open(id ?? '')
 }, { immediate: true })
 
@@ -266,7 +255,6 @@ onMounted(() => {
   window.addEventListener('keydown', onGlobalKeydown)
 })
 onBeforeUnmount(() => {
-  fileInput.value = null
   window.removeEventListener('keydown', onGlobalKeydown)
 })
 </script>
@@ -428,57 +416,18 @@ onBeforeUnmount(() => {
         @resume="resumeRun"
       />
 
-      <div class="agent-chat__composer">
-        <div v-if="attachments.length" class="attachment-queue">
-          <div v-for="item in attachments" :key="item.id" class="attachment-chip">
-            <span>{{ item.file.name }}</span>
-            <small>{{ Math.max(1, Math.ceil(item.file.size / 1024)) }} KB</small>
-            <button type="button" :aria-label="t('chat.removeAttachment')" @click="removeAttachment(item.id)">×</button>
-          </div>
-        </div>
-
-        <XSender
-          ref="senderRef"
-          variant="updown"
-          :loading="running"
-          :disabled="Boolean(pendingInterrupts.length)"
-          :placeholder="t('chat.placeholder')"
-          :custom-style="{ maxHeight: '10rem' }"
-          @submit="submit"
-          @cancel="stopRun"
-        >
-          <template #prefix>
-            <div class="composer-input-actions">
-              <el-button
-                class="composer-file-button"
-                text
-                :title="t('chat.addFile')"
-                :aria-label="t('chat.addFile')"
-                :disabled="running || Boolean(pendingInterrupts.length)"
-                @click="chooseFiles"
-              ><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10"/></svg></el-button>
-              <ModelSelector
-                :session-id="sessionId"
-                :draft="!sessionId"
-                :disabled="running || Boolean(pendingInterrupts.length)"
-                @selected="selectedModel = $event"
-              />
-            </div>
-          </template>
-        </XSender>
-
-        <input
-          ref="fileInput"
-          class="file-input"
-          type="file"
-          multiple
-          @change="onFilesSelected"
-        />
-        <div class="composer-assurance">
-          <span><i></i> DATA AGENT WORKFLOW</span>
-          <small>{{ t('chat.assurance') }}</small>
-        </div>
-      </div>
+      <ConversationComposer
+        ref="composerRef"
+        :session-id="sessionId"
+        :running="running"
+        :pending-approval-count="pendingInterrupts.length"
+        :attachments="attachments"
+        @submit="submit"
+        @stop="stopRun"
+        @selected="selectedModel = $event"
+        @files="stageFiles"
+        @remove-attachment="removeAttachment"
+      />
     </div>
   </section>
 
@@ -553,7 +502,6 @@ onBeforeUnmount(() => {
 .run-recovery { display: flex; width: min(100%, var(--da-content-max)); align-items: center; justify-content: space-between; gap: var(--da-space-4); margin: 0 auto var(--da-space-2); padding: var(--da-space-2) var(--da-space-3); border: 0.0625rem solid color-mix(in srgb, var(--da-accent-orange) 30%, var(--da-border)); border-radius: var(--da-radius-md); background: color-mix(in srgb, var(--da-accent-orange) 5%, var(--da-surface-1)); }
 .run-recovery > span { display: grid; min-width: 0; gap: 0.125rem; }.run-recovery b { color: var(--da-text-primary); font-size: var(--da-font-size-xs); }.run-recovery small { overflow: hidden; color: var(--da-text-muted); font-size: 0.6875rem; text-overflow: ellipsis; white-space: nowrap; }
 .run-recovery button { flex: 0 0 auto; padding: var(--da-space-1) var(--da-space-3); border: 0.0625rem solid var(--da-border-strong); border-radius: var(--da-radius-sm); color: var(--da-text-primary); background: var(--da-surface-2); cursor: pointer; font-size: var(--da-font-size-xs); }.run-recovery button:hover { border-color: var(--da-border-focus); }
-.agent-chat__composer { width: min(100%, var(--da-content-max)); min-width: 0; margin: 0 auto; }
 .approval-dock { display: flex; width: min(100%, var(--da-content-max)); align-items: center; gap: var(--da-space-3); margin: 0 auto var(--da-space-3); padding: var(--da-space-3); border: 0.0625rem solid color-mix(in srgb, var(--da-accent-yellow) 28%, var(--da-border)); border-radius: var(--da-radius-lg); background: var(--da-surface-2); box-shadow: var(--da-shadow-card); }
 .approval-dock__icon { display: grid; width: 2rem; height: 2rem; flex: 0 0 auto; place-items: center; border-radius: var(--da-radius-md); color: var(--da-accent-yellow); background: var(--da-accent-yellow-soft); }
 .approval-dock > div { display: grid; min-width: 0; flex: 1; gap: 0.2rem; }
@@ -564,31 +512,12 @@ onBeforeUnmount(() => {
 .agent-chat--empty .agent-chat__messages { overflow: visible; padding-block: 0; }
 .agent-chat--empty .agent-welcome { min-height: 0; padding: 0; }
 .agent-chat--empty .agent-chat__composer-wrap { padding-bottom: 0; background: transparent; }
-.agent-chat__composer :deep(.elx-x-sender .elx-x-sender__content.elx-x-sender__content--variant-updown .elx-x-sender__updown-action-list .elx-x-sender__prefix) { min-width: 0; flex: 1; padding-right: 0; }
-.composer-input-actions { display: flex; width: 100%; min-width: 0; align-items: center; gap: var(--da-space-2); }
-.composer-input-actions :deep(.model-selector) { margin-left: 0; }
-.composer-file-button svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.45; }
-.attachment-queue { display: flex; flex-wrap: wrap; gap: var(--da-space-2); margin-bottom: var(--da-space-2); }
-.attachment-chip { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--da-space-2); max-width: 24rem; padding: var(--da-space-2) var(--da-space-3); border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-md); background: var(--da-surface-2); }
-.attachment-chip span { overflow: hidden; color: var(--da-text-primary); font-size: var(--da-font-size-sm); text-overflow: ellipsis; white-space: nowrap; }
-.attachment-chip small { color: var(--da-text-muted); font-size: var(--da-font-size-xs); }
-.attachment-chip button { width: 1.5rem; height: 1.5rem; padding: 0; border: 0; border-radius: 50%; color: var(--da-text-muted); background: transparent; cursor: pointer; }
-.attachment-chip button:hover { color: var(--da-text-emphasis); background: var(--da-surface-3); }
-.file-input { display: none; }
-.composer-assurance { display: flex; align-items: center; justify-content: space-between; gap: var(--da-space-3); padding: var(--da-space-2) var(--da-space-2) 0; color: var(--da-text-subtle); font-size: 0.6875rem; }
-.composer-assurance span { display: inline-flex; align-items: center; gap: var(--da-space-2); color: var(--da-text-muted); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-weight: 600; letter-spacing: 0.06em; }
-.composer-assurance i { width: 0.3125rem; height: 0.3125rem; border-radius: 50%; background: var(--da-accent-green); box-shadow: 0 0 0.5rem var(--da-accent-green-soft); }
-.composer-assurance small { color: inherit; font-size: inherit; }
-.agent-chat__composer :deep(.x-sender), .agent-chat__composer :deep(.elx-xsender), .agent-chat__composer :deep(.elx-x-sender) { border-color: var(--da-border-strong); background: var(--da-surface-1); box-shadow: var(--da-shadow-soft); }
-.agent-chat__composer :deep([contenteditable='true']), .agent-chat__composer :deep(.chat-write-wrap), .agent-chat__composer :deep(.chat-write-input) { color: var(--da-text-primary); caret-color: var(--da-text-emphasis); }
 
 @media (max-width: 48rem) {
   .agent-chat-layout--preview { position: relative; display: block; }
   .agent-chat-layout--preview > :deep(.file-preview-panel), .agent-chat-layout--preview > :deep(.deliverables-panel), .agent-chat-layout--preview > :deep(.audit-panel) { position: absolute; inset: 0; z-index: 10; }
   .agent-chat__messages { padding-inline: var(--da-space-4); }
   .agent-chat__composer-wrap { padding-inline: var(--da-space-4); }
-  .composer-input-actions :deep(.model-selector) { max-width: min(17rem, 48vw); }
-  .composer-assurance small { display: none; }
   .starter-prompts { grid-template-columns: 1fr; }
   .starter-prompts button { padding-block: var(--da-space-3); }
 }

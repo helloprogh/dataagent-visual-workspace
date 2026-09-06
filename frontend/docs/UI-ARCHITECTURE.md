@@ -16,6 +16,7 @@
 | 侧面板状态 | `useConversationPanels.ts` | 交付/审计互斥、预览返回路径、关闭与迟到审批回执保护 |
 | 会话头部 | `ConversationHeader.vue` | 会话身份、运行状态和面板操作；包含头部响应式样式，不调用运行 API |
 | 侧面板出口 | `ConversationInspector.vue` | 按预览、交付列表、审计的优先级选择面板并转发事件，不复制面板状态 |
+| 输入组件 | `ConversationComposer.vue` | XSender、模型展示、文件选择器和附件队列展示；通过文本方法及事件与运行编排交互 |
 | 交付与审计派生 | `useConversationArtifacts.ts` | 聚合消息附件、生成式文件卡、工具生成文件；处理删除、版本编号、审批关联和预览同步；派生审计记录 |
 | 文件预览 | `FilePreviewPanel.vue` | Markdown、图片、PDF、文本、ZIP 目录及内部文件预览，文件审批入口 |
 | 人工审批 | `InterruptCard.vue`、`approval.ts` | 根据 responseSchema 展示表单，生成确认/取消的恢复参数 |
@@ -45,7 +46,7 @@
 
 ## 后续可独立处理的部分
 
-- AgentChat 的展示派生、面板状态、头部和 Inspector 已拆分；输入区和快捷键仍可继续拆分。预览审批回执绑定打开代次、文件 ID 和中断 ID，关闭/重开或切换文件后不会标记新预览。
+- AgentChat 的展示派生、面板状态、头部、Inspector 和输入区已拆分。快捷键仍由编排层注册，通过输入组件的 getText/clear/setText/focus 接口操作，不再访问 XSender 实例。预览审批回执绑定打开代次、文件 ID 和中断 ID，关闭/重开或切换文件后不会标记新预览。
 - FilePreviewPanel 同时管理普通文件和 ZIP 内部文件请求，可按预览数据源继续拆分，保留现有 AbortController。
 - ModelSelector 已补充失败回滚和会话请求隔离，行为由浏览器回归覆盖。
 - 消息和生成式内容边界仍有较多 `any`，后续可在协议归一化层收窄类型，避免在模板层重复猜测数据形态。
