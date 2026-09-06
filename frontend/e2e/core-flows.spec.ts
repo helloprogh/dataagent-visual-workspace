@@ -115,6 +115,48 @@ test('tool catalog is runtime-backed and searchable without category filters', a
   await expect(page.locator('.tool-card')).toContainText('warehouse')
 })
 
+test('failed model switch restores the effective selection', async ({ page }) => {
+  let calls = 0
+  await mockBaseApi(page, (route, url) => {
+    if (route.request().method() !== 'POST' || !url.pathname.endsWith('/model')) return false
+    calls += 1
+    void json(route, { message: '模型切换失败' }, 500)
+    return true
+  })
+  await page.goto('/#/chat?session=session-a')
+  await expect(page.locator('.model-selector')).toContainText('GPT A')
+  await page.locator('.model-selector').click()
+  await page.getByRole('option', { name: 'Claude B' }).click()
+  await expect.poll(() => calls).toBe(1)
+  await expect(page.locator('.model-selector')).toContainText('GPT A')
+  await expect(page.getByRole('combobox', { name: '选择模型' })).toBeEnabled()
+})
+
+test('switching conversation during model loading ignores the old response', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('dataagent.model.selection.v5.by-session', JSON.stringify({
+    'session-b': { providerID: 'anthropic', id: 'claude-b' },
+  })))
+  let release = () => {}
+  const delayed = new Promise<void>(resolve => { release = resolve })
+  let loads = 0
+  await mockBaseApi(page, async (route, url) => {
+    if (url.pathname !== '/dataagent/web/api/model') return false
+    loads += 1
+    if (loads !== 1) return false
+    await delayed
+    await json(route, { data: [{ providerID: 'openai', id: 'old', name: 'Stale model' }] })
+    return true
+  })
+  await page.goto('/#/chat?session=session-a')
+  await expect.poll(() => loads).toBe(1)
+  await page.getByText('会话 B', { exact: true }).click()
+  await expect(page.locator('.model-selector')).toContainText('Claude B')
+  const response = page.waitForResponse(async response => response.url().endsWith('/model') && (await response.text()).includes('Stale model'))
+  release()
+  await response
+  await expect(page.locator('.model-selector')).toContainText('Claude B')
+})
+
 test('stop control interrupts the matching OpenCode session', async ({ page }) => {
   await seed(page)
   let interruptCalls = 0

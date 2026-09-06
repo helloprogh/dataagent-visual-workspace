@@ -49,17 +49,20 @@ export function useAgentConversation() {
   }
 
   async function runWithState<T>(operation: () => Promise<T>, restore?: () => void): Promise<T> {
+    const currentGeneration = generation
     stopped.value = false
     error.value = ''
     running.value = true
     try {
       return await operation()
     } catch (reason) {
-      restore?.()
-      error.value = errorMessage(reason)
+      if (currentGeneration === generation) {
+        restore?.()
+        error.value = errorMessage(reason)
+      }
       throw reason
     } finally {
-      running.value = false
+      if (currentGeneration === generation) running.value = false
     }
   }
 
@@ -90,6 +93,7 @@ export function useAgentConversation() {
     messages.value = []
     pendingInterrupts.value = []
     nextCursor.value = undefined
+    loadingOlder.value = false
     previewUrls.forEach(url => URL.revokeObjectURL(url))
     previewUrls.clear()
     attachments.value = []
@@ -196,6 +200,7 @@ export function useAgentConversation() {
   }
 
   async function loadOlder() {
+    const currentGeneration = generation
     const id = threadId.value
     const cursor = nextCursor.value
     const target = agent.value
@@ -203,15 +208,16 @@ export function useAgentConversation() {
     loadingOlder.value = true
     try {
       const page = await fetchConversationMessagePage(id, cursor)
+      if (currentGeneration !== generation || agent.value !== target) return
       const known = new Set(target.messages.map(message => message.id))
       const older = page.messages.filter(message => !known.has(message.id))
       if (older.length) target.setMessages([...older, ...target.messages])
       nextCursor.value = page.nextCursor
       syncMessages()
     } catch (reason) {
-      error.value = errorMessage(reason)
+      if (currentGeneration === generation) error.value = errorMessage(reason)
     } finally {
-      loadingOlder.value = false
+      if (currentGeneration === generation) loadingOlder.value = false
     }
   }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { getDefaultModel, getSelectedModel, listModels, switchSessionModel } from '../api/model'
@@ -17,6 +17,8 @@ const selectedKey = ref('')
 const loading = ref(false)
 const changing = ref(false)
 const { t } = useI18n()
+let generation = 0
+onBeforeUnmount(() => { generation += 1 })
 
 const disabled = computed(() => Boolean(props.disabled || loading.value || changing.value))
 const modelByKey = computed(() => new Map(models.value.map(model => [`${model.providerID}::${model.id}`, model])))
@@ -27,12 +29,19 @@ function keyOf(model: ModelSelection) {
 }
 
 async function load() {
+  const request = ++generation
+  const sessionId = props.sessionId
   loading.value = true
+  changing.value = false
+  selectedKey.value = ''
   try {
     const [catalog, defaultModel] = await Promise.all([listModels(), getDefaultModel()])
+    if (request !== generation) return
     models.value = catalog
-    const remembered = props.sessionId ? getSelectedModel(props.sessionId) : null
-    const initial = remembered ?? defaultModel ?? catalog[0] ?? null
+    const remembered = sessionId ? getSelectedModel(sessionId) : null
+    const initial = catalog.find(model => remembered && keyOf(model) === keyOf(remembered))
+      ?? catalog.find(model => defaultModel && keyOf(model) === keyOf(defaultModel))
+      ?? catalog[0] ?? null
     if (initial) {
       selectedKey.value = keyOf(initial)
       // Reading an existing session must never call the switch API. Emit the
@@ -41,15 +50,20 @@ async function load() {
       emit('selected', initial)
     }
   } catch (error) {
+    if (request !== generation) return
     ElMessage.error(error instanceof Error ? error.message : String(error))
   } finally {
-    loading.value = false
+    if (request === generation) loading.value = false
   }
 }
 
 async function change(key: string) {
+  if (disabled.value) return
   const model = modelByKey.value.get(key)
   if (!model) return
+  const request = generation
+  const previousKey = selectedKey.value
+  const sessionId = props.sessionId
   selectedKey.value = key
   if (props.draft || !props.sessionId) {
     emit('selected', model)
@@ -57,20 +71,19 @@ async function change(key: string) {
   }
   changing.value = true
   try {
-    await switchSessionModel(props.sessionId, model)
+    await switchSessionModel(sessionId!, model)
+    if (request !== generation) return
     emit('selected', model)
   } catch (error) {
+    if (request !== generation) return
+    selectedKey.value = previousKey
     ElMessage.error(error instanceof Error ? error.message : String(error))
   } finally {
-    changing.value = false
+    if (request === generation) changing.value = false
   }
 }
 
-watch(() => props.sessionId, () => {
-  if (!loading.value) void load()
-})
-
-onMounted(load)
+watch(() => props.sessionId, load, { immediate: true })
 </script>
 
 <template>

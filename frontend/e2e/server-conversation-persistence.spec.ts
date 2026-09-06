@@ -57,6 +57,7 @@ async function mockApis(page: Page, options: {
   delays?: Record<string, number>
   onList?: (url: URL) => void
   onMessages?: (sessionId: string, url: URL) => void
+  beforeMessages?: (sessionId: string, url: URL) => Promise<void>
 }) {
   await page.route('**/dataagent/web/api/**', async route => {
     const request = route.request()
@@ -70,6 +71,7 @@ async function mockApis(page: Page, options: {
     if (request.method() === 'GET' && messageMatch) {
       const sessionId = decodeURIComponent(messageMatch[1])
       options.onMessages?.(sessionId, url)
+      await options.beforeMessages?.(sessionId, url)
       const delay = options.delays?.[sessionId] ?? 0
       if (delay) await new Promise(resolve => setTimeout(resolve, delay))
       const pages = options.messagePages?.[sessionId] ?? [options.messages?.[sessionId] ?? []]
@@ -243,4 +245,46 @@ test('loads only the latest message page initially and prepends older history wh
   expect(messageUrls[1].searchParams.has('order')).toBe(false)
   expect(messageUrls[1].searchParams.get('limit')).toBe('100')
   await expect.poll(async () => scroller.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
+})
+
+test('late pagination from another session preserves the current session cursor', async ({ page }) => {
+  let release = () => {}
+  const gate = new Promise<void>(resolve => { release = resolve })
+  let oldPageRequested = false
+  const latest = (prefix: string) => Array.from({ length: 100 }, (_, index) => ({
+    id: `${prefix}-${index}`, type: 'user', text: `${prefix} message ${index}`, time: { created: 200 - index },
+  }))
+  await mockApis(page, {
+    sessions: [
+      { id: 'session-a', title: 'A分页', time: { created: 1, updated: 2 } },
+      { id: 'session-b', title: 'B分页', time: { created: 1, updated: 1 } },
+    ],
+    messagePages: {
+      'session-a': [latest('A'), history('old-a', 'A旧页')],
+      'session-b': [latest('B'), history('old-b', 'B旧页')],
+    },
+    beforeMessages: async (id, url) => {
+      if (id === 'session-a' && url.searchParams.has('cursor')) {
+        oldPageRequested = true
+        await gate
+      }
+    },
+  })
+  await page.goto('/#/chat?session=session-a')
+  const scroller = page.locator('.agent-chat__messages')
+  await expect.poll(() => scroller.evaluate(el => el.scrollTop)).toBeGreaterThan(0)
+  await scroller.evaluate(el => { el.scrollTop = 0; el.dispatchEvent(new Event('scroll')) })
+  await expect.poll(() => oldPageRequested).toBe(true)
+  await page.getByText('B分页', { exact: true }).click()
+  await expect(page.getByText('B message 0', { exact: true })).toBeVisible()
+  const response = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.pathname.endsWith('/session/session-a/message') && url.searchParams.has('cursor')
+  })
+  release()
+  await response
+  await expect(page.getByText('A旧页历史回复', { exact: true })).toHaveCount(0)
+  await expect.poll(() => scroller.evaluate(el => el.scrollTop)).toBeGreaterThan(0)
+  await scroller.evaluate(el => { el.scrollTop = 0; el.dispatchEvent(new Event('scroll')) })
+  await expect(page.getByText('B旧页历史回复', { exact: true })).toHaveCount(1)
 })
