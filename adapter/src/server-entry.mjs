@@ -128,7 +128,7 @@ const proxyDirectApi = async (client, req, res, url) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title: 'AG-UI session',
+        title: typeof input?.title === 'string' && input.title.trim() ? input.title.trim() : 'AG-UI session',
         location: { directory: client.workspaceDirectory },
         ...(model ? { model } : {}),
       }),

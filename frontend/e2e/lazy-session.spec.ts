@@ -19,12 +19,13 @@ async function mockLazyApi(page: Page, hooks?: {
   onUpload?: (body: string) => void
 }) {
   let created = false
+  let createdTitle = ''
   await page.route('**/dataagent/web/api/**', async route => {
     const request = route.request()
     const url = new URL(request.url())
 
     if (request.method() === 'GET' && url.pathname === '/dataagent/web/api/session') {
-      return json(route, { data: created ? [{ id: 'session-created', title: '新需求', time: { created: 1, updated: 1 } }] : [], cursor: {} })
+      return json(route, { data: created ? [{ id: 'session-created', title: createdTitle, time: { created: 1, updated: 1 } }] : [], cursor: {} })
     }
     if (request.method() === 'GET' && url.pathname.endsWith('/model')) {
       return json(route, { data: [
@@ -37,6 +38,7 @@ async function mockLazyApi(page: Page, hooks?: {
     }
     if (request.method() === 'POST' && url.pathname.endsWith('/session')) {
       created = true
+      createdTitle = request.postDataJSON().title
       hooks?.onCreateSession?.(request.postDataJSON())
       return json(route, { data: { id: 'session-created' } })
     }
@@ -103,7 +105,7 @@ test('new conversation stays local until first send, then creates one session wi
   await page.locator('.elx-x-sender__send-button').click()
 
   await expect.poll(() => createCalls).toBe(1)
-  expect(createBody).toEqual({ model: { providerID: 'openai', id: 'gpt-a' } })
+  expect(createBody).toEqual({ title: '分析本月订单', model: { providerID: 'openai', id: 'gpt-a' } })
   await expect.poll(() => aguiBody?.threadId).toBe('session-created')
   expect(switchCalls).toBe(0)
 
@@ -116,6 +118,10 @@ test('new conversation stays local until first send, then creates one session wi
   expect(stored.legacyConversations).toBeNull()
   expect(stored.active).toBe('session-created')
   expect(stored.models['session-created']).toMatchObject({ providerID: 'openai', id: 'gpt-a' })
+  expect(await page.evaluate(() => localStorage.getItem('dataagent.conversations.aliases.v1'))).toBeNull()
+  await page.evaluate(() => localStorage.clear())
+  await page.reload()
+  await expect(page.locator('.session-item')).toContainText('分析本月订单')
 })
 
 test('draft attachment is not uploaded until send and then uses the real session id', async ({ page }) => {

@@ -246,13 +246,14 @@ export function useAgentConversation() {
 
   async function ensureAgent(model: ModelSelection, initialText: string) {
     if (agent.value && threadId.value) return { client: agent.value, sessionId: threadId.value, created: false }
-    const sessionId = await createConversation(model)
+    const initialName = deriveConversationName(initialText)
+    const sessionId = await createConversation(model, initialName)
     rememberSelectedModel(sessionId, model)
     const client = createAgentClient(sessionId)
     agent.value = client
     threadId.value = sessionId
     bind(client)
-    return { client, sessionId, created: true, initialName: deriveConversationName(initialText) }
+    return { client, sessionId, created: true, initialName }
   }
 
   async function send(text: string, model: ModelSelection, onAccepted?: (receipt: SendReceipt) => void) {

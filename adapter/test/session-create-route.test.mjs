@@ -11,7 +11,8 @@ const close = (server) => new Promise((resolve, reject) => {
   server.close(error => error ? reject(error) : resolve())
 })
 
-test('POST /dataagent/web/api/session forwards the selected model to OpenCode session creation', async () => {
+for (const title of [undefined, '', '  ', 42, '  分析本月订单  ']) {
+test(`POST session forwards model and normalizes initial title ${JSON.stringify(title)}`, async () => {
   const calls = []
   const client = {
     workspaceDirectory: 'D:\\ProjectSpace\\dataagent',
@@ -28,6 +29,7 @@ test('POST /dataagent/web/api/session forwards the selected model to OpenCode se
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        title,
         model: {
           providerID: 'test',
           id: 'test',
@@ -40,7 +42,7 @@ test('POST /dataagent/web/api/session forwards the selected model to OpenCode se
     assert.equal(calls.length, 1)
     assert.equal(calls[0].pathname, '/api/session')
     assert.deepEqual(JSON.parse(calls[0].init.body), {
-      title: 'AG-UI session',
+      title: typeof title === 'string' && title.trim() ? title.trim() : 'AG-UI session',
       location: { directory: 'D:\\ProjectSpace\\dataagent' },
       model: {
         providerID: 'test',
@@ -51,6 +53,8 @@ test('POST /dataagent/web/api/session forwards the selected model to OpenCode se
     await close(server)
   }
 })
+
+}
 
 test('conversation list and message history routes proxy OpenCode responses inside gateway data', async () => {
   const calls = []
@@ -85,7 +89,6 @@ test('conversation list and message history routes proxy OpenCode responses insi
     await close(server)
   }
 })
-
 test('session rename forwards POST title and preserves upstream 204 and errors', async () => {
   const calls = []
   const client = {

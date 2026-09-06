@@ -2,10 +2,10 @@ import { dataAgentWebApi } from '../../../shared/config/api'
 import { requestJson } from '../../../shared/api/http'
 import type { ModelSelection } from '../../model/types'
 
-export async function createConversation(model: ModelSelection): Promise<string> {
+export async function createConversation(model: ModelSelection, title: string): Promise<string> {
   const body = await requestJson<any>(dataAgentWebApi('/session'), {
     method: 'POST',
-    body: JSON.stringify({ model: { providerID: model.providerID, id: model.id } }),
+    body: JSON.stringify({ title, model: { providerID: model.providerID, id: model.id } }),
   }, '新建对话失败')
 
   if (body?.code != null && body.code !== 20000) {

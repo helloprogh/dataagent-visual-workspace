@@ -50,13 +50,6 @@ export function useSessions() {
     setActive(id)
   }
 
-  function setAlias(id: string, name: string) {
-    const normalized = name.trim()
-    if (!normalized) return
-    aliases.value = { ...aliases.value, [id]: normalized }
-    localStorage.setItem(ALIAS_KEY, JSON.stringify(aliases.value))
-  }
-
   async function rename(id: string, name: string) {
     const normalized = name.trim()
     if (!normalized) throw new Error('对话名称不能为空')
@@ -81,7 +74,6 @@ export function useSessions() {
       const now = Date.now()
       sessions.value = [{ id, displayName, createdAt: now, updatedAt: now }, ...sessions.value]
     }
-    if (displayName.trim()) setAlias(id, displayName)
     setActive(id)
   }
 
