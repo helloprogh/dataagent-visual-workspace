@@ -39,6 +39,9 @@ const messages = {
       title: '历史需求',
       description: '继续之前的数据需求，或回顾已经完成的分析与交付记录。',
       empty: '暂无历史需求',
+      search: '搜索历史需求', fromDate: '更新开始日期', toDate: '更新结束日期',
+      total: '共 {count} 条需求', noMatches: '没有匹配的历史需求',
+      pagination: '历史分页', previous: '上一页', next: '下一页', page: '第 {page} / {total} 页',
       rename: '重命名',
     },
     skill: {
@@ -224,6 +227,9 @@ const messages = {
       title: 'Request history',
       description: 'Continue a previous data request or review completed analysis and delivery records.',
       empty: 'No request history',
+      search: 'Search history', fromDate: 'Updated from', toDate: 'Updated through',
+      total: '{count} requests', noMatches: 'No matching requests',
+      pagination: 'History pagination', previous: 'Previous', next: 'Next', page: 'Page {page} of {total}',
       rename: 'Rename',
     },
     skill: {
