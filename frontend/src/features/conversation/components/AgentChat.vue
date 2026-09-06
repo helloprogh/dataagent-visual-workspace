@@ -9,6 +9,8 @@ import ModelSelector from '../../model/components/ModelSelector.vue'
 import { useAgentConversation } from '../composables/useAgentConversation'
 import { useConversationArtifacts } from '../composables/useConversationArtifacts'
 import { useConversationScroll } from '../composables/useConversationScroll'
+import { useConversationPanels } from '../composables/useConversationPanels'
+import { useConversationPresentation } from '../composables/useConversationPresentation'
 import AgentMark from './AgentMark.vue'
 import ConversationMessage from './ConversationMessage.vue'
 import ConversationProcessGroup from './ConversationProcessGroup.vue'
@@ -17,10 +19,9 @@ import AuditPanel from './AuditPanel.vue'
 import FilePreviewPanel from './FilePreviewPanel.vue'
 import GeneratedArtifactCard from './GeneratedArtifactCard.vue'
 import InterruptCard from './InterruptCard.vue'
-import type { ConversationFilePreview } from '../types/filePreview'
 import { buildCancellationResumeEntry, buildConfirmationResumeEntry } from '../approval'
 import { userFacingSessionName } from '../presentation'
-import { buildPresentation, messageText } from '../processPresentation'
+import { messageText } from '../processPresentation'
 
 const props = defineProps<{
   sessionId?: string
@@ -65,10 +66,9 @@ const { messageScroller, showJumpToLatest, enableFollowing, scrollToBottom, foll
   sessionId: toRef(props, 'sessionId'), messages, hydrating, loadingOlder, nextCursor, loadOlder,
 })
 const fileInput = ref<HTMLInputElement | null>(null)
-const activePreview = ref<ConversationFilePreview | null>(null)
-const deliverablesOpen = ref(false)
-const auditOpen = ref(false)
-const previewApprovalSubmitted = ref(false)
+const { activePreview, deliverablesOpen, auditOpen, previewApprovalSubmitted,
+  openFilePreview, openDeliverable, toggleDeliverables, toggleAudit, closeFilePreview, closePanels, resumePreviewApproval,
+} = useConversationPanels()
 let lastNotifiedError = ''
 
 const welcomeDescription = computed(() => t('chat.welcomeDescription'))
@@ -78,34 +78,9 @@ const starterPrompts = computed(() => [
   { icon: '✓', ...(tm('chat.starters.quality') as any) },
 ])
 
-const presentationItems = computed(() => buildPresentation(messages.value, running.value, activeReasoningId.value))
-const showResponsePending = computed(() => {
-  if (!running.value) return false
-  if (responsePhase.value === 'waiting') return true
-  if (responsePhase.value === 'responding') return Boolean(activeTextId.value) && !messages.value.some(message => message.id === activeTextId.value && messageText(message))
-  return false
-})
-
 const { deliverables, auditEntries } = useConversationArtifacts(messages, pendingInterrupts, attachments, activePreview)
-
-const previewInterrupts = computed(() => {
-  const interruptId = activePreview.value?.approvalInterruptId
-  if (!interruptId) return []
-  return pendingInterrupts.value.filter(interrupt => interrupt.id === interruptId)
-})
-
-const pendingInterruptIds = computed(() => pendingInterrupts.value.map(interrupt => interrupt.id))
-const deliveryApprovalIds = computed(() => new Set(deliverables.value
-  .map(file => file.approvalInterruptId)
-  .filter((id): id is string => Boolean(id))))
-const pendingDelivery = computed(() => deliverables.value.find(file =>
-  file.approvalInterruptId && pendingInterruptIds.value.includes(file.approvalInterruptId)))
-// A single delivery approval can be acted on from its file card. When a run
-// has multiple interrupts, keep the aggregate card visible because the API
-// requires all decisions to be resumed together.
-const composerInterrupts = computed(() => {
-  if (pendingInterrupts.value.length !== 1) return pendingInterrupts.value
-  return pendingInterrupts.value.filter(interrupt => !deliveryApprovalIds.value.has(interrupt.id))
+const { presentationItems, showResponsePending, previewInterrupts, pendingInterruptIds, pendingDelivery, composerInterrupts, generatedFilesForProcess } = useConversationPresentation({
+  messages, running, activeReasoningId, activeTextId, responsePhase, pendingInterrupts, deliverables, activePreview,
 })
 
 function notifyError(reason: unknown) {
@@ -163,32 +138,6 @@ function useStarterPrompt(prompt: string) {
   void nextTick(() => senderRef.value?.focus?.('last'))
 }
 
-function openFilePreview(file: ConversationFilePreview) {
-  deliverablesOpen.value = false
-  auditOpen.value = false
-  activePreview.value = file
-  previewApprovalSubmitted.value = false
-}
-
-function openDeliverable(file: ConversationFilePreview) {
-  deliverablesOpen.value = true
-  auditOpen.value = false
-  activePreview.value = file
-  previewApprovalSubmitted.value = false
-}
-
-function toggleDeliverables() {
-  activePreview.value = null
-  auditOpen.value = false
-  deliverablesOpen.value = !deliverablesOpen.value
-}
-
-function toggleAudit() {
-  activePreview.value = null
-  deliverablesOpen.value = false
-  auditOpen.value = !auditOpen.value
-}
-
 async function retryRun() {
   try {
     await retry()
@@ -230,9 +179,7 @@ function exportConversation() {
 
 function onGlobalKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
-    closeFilePreview()
-    deliverablesOpen.value = false
-    auditOpen.value = false
+    closePanels()
     return
   }
   const target = event.target as HTMLElement | null
@@ -246,13 +193,8 @@ function onGlobalKeydown(event: KeyboardEvent) {
   }
 }
 
-function closeFilePreview() {
-  activePreview.value = null
-  previewApprovalSubmitted.value = false
-}
-
 async function resumeFileApproval(entries: ResumeEntry[]) {
-  if (await resumeRun(entries)) previewApprovalSubmitted.value = true
+  await resumePreviewApproval(entries, resumeRun)
 }
 
 async function confirmDelivery(interruptId: string) {
@@ -284,11 +226,6 @@ async function cancelDelivery(interruptId: string) {
   await resumeRun([entry])
 }
 
-function generatedFilesForProcess(steps: any[]) {
-  const ids = new Set(steps.map(step => step?.message?.id).filter(Boolean))
-  return deliverables.value.filter(file => file.sourceMessageId && ids.has(file.sourceMessageId))
-}
-
 async function handleA2uiAction(action: unknown) {
   try {
     if (await sendA2uiAction(action)) {
@@ -311,9 +248,7 @@ async function stopRun() {
 
 watch(() => props.sessionId, id => {
   if ((id ?? '') === threadId.value) return
-  closeFilePreview()
-  deliverablesOpen.value = false
-  auditOpen.value = false
+  closePanels()
   selectedModel.value = null
   senderRef.value?.clear?.()
   void open(id ?? '')
@@ -561,13 +496,13 @@ onBeforeUnmount(() => {
     v-else-if="deliverablesOpen"
     :files="deliverables"
     :pending-approvals="pendingInterrupts.length"
-    @close="deliverablesOpen = false"
+    @close="closePanels"
     @select="openDeliverable"
   />
   <AuditPanel
     v-else-if="auditOpen"
     :entries="auditEntries"
-    @close="auditOpen = false"
+    @close="closePanels"
   />
   </section>
 </template>

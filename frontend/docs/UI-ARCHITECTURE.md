@@ -12,6 +12,8 @@
 | 会话运行状态 | `useAgentConversation.ts` | AG-UI 订阅、历史恢复与分页、流式状态、上传、发送、停止、重试、恢复审批 |
 | 消息展示 | `processPresentation.ts`、`ConversationMessage.vue`、`ConversationProcessGroup.vue` | 将消息组织成正文和执行过程，展示推理、工具调用与结果 |
 | 会话视口 | `useConversationScroll.ts` | 流式跟随、跳至最新、分页位置恢复；会话切换和卸载使旧位置调整失效 |
+| 展示派生 | `useConversationPresentation.ts` | 消息分组、响应占位、审批入口、过程关联文件；只读取运行时与交付快照 |
+| 侧面板状态 | `useConversationPanels.ts` | 交付/审计互斥、预览返回路径、关闭与迟到审批回执保护 |
 | 交付与审计派生 | `useConversationArtifacts.ts` | 聚合消息附件、生成式文件卡、工具生成文件；处理删除、版本编号、审批关联和预览同步；派生审计记录 |
 | 文件预览 | `FilePreviewPanel.vue` | Markdown、图片、PDF、文本、ZIP 目录及内部文件预览，文件审批入口 |
 | 人工审批 | `InterruptCard.vue`、`approval.ts` | 根据 responseSchema 展示表单，生成确认/取消的恢复参数 |
@@ -41,7 +43,7 @@
 
 ## 后续可独立处理的部分
 
-- AgentChat 的展示派生、面板、输入区和快捷键仍可继续拆分。
+- AgentChat 的展示派生和面板状态已拆分；输入区、头部和快捷键仍可继续拆分。预览审批回执绑定打开代次、文件 ID 和中断 ID，关闭/重开或切换文件后不会标记新预览。
 - FilePreviewPanel 同时管理普通文件和 ZIP 内部文件请求，可按预览数据源继续拆分，保留现有 AbortController。
 - ModelSelector 已补充失败回滚和会话请求隔离，行为由浏览器回归覆盖。
 - 消息和生成式内容边界仍有较多 `any`，后续可在协议归一化层收窄类型，避免在模板层重复猜测数据形态。
