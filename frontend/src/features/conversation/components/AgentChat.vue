@@ -52,6 +52,8 @@ const {
   loadOlder,
   stageFiles,
   removeAttachment,
+  retryAttachment,
+  pendingSend,
   send,
   resume,
   retry,
@@ -127,6 +129,7 @@ function useStarterPrompt(prompt: string) {
 }
 
 async function retryRun() {
+  if (pendingSend.value) return submit()
   try {
     await retry()
     emit('changed')
@@ -418,7 +421,7 @@ onBeforeUnmount(() => {
 
       <ConversationComposer
         ref="composerRef"
-        :session-id="sessionId"
+        :session-id="threadId || sessionId"
         :running="running"
         :pending-approval-count="pendingInterrupts.length"
         :attachments="attachments"
@@ -427,6 +430,7 @@ onBeforeUnmount(() => {
         @selected="selectedModel = $event"
         @files="stageFiles"
         @remove-attachment="removeAttachment"
+        @retry-attachment="id => retryAttachment(id).catch(notifyError)"
       />
     </div>
   </section>

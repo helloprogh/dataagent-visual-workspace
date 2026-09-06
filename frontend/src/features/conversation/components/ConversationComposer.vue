@@ -18,6 +18,7 @@ const emit = defineEmits<{
   selected: [model: ModelSelection]
   files: [files: File[]]
   removeAttachment: [id: string]
+  retryAttachment: [id: string]
 }>()
 const { t } = useI18n()
 const senderRef = ref<InstanceType<typeof XSender> | null>(null)
@@ -61,7 +62,11 @@ defineExpose({
           <div v-for="item in attachments" :key="item.id" class="attachment-chip">
             <span>{{ item.file.name }}</span>
             <small>{{ Math.max(1, Math.ceil(item.file.size / 1024)) }} KB</small>
-            <button type="button" :aria-label="t('chat.removeAttachment')" @click="emit('removeAttachment', item.id)">×</button>
+            <small class="attachment-status" role="status" :title="item.error">{{ t(`chat.upload.${item.status}`) }}</small>
+            <div class="attachment-actions">
+            <button v-if="item.status === 'failed'" type="button" :disabled="running" :aria-label="`${t('chat.retry')} ${item.file.name}`" @click="emit('retryAttachment', item.id)">↻</button>
+            <button type="button" :disabled="running" :aria-label="t('chat.removeAttachment')" @click="emit('removeAttachment', item.id)">×</button>
+            </div>
           </div>
         </div>
 
@@ -116,9 +121,11 @@ defineExpose({
 .composer-input-actions :deep(.model-selector) { margin-left: 0; }
 .composer-file-button svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.45; }
 .attachment-queue { display: flex; flex-wrap: wrap; gap: var(--da-space-2); margin-bottom: var(--da-space-2); }
-.attachment-chip { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--da-space-2); max-width: 24rem; padding: var(--da-space-2) var(--da-space-3); border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-md); background: var(--da-surface-2); }
+.attachment-chip { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; gap: var(--da-space-2); max-width: 24rem; padding: var(--da-space-2) var(--da-space-3); border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-md); background: var(--da-surface-2); }
 .attachment-chip span { overflow: hidden; color: var(--da-text-primary); font-size: var(--da-font-size-sm); text-overflow: ellipsis; white-space: nowrap; }
 .attachment-chip small { color: var(--da-text-muted); font-size: var(--da-font-size-xs); }
+.attachment-actions { display: flex; }
+.attachment-chip button:disabled { cursor: default; opacity: 0.5; }
 .attachment-chip button { width: 1.5rem; height: 1.5rem; padding: 0; border: 0; border-radius: 50%; color: var(--da-text-muted); background: transparent; cursor: pointer; }
 .attachment-chip button:hover { color: var(--da-text-emphasis); background: var(--da-surface-3); }
 .file-input { display: none; }

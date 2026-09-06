@@ -2,9 +2,10 @@ import { dataAgentWebApi } from '../../../shared/config/api'
 import { requestJson } from '../../../shared/api/http'
 import type { ModelSelection } from '../../model/types'
 
-export async function createConversation(model: ModelSelection, title: string): Promise<string> {
+export async function createConversation(model: ModelSelection, title: string, signal?: AbortSignal): Promise<string> {
   const body = await requestJson<any>(dataAgentWebApi('/session'), {
     method: 'POST',
+    signal,
     body: JSON.stringify({ title, model: { providerID: model.providerID, id: model.id } }),
   }, '新建对话失败')
 
@@ -40,7 +41,7 @@ export async function renameConversation(sessionId: string, title: string): Prom
   }
 }
 
-export async function uploadConversationFile(file: File, threadId: string) {
+export async function uploadConversationFile(file: File, threadId: string, signal?: AbortSignal) {
   const formData = new FormData()
   formData.append('file', file, file.name)
   formData.append('threadId', threadId)
@@ -52,6 +53,7 @@ export async function uploadConversationFile(file: File, threadId: string) {
     method: 'POST',
     headers,
     body: formData,
+    signal,
     credentials: 'same-origin',
   })
   if (!response.ok) throw new Error(`文件上传失败 (${response.status})`)

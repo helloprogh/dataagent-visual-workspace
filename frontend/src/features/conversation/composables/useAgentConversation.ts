@@ -1,4 +1,4 @@
-import { onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { onBeforeUnmount, ref, shallowRef, toRaw, watch } from 'vue'
 import type { HttpAgent, Interrupt, Message, ResumeEntry } from '@ag-ui/client'
 import { createAgentClient, createHydrationClient } from '../../../agui/client'
 import { fetchConversationMessagePage } from '../api/history'
@@ -8,10 +8,11 @@ import { rememberSelectedModel } from '../../model/api/model'
 import { publishAndRun } from '../sendLifecycle'
 import { A2UI_RUN_CAPABILITY } from '../../../a2ui/capability'
 import { validateApproval } from '../approvalSchema'
+import { uploadAttachments, type UploadState } from '../attachmentUpload'
 
 export type SendReceipt = { sessionId: string; created: boolean; initialName?: string }
 
-export type PendingAttachment = {
+export type PendingAttachment = UploadState<Awaited<ReturnType<typeof uploadConversationFile>>> & {
   id: string
   file: File
   previewUrl: string
@@ -33,10 +34,13 @@ export function useAgentConversation() {
   const attachments = ref<PendingAttachment[]>([])
   const error = ref('')
   const stopped = ref(false)
+  const pendingSend = ref(false)
   let subscription: { unsubscribe: () => void } | null = null
   let hydrationSubscription: { unsubscribe: () => void } | null = null
   let hydrationAgent: HttpAgent | null = null
   let generation = 0
+  let preparation: AbortController | null = null
+  let unannouncedSession: SendReceipt | null = null
   let ignoreCancellationErrorsUntil = 0
   const previewUrls = new Set<string>()
   const reasoningStartedAt = new Map<string, number>()
@@ -85,6 +89,10 @@ export function useAgentConversation() {
   }
 
   function detach() {
+    preparation?.abort()
+    preparation = null
+    unannouncedSession = null
+    pendingSend.value = false
     reasoningStartedAt.clear()
     subscription?.unsubscribe()
     subscription = null
@@ -223,11 +231,12 @@ export function useAgentConversation() {
   }
 
   function stageFiles(files: FileList | File[]) {
+    if (running.value) return
     const source = Array.from(files)
     const pending = source.map(file => {
       const previewUrl = URL.createObjectURL(file)
       previewUrls.add(previewUrl)
-      return { id: crypto.randomUUID(), file, previewUrl }
+      return { id: crypto.randomUUID(), file, previewUrl, status: 'queued' as const }
     })
     attachments.value = [
       ...attachments.value,
@@ -236,6 +245,7 @@ export function useAgentConversation() {
   }
 
   function removeAttachment(id: string) {
+    if (running.value) return
     const removed = attachments.value.find(item => item.id === id)
     if (removed) {
       URL.revokeObjectURL(removed.previewUrl)
@@ -244,15 +254,17 @@ export function useAgentConversation() {
     attachments.value = attachments.value.filter(item => item.id !== id)
   }
 
-  async function ensureAgent(model: ModelSelection, initialText: string) {
-    if (agent.value && threadId.value) return { client: agent.value, sessionId: threadId.value, created: false }
+  async function ensureAgent(model: ModelSelection, initialText: string, signal: AbortSignal) {
+    if (agent.value && threadId.value) return { client: agent.value, sessionId: threadId.value, created: false, ...unannouncedSession }
     const initialName = deriveConversationName(initialText)
-    const sessionId = await createConversation(model, initialName)
+    const sessionId = await createConversation(model, initialName, signal)
+    signal.throwIfAborted()
     rememberSelectedModel(sessionId, model)
     const client = createAgentClient(sessionId)
     agent.value = client
     threadId.value = sessionId
     bind(client)
+    unannouncedSession = { sessionId, created: true, initialName }
     return { client, sessionId, created: true, initialName }
   }
 
@@ -260,14 +272,24 @@ export function useAgentConversation() {
     const value = text.trim()
     if ((!value && !attachments.value.length) || running.value || pendingInterrupts.value.length) return null
     return runWithState(async () => {
-      const prepared = await ensureAgent(model, value)
-      const uploaded = []
-      for (const item of attachments.value) {
-        const file = await uploadConversationFile(item.file, prepared.sessionId)
-        uploaded.push({
-          ...file,
-          metadata: { ...file.metadata, clientPreviewUrl: item.previewUrl },
-        })
+      const controller = new AbortController()
+      pendingSend.value = true
+      preparation = controller
+      const batch = [...attachments.value]
+      let prepared: Awaited<ReturnType<typeof ensureAgent>>
+      let uploaded
+      try {
+        prepared = await ensureAgent(model, value, controller.signal)
+        const files = await uploadAttachments(batch, prepared.sessionId,
+          item => uploadConversationFile(item.file, prepared.sessionId, controller.signal), controller.signal)
+        uploaded = files.map((file, index) => ({
+          // Cached results were read through Vue refs; transport must remain cloneable.
+          ...toRaw(file),
+          metadata: { ...toRaw(file).metadata, clientPreviewUrl: batch[index]!.previewUrl },
+        }))
+        controller.signal.throwIfAborted()
+      } finally {
+        if (preparation === controller) preparation = null
       }
       const content = uploaded.length
         ? [
@@ -283,10 +305,28 @@ export function useAgentConversation() {
       await publishAndRun(prepared, () => {
         prepared.client.addMessage(userMessage)
         attachments.value = []
+        unannouncedSession = null
+        pendingSend.value = false
         syncMessages()
       }, onAccepted, () => prepared.client.runAgent(A2UI_RUN_CAPABILITY as any))
       syncMessages()
       return prepared
+    })
+  }
+
+  async function retryAttachment(id: string) {
+    const item = attachments.value.find(item => item.id === id)
+    const sessionId = threadId.value
+    if (!item || !sessionId || running.value || pendingInterrupts.value.length) return
+    return runWithState(async () => {
+      const controller = new AbortController()
+      preparation = controller
+      try {
+        await uploadAttachments([item], sessionId,
+          entry => uploadConversationFile(entry.file, sessionId, controller.signal), controller.signal)
+      } finally {
+        if (preparation === controller) preparation = null
+      }
     })
   }
 
@@ -366,6 +406,10 @@ export function useAgentConversation() {
   }
 
   async function stop() {
+    if (preparation) {
+      preparation.abort(new Error('已停止上传，附件保留，可重新发送'))
+      return
+    }
     const id = threadId.value
     const target = agent.value
     ignoreCancellationErrorsUntil = Date.now() + 5000
@@ -403,10 +447,12 @@ export function useAgentConversation() {
     attachments,
     error,
     stopped,
+    pendingSend,
     open,
     loadOlder,
     stageFiles,
     removeAttachment,
+    retryAttachment,
     send,
     resume,
     retry,
