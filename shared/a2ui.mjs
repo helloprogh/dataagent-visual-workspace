@@ -1,5 +1,6 @@
 export const A2UI_ACTIVITY_TYPE = 'a2ui-surface'
 import { A2UI_VERSION, A2UI_CATALOG_ID, A2UI_COMPONENT_NAMES } from './a2ui-catalog.mjs'
+import { normalizeA2uiArtifacts } from './a2ui-artifacts.mjs'
 export { A2UI_VERSION, A2UI_CATALOG_ID }
 export const A2UI_ALLOWED_COMPONENTS = new Set(A2UI_COMPONENT_NAMES)
 
@@ -91,9 +92,13 @@ export function normalizeRenderA2uiArgs(value) {
   if (!input.components.length) return { surfaceId: input.surfaceId, components: [], catalogId: A2UI_CATALOG_ID }
   const components = normalizeComponents(input.components)
   if (!components) return null
+  const artifacts = normalizeA2uiArtifacts(input.artifacts)
+  if (!artifacts) return null
+  const artifactIds = new Set(artifacts.map(item => item.id))
+  if (components.some(item => item.component === 'ArtifactCard' && !artifactIds.has(item.artifactId))) return null
   const data = object(input.data) || Array.isArray(input.data) ? structuredClone(input.data) : undefined
   if (jsonSize(data) > 64 * 1024) return null
-  return { surfaceId: input.surfaceId, components, ...(data === undefined ? {} : { data }), catalogId: A2UI_CATALOG_ID }
+  return { surfaceId: input.surfaceId, components, ...(data === undefined ? {} : { data }), ...(artifacts.length ? { artifacts } : {}), catalogId: A2UI_CATALOG_ID }
 }
 
 export function hasA2uiCapability(input) {
@@ -135,6 +140,10 @@ export const RENDER_A2UI_TOOL = {
       surfaceId: { type: 'string' },
       components: { type: 'array', items: { type: 'object', additionalProperties: true } },
       data: { type: ['object', 'array'] },
+      artifacts: { type: 'array', maxItems: 100, description: 'File side table referenced by ArtifactCard.artifactId. Local file API URLs only. Cannot grant or resolve approvals.', items: {
+        type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, url: { type: 'string' }, mimeType: { type: 'string' } },
+        required: ['id', 'name', 'url', 'mimeType'], additionalProperties: false,
+      } },
       catalogId: { type: 'string' },
     },
     required: ['surfaceId', 'components'],

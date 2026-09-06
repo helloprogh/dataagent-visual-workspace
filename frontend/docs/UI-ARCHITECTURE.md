@@ -53,7 +53,7 @@ A2UI 注册入口 `catalog.ts` 只负责合并基础组件和 `businessCatalog.t
 
 工具生成文件通过 `A2uiArtifactCard` 投影为 A2UI operations，并复用同一 Surface 入口；底层 `GeneratedArtifactCard` 只在 Catalog 内调用。原有交付对象通过独立 artifacts 表传入，组件节点只包含 artifactId；预览、审批和版本关联没有复制成另一份运行状态。
 
-统一工作仍未全部结束：原生 A2UI 的 artifact 数据契约和后端生产端接线还需补齐。目前无法解析的 artifactId 显示无效提示，不从组件属性拼接地址或审批。AG-UI 仍是审批真源，多中断继续使用聚合表单。
+原生 A2UI 的独立 artifact 数据契约已接通 `render_a2ui`、A2uiStream 快照和前端交付列表，详见 `A2UI-ARTIFACT-CONTRACT.md`。无法解析的 artifactId 显示无效提示，不从组件属性拼接地址或审批。原生 artifact 不推断审批关联，AG-UI 表单仍是审批真源。进一步的回放边界、真实服务联调、会话体验和性能验证仍需推进。
 
 - AgentChat 的展示派生、面板状态、头部、Inspector 和输入区已拆分。快捷键仍由编排层注册，通过输入组件的 getText/clear/setText/focus 接口操作，不再访问 XSender 实例。预览审批回执绑定打开代次、文件 ID 和中断 ID，关闭/重开或切换文件后不会标记新预览。
 - FilePreviewPanel 同时管理普通文件和 ZIP 内部文件请求，可按预览数据源继续拆分，保留现有 AbortController。

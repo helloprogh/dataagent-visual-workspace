@@ -10,7 +10,9 @@ test('server catalog uses the shared immutable component contract', () => {
   assert.deepEqual([...A2UI_ALLOWED_COMPONENTS], [...A2UI_COMPONENT_NAMES])
   assert.doesNotThrow(() => assertA2uiCatalogComponents(A2UI_ALLOWED_COMPONENTS))
   for (const component of A2UI_COMPONENT_NAMES) {
-    const result = normalizeRenderA2uiArgs({ surfaceId: 'contract', components: [{ id: 'root', component }] })
+    const result = normalizeRenderA2uiArgs({ surfaceId: 'contract', components: [{ id: 'root', component, ...(component === 'ArtifactCard' ? { artifactId: 'file' } : {}) }],
+      ...(component === 'ArtifactCard' ? { artifacts: [{ id: 'file', name: 'a.txt', mimeType: 'text/plain', url: '/dataagent/web/api/agui/workspace-file?path=a.txt' }] } : {}),
+    })
     assert.ok(result, `${component} should pass component-name validation`)
   }
   assert.equal(normalizeRenderA2uiArgs({ surfaceId: 'contract', components: [{ id: 'root', component: 'UnregisteredCard' }] }), null)

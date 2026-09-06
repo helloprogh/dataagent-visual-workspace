@@ -34,7 +34,7 @@ export class A2uiStream {
           ...(input.data === undefined ? [] : [{ version: A2UI_VERSION, updateDataModel: { surfaceId: input.surfaceId, path: '/', value: input.data } }]),
         ]
       : [{ version: A2UI_VERSION, deleteSurface: { surfaceId: input.surfaceId } }]
-    const content = { a2ui_operations: operations }
+    const content = { a2ui_operations: operations, ...(input.components.length && input.artifacts ? { artifacts: input.artifacts } : {}) }
     if (previous && JSON.stringify(previous.content) === JSON.stringify(content)) return []
     const snapshot = {
       ...activitySnapshot(messageId, A2UI_ACTIVITY_TYPE, content),
@@ -61,6 +61,7 @@ export class A2uiStream {
       surfaceId,
       components: deleted ? [] : componentOperation?.updateComponents?.components,
       ...(dataOperation ? { data: dataOperation.updateDataModel.value } : {}),
+      artifacts: source.content?.artifacts,
     }, source.parentMessageId)
   }
 }

@@ -5,11 +5,12 @@ import { dataAgentCatalog, A2UI_ALLOWED_COMPONENTS } from '../../../a2ui/catalog
 import { containsRetiredA2uiApproval, operationSurfaceId, sanitizeA2uiOperations } from '../../../a2ui/sanitizeOperations'
 import NativeA2uiSurface from '../../../a2ui/NativeA2uiSurface.vue'
 import { legacyUiToA2ui } from '../../../../../shared/legacy-a2ui.mjs'
+import { normalizeA2uiArtifacts } from '../../../../../shared/a2ui-artifacts.mjs'
 import { A2UI_ARTIFACTS } from '../../../a2ui/artifactContext'
 import type { ConversationFilePreview } from '../types/filePreview'
 
 const props = withDefaults(defineProps<{
-  content: { operations?: unknown; a2ui_operations?: unknown }
+  content: { operations?: unknown; a2ui_operations?: unknown; artifacts?: unknown }
   messageId: string
   busy?: boolean
   legacy?: boolean
@@ -24,7 +25,11 @@ const expanded = ref(true)
 watch(() => props.messageId, () => { expanded.value = true })
 
 const legacyProjection = computed(() => props.legacy ? legacyUiToA2ui(props.content, props.messageId) : null)
-const artifactIndex = computed(() => new Map((props.legacy ? legacyProjection.value?.artifacts ?? [] : props.artifacts ?? []).map(file => [file.id, file])))
+const artifactIndex = computed(() => {
+  if (props.legacy) return new Map((legacyProjection.value?.artifacts ?? []).map(file => [file.id, file]))
+  if (props.artifacts) return new Map(props.artifacts.map(file => [file.id, file]))
+  return new Map((normalizeA2uiArtifacts(props.content?.artifacts) ?? []).map(file => [file.id, { ...file, id: `${props.messageId}-${file.id}` }]))
+})
 provide(A2UI_ARTIFACTS, {
   lookup: id => artifactIndex.value.get(id),
   pending: id => Boolean(props.pendingInterruptIds?.includes(id)),

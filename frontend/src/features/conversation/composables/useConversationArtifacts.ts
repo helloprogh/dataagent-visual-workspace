@@ -6,6 +6,7 @@ import type { ConversationFilePreview } from '../types/filePreview'
 import type { AuditEntry } from '../components/AuditPanel.vue'
 import { messageText } from '../processPresentation'
 import { normalizeUiContent } from '../../../../../shared/generative-ui.mjs'
+import { normalizeA2uiArtifacts } from '../../../../../shared/a2ui-artifacts.mjs'
 import { artifactPathKey, generatedArtifactsFromTool, removedArtifactPathsFromTool } from '../../../../../shared/generated-artifacts.mjs'
 import { dataAgentWebApi } from '../../../shared/config/api'
 
@@ -54,11 +55,21 @@ export function useConversationArtifacts(
   const deliverables = computed(() => {
     const result: ConversationFilePreview[] = []
     const known = new Set<string>()
+    const nonApprovalArtifacts = new Set<string>()
     const successfulToolIds = new Set(messages.value
       .filter(message => message.role === 'tool' && !(message as any).error && (message as any).toolCallId)
       .map(message => String((message as any).toolCallId)))
     for (const message of messages.value) {
       const content = (message as any).content
+      if ((message as any).activityType === 'a2ui-surface') {
+        const operations = content?.a2ui_operations ?? content?.operations
+        const removed = Array.isArray(operations) && operations.length > 0 && operations.every(item => item?.deleteSurface)
+        if (!removed) for (const file of normalizeA2uiArtifacts(content?.artifacts) ?? []) {
+          const id = `${message.id}-${file.id}`
+          nonApprovalArtifacts.add(id)
+          if (!known.has(id)) { known.add(id); result.push({ ...file, id }) }
+        }
+      }
       if ((message as any).activityType === 'dataagent.ui') {
         const delivery = normalizeUiContent(content)
         if (delivery && delivery.status !== 'removed') {
@@ -112,7 +123,7 @@ export function useConversationArtifacts(
       && !result.some(file => file.approvalInterruptId)
       ? pendingInterrupts.value[0]
       : undefined
-    const approvalTarget = approval ? [...result].reverse().find(file => file.category === 'output') : undefined
+    const approvalTarget = approval ? [...result].reverse().find(file => file.category === 'output' && !nonApprovalArtifacts.has(file.id)) : undefined
     const versions = new Map<string, number>()
     return result.map(file => {
       if (file.category === 'input') return file
