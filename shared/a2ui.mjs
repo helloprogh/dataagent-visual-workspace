@@ -1,13 +1,7 @@
 export const A2UI_ACTIVITY_TYPE = 'a2ui-surface'
-export const A2UI_VERSION = 'v0.9'
-export const A2UI_CATALOG_ID = 'https://opencode-agui-app.local/a2ui/data-agent-catalog.json'
-
-export const A2UI_ALLOWED_COMPONENTS = new Set([
-  'Text', 'Image', 'Icon', 'Video', 'AudioPlayer', 'Row', 'Column', 'List', 'Card', 'Tabs', 'Divider',
-  'Modal', 'Button', 'TextField', 'CheckBox', 'ChoicePicker', 'Slider', 'DateTimeInput', 'MetricCard',
-  'DataTable', 'BarChart', 'LineChart', 'PieChart', 'InsightCard', 'WarningCard', 'ActionButton', 'Badge',
-  'Markdown',
-])
+import { A2UI_VERSION, A2UI_CATALOG_ID, A2UI_COMPONENT_NAMES } from './a2ui-catalog.mjs'
+export { A2UI_VERSION, A2UI_CATALOG_ID }
+export const A2UI_ALLOWED_COMPONENTS = new Set(A2UI_COMPONENT_NAMES)
 
 const RETIRED_APPROVAL_ACTIONS = new Set(['request_user_confirm', 'hitl_confirm', 'hitl_cancel'])
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)

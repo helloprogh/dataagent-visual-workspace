@@ -21,6 +21,7 @@
 | 文件预览 | `FilePreviewPanel.vue` | Markdown、图片、PDF、文本、ZIP 目录及内部文件预览，文件审批入口 |
 | 人工审批 | `InterruptCard.vue`、`approval.ts` | 根据 responseSchema 展示表单，生成确认/取消的恢复参数 |
 | 生成式 UI | `src/a2ui/`、`GenerativeUiCard.vue` | A2UI catalog、surface 生命周期、图表和结构化卡片 |
+| A2UI 契约 | `shared/a2ui-catalog.mjs` | 协议版本、Catalog ID、组件白名单；服务端校验、客户端能力声明和注册完整性共用 |
 | 模型 | `ModelSelector.vue`、`features/model/api/model.ts` | 读取默认/会话模型，用户切换时持久化模型选择 |
 | 技能 | `SkillPage.vue` | 搜索、刷新、ZIP 上传和删除确认 |
 | 工具 | `ToolPage.vue` | 基于模型读取能力目录，展示工具/MCP 状态、统计、搜索和警告 |
@@ -45,6 +46,10 @@
 `useConversationScroll` 只管理视口，不复制消息或运行状态。自动触顶和手动加载共用分页去重与高度补偿；读取旧消息时暂停流式跟随。会话切换、卸载使排队的滚动和旧分页补偿失效，避免同一个 DOM 容器被旧请求移动。保留恢复历史后滚动到底部的行为。
 
 ## 后续可独立处理的部分
+
+A2UI 注册入口 `catalog.ts` 只负责合并基础组件和 `businessCatalog.ts` 的业务组件，应用 Button 显式覆盖基础 Button。合并后校验实际注册项与共享契约一致；新增组件必须同时提供实现，不能只添加能力声明。此检查不代替每种组件的属性 schema 校验。
+
+旧 `dataagent.ui` 仍由旧组件渲染，尚未完成统一。下一阶段将旧内容适配为 A2UI operations，文件卡使用独立 artifact 数据引用，并由动作路由分离本地预览、Agent 动作和 AG-UI 审批；不能通过包装旧渲染器宣称协议迁移完成。
 
 - AgentChat 的展示派生、面板状态、头部、Inspector 和输入区已拆分。快捷键仍由编排层注册，通过输入组件的 getText/clear/setText/focus 接口操作，不再访问 XSender 实例。预览审批回执绑定打开代次、文件 ID 和中断 ID，关闭/重开或切换文件后不会标记新预览。
 - FilePreviewPanel 同时管理普通文件和 ZIP 内部文件请求，可按预览数据源继续拆分，保留现有 AbortController。

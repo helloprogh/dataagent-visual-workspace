@@ -1,12 +1,6 @@
-export const DATA_AGENT_CATALOG_ID = 'https://opencode-agui-app.local/a2ui/data-agent-catalog.json'
-
-export const A2UI_ALLOWED_COMPONENTS = Object.freeze([
-  'Text', 'Image', 'Icon', 'Video', 'AudioPlayer',
-  'Row', 'Column', 'List', 'Card', 'Tabs', 'Divider', 'Modal',
-  'Button', 'TextField', 'CheckBox', 'ChoicePicker', 'Slider', 'DateTimeInput',
-  'MetricCard', 'DataTable', 'BarChart', 'LineChart', 'PieChart',
-  'InsightCard', 'WarningCard', 'ActionButton', 'Badge', 'Markdown',
-])
+import { A2UI_CATALOG_ID, A2UI_COMPONENT_NAMES } from '../../../shared/a2ui-catalog.mjs'
+export const DATA_AGENT_CATALOG_ID = A2UI_CATALOG_ID
+export const A2UI_ALLOWED_COMPONENTS = A2UI_COMPONENT_NAMES
 
 export const A2UI_RUN_CAPABILITY = {
   forwardedProps: { a2uiCatalogAvailable: true },
