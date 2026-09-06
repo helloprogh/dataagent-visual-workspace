@@ -71,9 +71,8 @@ function relativeTime(timestamp: number) {
         <button v-if="sessions.length" type="button" @click="emit('page', 'history')">{{ t('sidebar.viewAll') }}</button>
       </div>
       <div class="session-list">
+        <div v-for="session in visibleSessions" :key="session.id" class="session-row">
         <button
-          v-for="session in visibleSessions"
-          :key="session.id"
           type="button"
           class="session-item"
           :class="{ active: activePage === 'chat' && activeId === session.id }"
@@ -88,6 +87,8 @@ function relativeTime(timestamp: number) {
             <small>{{ relativeTime(session.updatedAt) }}</small>
           </span>
         </button>
+        <button type="button" class="session-rename" :aria-label="`${t('app.renameTitle')}：${session.presentationName}`" :title="t('app.renameTitle')" @click="emit('rename', session.id)">✎</button>
+        </div>
         <div v-if="!visibleSessions.length" class="session-empty">{{ query ? t('sidebar.noMatches') : t('sidebar.empty') }}</div>
       </div>
     </div>
@@ -156,6 +157,9 @@ function relativeTime(timestamp: number) {
 .session-item.active { border-color: color-mix(in srgb, var(--da-accent-primary) 24%, transparent); color: var(--da-text-emphasis); background: linear-gradient(105deg, var(--da-accent-primary-soft), color-mix(in srgb, var(--da-accent-primary-soft) 35%, var(--da-surface-2))); box-shadow: inset 0 0.0625rem rgb(255 255 255 / 4%); }
 .session-item.active::before { position: absolute; top: 0.875rem; bottom: 0.875rem; left: -0.0625rem; width: 0.1875rem; border-radius: 999rem; background: linear-gradient(var(--da-brand-cyan), var(--da-accent-primary)); box-shadow: 0 0 0.5rem var(--da-brand-glow); content: ''; }
 .session-item__mark { width: 0.4375rem; height: 0.4375rem; border: 0.0625rem solid var(--da-text-subtle); border-radius: 50%; background: transparent; opacity: 0.55; }
+.session-row { display: grid; grid-template-columns: minmax(0, 1fr) 2rem; align-items: center; }
+.session-rename { min-height: 2rem; border: 0; border-radius: var(--da-radius-md); color: var(--da-text-muted); background: transparent; cursor: pointer; }
+.session-rename:hover { color: var(--da-text-primary); background: var(--da-surface-hover); }
 .session-item.active .session-item__mark { border-color: transparent; background: var(--da-accent-primary); box-shadow: 0 0 0 0.1875rem var(--da-accent-primary-soft), 0 0 0.75rem var(--da-brand-glow); opacity: 1; }
 .session-item__copy { display: grid; min-width: 0; gap: 0.1875rem; }
 .session-item__name { overflow: hidden; font-size: var(--da-font-size-sm); text-overflow: ellipsis; white-space: nowrap; }

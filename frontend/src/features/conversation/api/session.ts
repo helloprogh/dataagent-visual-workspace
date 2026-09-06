@@ -30,6 +30,16 @@ export async function interruptConversation(sessionId: string): Promise<void> {
   }, '中断对话失败')
 }
 
+export async function renameConversation(sessionId: string, title: string): Promise<void> {
+  const body = await requestJson<any>(dataAgentWebApi(`/session/${encodeURIComponent(sessionId)}/rename`), {
+    method: 'POST',
+    body: JSON.stringify({ title }),
+  }, '重命名对话失败')
+  if (body?.code != null && body.code !== 20000) {
+    throw new Error(`重命名对话失败${body?.message ? `：${body.message}` : ''}`)
+  }
+}
+
 export async function uploadConversationFile(file: File, threadId: string) {
   const formData = new FormData()
   formData.append('file', file, file.name)

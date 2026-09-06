@@ -61,9 +61,11 @@ async function renameConversation(id: string) {
       confirmButtonText: t('app.save'),
       cancelButtonText: t('app.cancel'),
     })
-    rename(id, value)
-  } catch {
-    // user cancelled
+    await rename(id, value)
+  } catch (reason) {
+    if (reason !== 'cancel' && reason !== 'close') {
+      ElMessage.error(reason instanceof Error ? reason.message : String(reason))
+    }
   }
 }
 

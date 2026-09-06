@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 import { fetchConversationSessions } from '../api/history'
+import { renameConversation } from '../api/session'
 import type { ConversationSession } from '../types'
 
 const ACTIVE_KEY = 'dataagent.conversations.active.v3'
@@ -8,7 +9,8 @@ const ALIAS_KEY = 'dataagent.conversations.aliases.v1'
 function readAliases(): Record<string, string> {
   try {
     const value = JSON.parse(localStorage.getItem(ALIAS_KEY) ?? '{}')
-    return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+    return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string' && Boolean(entry[1].trim())))
   } catch { return {} }
 }
 
@@ -19,6 +21,10 @@ export function useSessions() {
   const aliases = ref<Record<string, string>>(readAliases())
   const loading = ref(false)
   const error = ref('')
+  const renaming = new Set<string>()
+  const savedNames = new Map<string, { name: string; revision: number }>()
+  let revision = 0
+  let refreshGeneration = 0
 
   const decoratedSessions = computed(() => sessions.value.map(session => ({
     ...session,
@@ -44,11 +50,30 @@ export function useSessions() {
     setActive(id)
   }
 
-  function rename(id: string, name: string) {
+  function setAlias(id: string, name: string) {
     const normalized = name.trim()
     if (!normalized) return
     aliases.value = { ...aliases.value, [id]: normalized }
     localStorage.setItem(ALIAS_KEY, JSON.stringify(aliases.value))
+  }
+
+  async function rename(id: string, name: string) {
+    const normalized = name.trim()
+    if (!normalized) throw new Error('对话名称不能为空')
+    if (renaming.has(id)) throw new Error('正在保存此对话名称，请稍后重试')
+    renaming.add(id)
+    try {
+      await renameConversation(id, normalized)
+      savedNames.set(id, { name: normalized, revision: ++revision })
+      sessions.value = sessions.value.map(item => item.id === id ? { ...item, displayName: normalized } : item)
+      // Migrate a legacy alias only after the server acknowledges the title.
+      const next = { ...aliases.value }
+      delete next[id]
+      aliases.value = next
+      try { localStorage.setItem(ALIAS_KEY, JSON.stringify(next)) } catch { /* Server remains authoritative. */ }
+    } finally {
+      renaming.delete(id)
+    }
   }
 
   function materialize(id: string, displayName: string) {
@@ -56,22 +81,30 @@ export function useSessions() {
       const now = Date.now()
       sessions.value = [{ id, displayName, createdAt: now, updatedAt: now }, ...sessions.value]
     }
-    if (displayName.trim()) rename(id, displayName)
+    if (displayName.trim()) setAlias(id, displayName)
     setActive(id)
   }
 
   async function refresh(initial = false) {
+    const generation = ++refreshGeneration
+    const startedRevision = revision
     if (initial) loading.value = true
     error.value = ''
     try {
-      sessions.value = await fetchConversationSessions()
+      const fetched = await fetchConversationSessions()
+      if (generation !== refreshGeneration) return
+      sessions.value = fetched.map(item => {
+        const saved = savedNames.get(item.id)
+        return saved && saved.revision > startedRevision ? { ...item, displayName: saved.name } : item
+      })
       if (activeId.value && !rootSessions.value.some(item => item.id === activeId.value)) {
         setActive(rootSessions.value[0]?.id ?? '')
       }
     } catch (reason) {
+      if (generation !== refreshGeneration) return
       error.value = reason instanceof Error ? reason.message : String(reason)
     } finally {
-      loading.value = false
+      if (generation === refreshGeneration) loading.value = false
     }
   }
 

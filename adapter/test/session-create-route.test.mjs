@@ -86,6 +86,34 @@ test('conversation list and message history routes proxy OpenCode responses insi
   }
 })
 
+test('session rename forwards POST title and preserves upstream 204 and errors', async () => {
+  const calls = []
+  const client = {
+    async request(pathname, init) {
+      let body = ''
+      for await (const chunk of init.body) body += chunk.toString()
+      calls.push({ pathname, method: init.method, body: JSON.parse(body) })
+      return calls.length === 1 ? new Response(null, { status: 204 })
+        : new Response(JSON.stringify({ message: 'not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } })
+    },
+  }
+  const server = createServer({ client })
+  const address = await listen(server)
+  try {
+    const url = `http://127.0.0.1:${address.port}/dataagent/web/api/session/session-a/rename`
+    const init = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: '新名称' }) }
+    const success = await fetch(url, init)
+    assert.equal(success.status, 204)
+    assert.equal(await success.text(), '')
+    const failure = await fetch(url, init)
+    assert.equal(failure.status, 404)
+    assert.deepEqual(await failure.json(), { message: 'not found' })
+    assert.deepEqual(calls[0], { pathname: '/api/session/session-a/rename', method: 'POST', body: { title: '新名称' } })
+  } finally {
+    await close(server)
+  }
+})
+
 test('legacy OpenCode runtime prompts are restored to clean user text and file parts', async () => {
   const runtimeText = [
     '<ag-ui-runtime>',
