@@ -13,18 +13,18 @@ const dispatching = ref(false)
 const busy = computed(() => Boolean(props.busy || dispatching.value))
 provide(A2UI_BUSY, busy)
 
-async function dispatchAction(action: unknown) {
-  if (busy.value || !props.onAction) return
+async function dispatchAction(action: unknown, actionGeneration: number) {
+  if (actionGeneration !== generation || busy.value || !props.onAction) return
   dispatching.value = true
   try {
     await props.onAction(action)
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    if (actionGeneration === generation) error.value = cause instanceof Error ? cause.message : String(cause)
   } finally {
     // Vue event listeners may return void. Wait for the owner's running prop
     // to reach the surface before releasing the immediate double-click latch.
     await nextTick()
-    dispatching.value = false
+    if (actionGeneration === generation) dispatching.value = false
   }
 }
 
@@ -67,36 +67,36 @@ const processor = shallowRef<MessageProcessor<VueComponentImplementation> | null
 const version = ref(0)
 const error = ref('')
 let lastHash = ''
-
-function ensureProcessor() {
-  if (!processor.value) processor.value = new MessageProcessor<VueComponentImplementation>([toRaw(props.catalog)], action => { void dispatchAction(action) })
-  return processor.value
-}
+let lastCatalog: unknown
+let generation = 0
 
 function process(operations: Operation[]) {
-  if (!operations.length) return
-  const hash = JSON.stringify(operations)
-  if (hash === lastHash) return
-  lastHash = hash
+  const hash = JSON.stringify([props.messageId, operations])
+  const catalog = toRaw(props.catalog)
+  if (hash === lastHash && catalog === lastCatalog) return
+  const currentGeneration = ++generation
+  dispatching.value = false
   try {
-    const current = ensureProcessor()
-    const grouped = new Map<string, Operation[]>()
-    for (const operation of operations) {
-      const id = operationSurfaceId(operation)
-      grouped.set(id, [...(grouped.get(id) ?? []), operation])
-    }
-    for (const [id, group] of grouped) {
-      current.processMessages((current.model.getSurface(id) ? group.filter(operation => !operation.createSurface) : group) as any)
-    }
+    // The adapter publishes complete replacement snapshots, not incremental
+    // batches. A fresh model removes omitted fields/components and respects
+    // delete -> create ordering inside the snapshot.
+    const current = new MessageProcessor<VueComponentImplementation>([catalog], action => { void dispatchAction(action, currentGeneration) })
+    current.processMessages(operations as any)
+    processor.value = current
+    lastHash = hash
+    lastCatalog = catalog
     error.value = ''
     version.value += 1
   } catch (cause) {
+    processor.value = null
+    lastHash = ''
+    version.value += 1
     error.value = cause instanceof Error ? cause.message : String(cause)
   }
 }
 
-watch(() => [props.operations, props.catalog], () => process(props.operations), { deep: true, immediate: true })
-onBeforeUnmount(() => { processor.value = null; lastHash = '' })
+watch(() => [props.operations, props.catalog, props.messageId], () => process(props.operations), { deep: true, immediate: true })
+onBeforeUnmount(() => { generation++; processor.value = null; lastHash = '' })
 const surfaces = computed(() => {
   void version.value
   const current = processor.value
@@ -111,7 +111,7 @@ const surfaces = computed(() => {
 <template>
   <div v-if="operations.length" class="native-a2ui" data-testid="a2ui-activity-renderer" :data-message-id="messageId">
     <p v-if="error" class="a2ui-error">{{ t('a2ui.renderFailed') }}：{{ error }}</p>
-    <section v-for="entry in surfaces" v-else :key="entry.id" :data-surface-id="entry.id" class="a2ui-surface">
+    <section v-for="entry in surfaces" v-else :key="`${version}-${entry.id}`" :data-surface-id="entry.id" class="a2ui-surface">
       <SurfaceRoot :surface="entry.surface" />
     </section>
   </div>
