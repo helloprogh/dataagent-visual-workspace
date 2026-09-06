@@ -14,9 +14,8 @@ import { useConversationPresentation } from '../composables/useConversationPrese
 import AgentMark from './AgentMark.vue'
 import ConversationMessage from './ConversationMessage.vue'
 import ConversationProcessGroup from './ConversationProcessGroup.vue'
-import DeliverablesPanel from './DeliverablesPanel.vue'
-import AuditPanel from './AuditPanel.vue'
-import FilePreviewPanel from './FilePreviewPanel.vue'
+import ConversationHeader from './ConversationHeader.vue'
+import ConversationInspector from './ConversationInspector.vue'
 import GeneratedArtifactCard from './GeneratedArtifactCard.vue'
 import InterruptCard from './InterruptCard.vue'
 import { buildCancellationResumeEntry, buildConfirmationResumeEntry } from '../approval'
@@ -275,21 +274,21 @@ onBeforeUnmount(() => {
 <template>
   <section class="agent-chat-layout" :class="{ 'agent-chat-layout--preview': activePreview || deliverablesOpen || auditOpen }">
   <section class="agent-chat" :class="{ 'agent-chat--empty': !sessionId && !messages.length }">
-    <header v-if="sessionId" class="agent-chat__header">
-      <div class="agent-chat__identity">
-        <small>{{ t('chat.current') }}</small>
-        <b>{{ userFacingSessionName(displayName) }}</b>
-        <small>{{ sessionId }}</small>
-      </div>
-      <div class="agent-chat__header-actions">
-        <button type="button" :class="{ active: auditOpen }" :aria-pressed="auditOpen" :aria-label="t('chat.record')" :title="t('chat.record')" @click="toggleAudit"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5"/><path d="M10 6v4l2.5 1.5"/></svg><span>{{ t('chat.record') }}</span></button>
-        <button type="button" :class="{ active: deliverablesOpen || activePreview }" :aria-pressed="Boolean(deliverablesOpen || activePreview)" :aria-label="`${t('chat.deliverables')} ${deliverables.length}`" :title="t('chat.deliverables')" @click="toggleDeliverables">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 6.5h4l1.4 1.8h7.6v7.2h-13z"/><path d="M5.5 4.5h4l1.2 2"/></svg>
-          <span>{{ t('chat.deliverables') }}</span> <small>{{ deliverables.length }}</small>
-        </button>
-        <span role="status" :class="{ active: running, pending: pendingInterrupts.length, failed: error && !running }"><i></i>{{ hydrating ? t('chat.restoring') : running ? t('chat.running') : pendingInterrupts.length ? t('interrupt.needsAction') : error ? t('chat.incomplete') : t('chat.ready') }}</span>
-      </div>
-    </header>
+    <ConversationHeader
+      v-if="sessionId"
+      :session-id="sessionId"
+      :display-name="displayName"
+      :audit-open="auditOpen"
+      :deliverables-active="Boolean(deliverablesOpen || activePreview)"
+      :compact="Boolean(activePreview || deliverablesOpen || auditOpen)"
+      :deliverable-count="deliverables.length"
+      :pending-approval-count="pendingInterrupts.length"
+      :running="running"
+      :hydrating="hydrating"
+      :error="error"
+      @toggle-audit="toggleAudit"
+      @toggle-deliverables="toggleDeliverables"
+    />
 
     <div
       ref="messageScroller"
@@ -483,26 +482,20 @@ onBeforeUnmount(() => {
     </div>
   </section>
 
-  <FilePreviewPanel
-    v-if="activePreview"
-    :file="activePreview"
-    :interrupts="previewInterrupts"
-    :busy="running"
-    :approval-submitted="previewApprovalSubmitted"
-    @close="closeFilePreview"
+  <ConversationInspector
+    :active-preview="activePreview"
+    :preview-interrupts="previewInterrupts"
+    :running="running"
+    :preview-approval-submitted="previewApprovalSubmitted"
+    :deliverables-open="deliverablesOpen"
+    :deliverables="deliverables"
+    :pending-approval-count="pendingInterrupts.length"
+    :audit-open="auditOpen"
+    :audit-entries="auditEntries"
+    @close-preview="closeFilePreview"
     @resume="resumeFileApproval"
-  />
-  <DeliverablesPanel
-    v-else-if="deliverablesOpen"
-    :files="deliverables"
-    :pending-approvals="pendingInterrupts.length"
-    @close="closePanels"
+    @close-panels="closePanels"
     @select="openDeliverable"
-  />
-  <AuditPanel
-    v-else-if="auditOpen"
-    :entries="auditEntries"
-    @close="closePanels"
   />
   </section>
 </template>
@@ -512,26 +505,6 @@ onBeforeUnmount(() => {
 .agent-chat-layout--preview { grid-template-columns: minmax(28rem, 1fr) clamp(22rem, 38vw, 36rem); }
 .agent-chat { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; background: var(--da-ambient), var(--da-surface-0); }
 .agent-chat--empty { grid-template-rows: auto auto; align-content: safe center; gap: var(--da-space-8); padding-block: var(--da-space-8); overflow-y: auto; }
-.agent-chat__header { display: flex; align-items: center; justify-content: space-between; gap: var(--da-space-4); min-height: 3.75rem; padding: 0 var(--da-space-6); border-bottom: 0.0625rem solid var(--da-border); background: color-mix(in srgb, var(--da-surface-0) 88%, transparent); }
-.agent-chat__identity { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0 var(--da-space-3); }
-.agent-chat__identity > small:first-child { display: block; grid-row: 1; color: var(--da-accent-primary); font-size: 0.625rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-.agent-chat__identity > b { grid-row: 2; }
-.agent-chat__header b { overflow: hidden; color: var(--da-text-emphasis); text-overflow: ellipsis; white-space: nowrap; }
-.agent-chat__identity > small:last-child { display: none; }
-.agent-chat__header > span { display: inline-flex; flex: 0 0 auto; align-items: center; gap: var(--da-space-2); color: var(--da-text-muted); font-size: var(--da-font-size-xs); white-space: nowrap; }
-.agent-chat__header > span i { width: 0.375rem; height: 0.375rem; border-radius: 50%; background: var(--da-accent-green); }
-.agent-chat__header > span.active i { background: var(--da-accent-orange); box-shadow: 0 0 0.75rem var(--da-accent-orange-glow); }
-.agent-chat__header-actions { display: flex; flex: 0 0 auto; align-items: center; gap: var(--da-space-2); }
-.agent-chat__header-actions > button { display: inline-flex; min-height: 1.875rem; align-items: center; gap: 0.375rem; padding: 0 var(--da-space-2); border: 0.0625rem solid transparent; border-radius: 999rem; color: var(--da-text-muted); background: transparent; cursor: pointer; font-size: var(--da-font-size-xs); }
-.agent-chat__header-actions > button:hover, .agent-chat__header-actions > button.active { border-color: var(--da-border); color: var(--da-text-emphasis); background: var(--da-surface-2); }
-.agent-chat__header-actions svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.35; }
-.agent-chat__header-actions button small { display: inline-grid; min-width: 1.125rem; height: 1.125rem; place-items: center; border-radius: 999rem; color: var(--da-text-secondary); background: var(--da-surface-3); font-size: 0.625rem; }
-.agent-chat__header-actions > span { display: inline-flex; min-height: 1.875rem; align-items: center; gap: var(--da-space-2); padding-inline: var(--da-space-2); border: 0.0625rem solid var(--da-border); border-radius: 999rem; color: var(--da-text-muted); background: color-mix(in srgb, var(--da-surface-2) 68%, transparent); font-size: var(--da-font-size-xs); }
-.agent-chat__header-actions > span i { width: 0.375rem; height: 0.375rem; border-radius: 50%; background: var(--da-accent-green); }
-.agent-chat__header-actions > span.active i { background: var(--da-accent-orange); box-shadow: 0 0 0.75rem var(--da-accent-orange-glow); }
-.agent-chat__header-actions > span.pending { color: var(--da-accent-yellow); border-color: color-mix(in srgb, var(--da-accent-yellow) 28%, var(--da-border)); }
-.agent-chat__header-actions > span.pending i { background: var(--da-accent-yellow); }
-.agent-chat__header-actions > span.failed i { background: var(--da-accent-red); }
 .agent-chat__messages { min-height: 0; overflow: auto; padding: var(--da-space-6) clamp(1rem, 4vw, 3.5rem) var(--da-space-8); scrollbar-gutter: stable; }
 .agent-chat__loading, .message-list, .agent-welcome { width: min(100%, var(--da-content-max)); margin: 0 auto; }
 .message-list { display: flex; flex-direction: column; gap: var(--da-space-5); }
@@ -608,16 +581,10 @@ onBeforeUnmount(() => {
 .composer-assurance small { color: inherit; font-size: inherit; }
 .agent-chat__composer :deep(.x-sender), .agent-chat__composer :deep(.elx-xsender), .agent-chat__composer :deep(.elx-x-sender) { border-color: var(--da-border-strong); background: var(--da-surface-1); box-shadow: var(--da-shadow-soft); }
 .agent-chat__composer :deep([contenteditable='true']), .agent-chat__composer :deep(.chat-write-wrap), .agent-chat__composer :deep(.chat-write-input) { color: var(--da-text-primary); caret-color: var(--da-text-emphasis); }
-.agent-chat-layout--preview .agent-chat__identity small { display: none; }
 
 @media (max-width: 48rem) {
   .agent-chat-layout--preview { position: relative; display: block; }
   .agent-chat-layout--preview > :deep(.file-preview-panel), .agent-chat-layout--preview > :deep(.deliverables-panel), .agent-chat-layout--preview > :deep(.audit-panel) { position: absolute; inset: 0; z-index: 10; }
-  .agent-chat__header { padding-inline: var(--da-space-4); }
-  .agent-chat__header-actions { gap: 0; }
-  .agent-chat__header-actions > button { padding-inline: var(--da-space-1); }
-  .agent-chat__header-actions > span { display: none; }
-  .agent-chat__identity small { display: none; }
   .agent-chat__messages { padding-inline: var(--da-space-4); }
   .agent-chat__composer-wrap { padding-inline: var(--da-space-4); }
   .composer-input-actions :deep(.model-selector) { max-width: min(17rem, 48vw); }
@@ -627,9 +594,6 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 34rem) {
-  .agent-chat__identity { max-width: 8rem; }
-  .agent-chat__header-actions > button > span { display: none; }
-  .agent-chat__header-actions > button { min-width: 2.25rem; min-height: 2.25rem; justify-content: center; }
   .welcome-workflow { gap: var(--da-space-2); }
   .welcome-workflow li:not(:last-child)::after { display: none; }
   .agent-welcome__orbit { height: 5.5rem; }
