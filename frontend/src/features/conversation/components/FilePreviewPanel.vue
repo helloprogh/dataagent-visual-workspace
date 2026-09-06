@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { MarkdownRenderer } from 'x-markdown-vue'
 import { appTheme } from '../../../shared/theme/theme'
 import { dataAgentWebApi } from '../../../shared/config/api'
+import { readBoundedText } from '../../../shared/api/readBoundedText'
 import { buildCancellationResumeEntry, buildConfirmationResumeEntry } from '../approval'
 import { fileBadgeLabel, fileDownloadUrl, fileKindLabel, formatFileSize, type ArchiveEntry, type ConversationFilePreview } from '../types/filePreview'
 import InterruptCard from './InterruptCard.vue'
@@ -34,6 +35,7 @@ const showApprovalOptions = ref(false)
 const archiveEntries = ref<ArchiveEntry[]>([])
 const archiveEntryPath = ref('')
 const archiveEntryContent = ref('')
+const archiveEntryTruncated = ref(false)
 const archiveEntryMimeType = ref('')
 const archiveEntryUrl = ref('')
 const archiveLoading = ref(false)
@@ -92,6 +94,7 @@ const approvalHandled = computed(() => props.approvalSubmitted || props.file.app
 
 async function loadText() {
   controller?.abort()
+  loading.value = false
   content.value = ''
   error.value = ''
   truncated.value = false
@@ -108,10 +111,14 @@ async function loadText() {
     })
     if (!response.ok) throw new Error(`${t('preview.unavailable')} (${response.status})`)
     const declaredSize = Number(response.headers.get('content-length') ?? 0)
-    if (declaredSize > MAX_TEXT_BYTES) throw new Error(t('preview.tooLarge'))
-    const value = await response.text()
-    truncated.value = value.length > MAX_TEXT_BYTES
-    content.value = value.slice(0, MAX_TEXT_BYTES)
+    if (declaredSize > MAX_TEXT_BYTES) {
+      await response.body?.cancel()
+      throw new Error(t('preview.tooLarge'))
+    }
+    const result = await readBoundedText(response, MAX_TEXT_BYTES)
+    if (nextController.signal.aborted || controller !== nextController) return
+    truncated.value = result.truncated
+    content.value = result.text
   } catch (reason) {
     if (nextController.signal.aborted) return
     error.value = reason instanceof Error ? reason.message : String(reason)
@@ -163,6 +170,7 @@ async function openArchiveEntry(entry: ArchiveEntry) {
   if (archiveEntryUrl.value) URL.revokeObjectURL(archiveEntryUrl.value)
   archiveEntryPath.value = entry.path
   archiveEntryContent.value = ''
+  archiveEntryTruncated.value = false
   archiveEntryMimeType.value = ''
   archiveEntryUrl.value = ''
   archiveError.value = ''
@@ -177,9 +185,16 @@ async function openArchiveEntry(entry: ArchiveEntry) {
     })
     if (!response.ok) throw new Error(`${t('preview.unavailable')} (${response.status})`)
     archiveEntryMimeType.value = (response.headers.get('content-type') ?? 'application/octet-stream').split(';', 1)[0] || 'application/octet-stream'
-    const blob = await response.blob()
-    if (archiveEntryKind.value === 'text' || archiveEntryKind.value === 'markdown') archiveEntryContent.value = await blob.text()
-    else archiveEntryUrl.value = URL.createObjectURL(blob)
+    if (archiveEntryKind.value === 'text' || archiveEntryKind.value === 'markdown') {
+      const result = await readBoundedText(response, MAX_TEXT_BYTES)
+      if (nextController.signal.aborted || archiveController !== nextController) return
+      archiveEntryContent.value = result.text
+      archiveEntryTruncated.value = result.truncated
+    } else {
+      const blob = await response.blob()
+      if (nextController.signal.aborted || archiveController !== nextController) return
+      archiveEntryUrl.value = URL.createObjectURL(blob)
+    }
   } catch (reason) {
     if (nextController.signal.aborted) return
     archiveError.value = reason instanceof Error ? reason.message : String(reason)
@@ -315,6 +330,7 @@ onBeforeUnmount(() => {
             <p>{{ t('preview.unsupportedHint') }}</p>
             <a :href="`${archiveUrl}&entry=${encodeURIComponent(archiveEntryPath)}`" target="_blank" rel="noreferrer">{{ t('preview.openOriginal') }}</a>
           </div>
+          <p v-if="archiveEntryTruncated && !archiveLoading && !archiveError" class="file-preview-panel__notice">{{ t('preview.notice') }}</p>
         </div>
       </section>
 

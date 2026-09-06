@@ -7,6 +7,7 @@ import type { ModelSelection } from '../../model/types'
 import { rememberSelectedModel } from '../../model/api/model'
 import { publishAndRun } from '../sendLifecycle'
 import { A2UI_RUN_CAPABILITY } from '../../../a2ui/capability'
+import { validateApproval } from '../approvalSchema'
 
 export type SendReceipt = { sessionId: string; created: boolean; initialName?: string }
 
@@ -296,6 +297,12 @@ export function useAgentConversation() {
     const provided = new Set(entries.map(item => item.interruptId))
     if (entries.length !== required.size || required.size !== provided.size || [...required].some(id => !provided.has(id))) {
       throw new Error('必须一次处理当前 Run 的全部待处理中断')
+    }
+    for (const entry of entries) {
+      const interrupt = pendingInterrupts.value.find(item => item.id === entry.interruptId)!
+      if (entry.status === 'resolved' && validateApproval(interrupt.responseSchema ?? {}, entry.payload).length) {
+        throw new Error('审批答案不符合当前表单要求，请检查后提交')
+      }
     }
     const previousInterrupts = [...pendingInterrupts.value]
     const previousAgentInterrupts = [...target.pendingInterrupts]

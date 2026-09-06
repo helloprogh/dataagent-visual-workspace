@@ -1,4 +1,5 @@
 import { defineComponent, onUnmounted, ref, watch, type PropType, type VNode } from 'vue'
+import { useA2uiBusy } from './interaction'
 import {
   GenericBinder,
   type ComponentApi,
@@ -12,6 +13,7 @@ export interface VueA2uiComponentProps<T, S = void> {
   buildChild: (id: string, basePath?: string) => VNode
   context: ComponentContext
   state: S
+  busy: boolean
 }
 
 export interface VueComponentImplementation extends ComponentApi {
@@ -31,6 +33,7 @@ export function createVueComponent<Api extends ComponentApi, S = void>(
       buildChild: { type: Function as PropType<(id: string, basePath?: string) => VNode>, required: true },
     },
     setup(wrapperProps) {
+      const busy = useA2uiBusy()
       const resolvedProps = ref<Props>({} as Props)
       const state = setupState ? setupState() : (undefined as S)
       let binder: GenericBinder<Props> | null = null
@@ -48,6 +51,7 @@ export function createVueComponent<Api extends ComponentApi, S = void>(
         buildChild: wrapperProps.buildChild,
         context: wrapperProps.context,
         state,
+        busy: busy.value,
       })
     },
   })

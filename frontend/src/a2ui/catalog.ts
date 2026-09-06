@@ -1,4 +1,4 @@
-import { h, ref } from 'vue'
+import { h } from 'vue'
 import { z } from 'zod'
 import { Catalog } from '@a2ui/web_core/v0_9'
 import { BASIC_FUNCTIONS, ButtonApi } from '@a2ui/web_core/v0_9/basic_catalog'
@@ -126,28 +126,27 @@ const ActionButton = createVueComponent({
     variant: z.enum(['default', 'primary', 'borderless']).optional(),
     action: z.union([z.object({ event: z.object({ name: z.string(), context: z.record(z.string(), z.any()).optional() }) })] as any),
   }),
-} as any, ({ props, state }: any) => h('button', {
+} as any, ({ props, busy }: any) => h('button', {
   'data-a2ui-action': String(props.label ?? 'action'),
-  disabled: state.busy.value,
-  'aria-busy': state.busy.value ? 'true' : undefined,
+  disabled: busy,
+  'aria-busy': busy ? 'true' : undefined,
   style: {
     margin: '0.5rem', padding: '0.5rem 1rem', border: props.variant === 'borderless' ? 'none' : '0.0625rem solid var(--da-border)',
     borderRadius: 'var(--da-radius-sm)', color: props.variant === 'primary' ? '#fff' : 'var(--da-text-primary)',
     background: props.variant === 'primary' ? 'var(--da-accent-primary)' : props.variant === 'borderless' ? 'transparent' : 'var(--da-surface-1)',
-    cursor: state.busy.value ? 'wait' : 'pointer', opacity: state.busy.value ? 0.6 : 1,
+    cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1,
   },
   onClick: () => {
-    if (state.busy.value) return
-    state.busy.value = true
-    setTimeout(() => { state.busy.value = false }, 6000)
+    if (busy) return
     props.action?.()
   },
-}, state.busy.value ? `正在处理 ${String(props.label ?? '')}…` : String(props.label ?? 'Action')), () => ({ busy: ref(false) }))
+}, String(props.label ?? 'Action')))
 
-const DataAgentButton = createVueComponent(ButtonApi, ({ props, buildChild }) => {
-  const disabled = props.isValid === false
+const DataAgentButton = createVueComponent(ButtonApi, ({ props, buildChild, busy }) => {
+  const disabled = busy || props.isValid === false
   return h('button', {
     disabled,
+    'aria-busy': busy ? 'true' : undefined,
     onClick: disabled ? undefined : props.action,
     style: {
       margin: '0.5rem', padding: '0.5rem 0.875rem', border: props.variant === 'borderless' && !disabled ? 'none' : '0.0625rem solid var(--da-border)',

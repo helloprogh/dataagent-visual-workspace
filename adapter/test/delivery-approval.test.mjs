@@ -4,11 +4,14 @@ import test from 'node:test'
 import ts from 'typescript'
 
 async function loadApprovalModule() {
+  const schemaSource = await fs.readFile(new URL('../../frontend/src/features/conversation/approvalSchema.ts', import.meta.url), 'utf8')
+  const schemaOutput = ts.transpileModule(schemaSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText
+  const schemaUrl = `data:text/javascript;base64,${Buffer.from(schemaOutput).toString('base64')}`
   const source = await fs.readFile(new URL('../../frontend/src/features/conversation/approval.ts', import.meta.url), 'utf8')
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
   })
-  return import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`)
+  return import(`data:text/javascript;base64,${Buffer.from(outputText.replace("'./approvalSchema'", JSON.stringify(schemaUrl))).toString('base64')}`)
 }
 
 test('delivery quick confirmation resolves the first choice of one simple field', async () => {

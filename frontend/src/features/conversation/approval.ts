@@ -1,4 +1,5 @@
 import type { Interrupt, ResumeEntry } from '@ag-ui/client'
+import { validateApproval } from './approvalSchema'
 
 type Schema = Record<string, any>
 
@@ -26,6 +27,7 @@ export function buildConfirmationResumeEntry(interrupt: Interrupt): ResumeEntry 
     const [name, rawField] = fields[0]
     const choice = firstChoice((rawField ?? {}) as Schema)
     if (!choice.found) return null
+    if (validateApproval(schema, { [name]: choice.value }).length) return null
     return {
       interruptId: interrupt.id,
       status: 'resolved',
@@ -34,6 +36,7 @@ export function buildConfirmationResumeEntry(interrupt: Interrupt): ResumeEntry 
   }
   const choice = firstChoice(schema)
   if (!choice.found) return null
+  if (validateApproval(schema, choice.value).length) return null
   return {
     interruptId: interrupt.id,
     status: 'resolved',

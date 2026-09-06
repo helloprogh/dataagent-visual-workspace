@@ -100,9 +100,10 @@ const Modal = createVueComponent(ModalApi, ({ props, buildChild, state }: any) =
 ]), () => ({ open: ref(false) }))
 
 const controlStyle = { width: '100%', padding: '0.5rem 0.625rem', border, borderRadius: radius, color: 'var(--da-text-primary)', background: 'var(--da-surface-0)' }
-const Button = createVueComponent(ButtonApi, ({ props, buildChild }: any) => h('button', {
-  disabled: props.isValid === false,
-  onClick: props.isValid === false ? undefined : props.action,
+const Button = createVueComponent(ButtonApi, ({ props, buildChild, busy }: any) => h('button', {
+  disabled: busy || props.isValid === false,
+  'aria-busy': busy ? 'true' : undefined,
+  onClick: busy || props.isValid === false ? undefined : props.action,
   style: { margin: gap, padding: '0.5rem 0.875rem', border: props.variant === 'borderless' ? 0 : border, borderRadius: radius,
     color: props.variant === 'primary' ? 'var(--da-on-accent, #fff)' : 'var(--da-text-primary)',
     background: props.variant === 'primary' ? 'var(--da-accent-primary)' : props.variant === 'borderless' ? 'transparent' : 'var(--da-surface-1)',

@@ -1,13 +1,32 @@
 <script setup lang="ts">
-import { computed, defineComponent, h, onBeforeUnmount, onUnmounted, ref, shallowRef, toRaw, watch, type PropType, type VNode } from 'vue'
+import { computed, defineComponent, h, nextTick, onBeforeUnmount, onUnmounted, provide, ref, shallowRef, toRaw, watch, type PropType, type VNode } from 'vue'
 import { ComponentContext, MessageProcessor, type SurfaceModel } from '@a2ui/web_core/v0_9'
 import { useI18n } from 'vue-i18n'
 import { operationSurfaceId } from './sanitizeOperations'
 import type { VueComponentImplementation } from './createVueComponent'
+import { A2UI_BUSY } from './interaction'
 
 type Operation = Record<string, any>
-const props = defineProps<{ operations: Operation[]; messageId: string; catalog: any; onAction?: (action: unknown) => Promise<void> | void }>()
+const props = defineProps<{ operations: Operation[]; messageId: string; catalog: any; busy?: boolean; onAction?: (action: unknown) => Promise<void> | void }>()
 const { t } = useI18n()
+const dispatching = ref(false)
+const busy = computed(() => Boolean(props.busy || dispatching.value))
+provide(A2UI_BUSY, busy)
+
+async function dispatchAction(action: unknown) {
+  if (busy.value || !props.onAction) return
+  dispatching.value = true
+  try {
+    await props.onAction(action)
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : String(cause)
+  } finally {
+    // Vue event listeners may return void. Wait for the owner's running prop
+    // to reach the surface before releasing the immediate double-click latch.
+    await nextTick()
+    dispatching.value = false
+  }
+}
 
 const DeferredChild = defineComponent({
   name: 'DataAgentA2uiDeferredChild',
@@ -50,7 +69,7 @@ const error = ref('')
 let lastHash = ''
 
 function ensureProcessor() {
-  if (!processor.value) processor.value = new MessageProcessor<VueComponentImplementation>([toRaw(props.catalog)], action => { void props.onAction?.(action) })
+  if (!processor.value) processor.value = new MessageProcessor<VueComponentImplementation>([toRaw(props.catalog)], action => { void dispatchAction(action) })
   return processor.value
 }
 

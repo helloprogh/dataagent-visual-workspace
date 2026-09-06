@@ -289,7 +289,7 @@ function previewFile(file: any, index: number) {
     v-else-if="isActivity && raw.activityType === 'a2ui-surface'"
     :content="raw.content"
     :message-id="message.id"
-    :busy="running"
+    :busy="running || pendingInterruptIds.length > 0"
     @action="emit('a2uiAction', $event)"
   />
 

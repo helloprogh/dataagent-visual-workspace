@@ -141,6 +141,8 @@ const messages = {
     },
     interrupt: {
       inputRequired: '需要补充信息', confirmation: '请确认', toolCall: '操作确认', needsAction: '需要你的处理', pendingCount: '{count} 项待处理', waitingUser: '等待用户', defaultMessage: 'Agent 需要你的输入后才能继续。', continue: '继续',
+      unsupportedSchema: '此表单包含暂不支持的字段，无法提交。请联系管理员调整表单。',
+      invalidAnswer: '请检查「{field}」的格式或取值。',
     },
     preview: {
       label: '文件预览', title: '{name} 预览', download: '下载文件', openNew: '在新窗口打开', close: '关闭文件预览', unavailable: '暂时无法预览', openOriginal: '打开原文件', tooLarge: '文件超过 1 MB，请下载后查看', unsupported: '此格式暂不支持内嵌预览', unsupportedHint: '可以在新窗口打开或下载后查看。', notice: '内容较长，仅显示前 1 MB。', approval: '文件审批', approvalHint: '确认后继续执行', handled: '已处理', sent: '审批结果已发送，文件仍可继续预览。', other: '其他处理', collapse: '收起其他选项', archiveLoading: '正在读取压缩包目录…', archiveUnavailable: '暂时无法读取压缩包', archiveEmpty: '压缩包为空', archiveDirectory: '目录', archiveOpenHint: '选择左侧文件查看内容',
@@ -321,6 +323,8 @@ const messages = {
     },
     interrupt: {
       inputRequired: 'More information required', confirmation: 'Please confirm', toolCall: 'Action approval', needsAction: 'Action required', pendingCount: '{count} pending', waitingUser: 'Waiting for user', defaultMessage: 'The Agent needs your input before continuing.', continue: 'Continue',
+      unsupportedSchema: 'This form contains unsupported fields and cannot be submitted. Ask an administrator to adjust it.',
+      invalidAnswer: 'Check the format or value of “{field}”.',
     },
     preview: {
       label: 'File preview', title: 'Preview {name}', download: 'Download file', openNew: 'Open in new window', close: 'Close file preview', unavailable: 'Preview unavailable', openOriginal: 'Open original file', tooLarge: 'File exceeds 1 MB. Download it to view.', unsupported: 'Inline preview is not supported for this format', unsupportedHint: 'Open it in a new window or download it.', notice: 'Content is long; showing only the first 1 MB.', approval: 'File approval', approvalHint: 'Confirm to continue', handled: 'Handled', sent: 'Approval sent; the file can still be previewed.', other: 'Other actions', collapse: 'Hide other options', archiveLoading: 'Reading archive directory…', archiveUnavailable: 'Archive directory unavailable', archiveEmpty: 'The archive is empty', archiveDirectory: 'Directory', archiveOpenHint: 'Select a file on the left to view its contents',

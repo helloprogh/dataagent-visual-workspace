@@ -51,6 +51,7 @@ function handleAction(action: unknown) {
         :operations="operations"
         :message-id="messageId"
         :catalog="dataAgentCatalog"
+        :busy="busy"
         :on-action="handleAction"
       />
       <p v-else class="a2ui-card__empty">{{ t('a2ui.invalid') }}</p>

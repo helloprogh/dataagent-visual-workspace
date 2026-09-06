@@ -2,6 +2,7 @@
 import { computed, reactive, watch } from 'vue'
 import type { Interrupt, ResumeEntry } from '@ag-ui/client'
 import { useI18n } from 'vue-i18n'
+import { unsupportedApprovalSchema, validateApproval } from '../approvalSchema'
 
 const props = withDefaults(defineProps<{
   interrupts: Interrupt[]
@@ -42,6 +43,7 @@ function fieldsOf(interrupt: Interrupt) {
 }
 
 function choicesOf(schema: Schema) {
+  if (schema.const !== undefined) return [{ label: String(schema.title ?? schema.const), value: schema.const }]
   if (Array.isArray(schema.oneOf)) {
     const choices = schema.oneOf
       .filter((item: any) => item && Object.prototype.hasOwnProperty.call(item, 'const'))
@@ -70,23 +72,19 @@ const interruptViews = computed(() => props.interrupts.map(interrupt => {
 }))
 
 function payloadOf(interrupt: Interrupt) {
-  return fieldsOf(interrupt).length ? { ...(answers[interrupt.id] ?? {}) } : rootAnswers[interrupt.id]
+  return schemaOf(interrupt).type === 'object' ? { ...(answers[interrupt.id] ?? {}) } : rootAnswers[interrupt.id]
 }
 
 function complete(interrupt: Interrupt) {
-  const fields = fieldsOf(interrupt)
-  if (!fields.length) {
-    const schema = schemaOf(interrupt)
-    if (choicesOf(schema).length || ['string', 'number', 'integer', 'boolean'].includes(schema.type)) {
-      return rootAnswers[interrupt.id] !== undefined && rootAnswers[interrupt.id] !== ''
-    }
-    return true
-  }
-  return fields.every(field => !field.required || (
-    answers[interrupt.id]?.[field.name] !== undefined
-    && answers[interrupt.id]?.[field.name] !== ''
-    && (!Array.isArray(answers[interrupt.id]?.[field.name]) || answers[interrupt.id][field.name].length > 0)
-  ))
+  return validateApproval(schemaOf(interrupt), payloadOf(interrupt)).length === 0
+}
+
+function fieldIssues(interrupt: Interrupt) {
+  const schema = schemaOf(interrupt)
+  return validateApproval(schema, payloadOf(interrupt))
+    .filter(issue => issue.kind !== 'required' && issue.kind !== 'unsupported')
+    .map(issue => ({ ...issue, label: schema.properties?.[issue.path.slice(2).split('[')[0]]?.title
+      || (issue.path === '$' ? schema.title || t('interrupt.inputRequired') : issue.path.slice(2)) }))
 }
 
 const canSubmit = computed(() => props.interrupts.length > 0 && props.interrupts.every(complete))
@@ -102,7 +100,7 @@ function submit() {
 }
 
 function submitChoice(interrupt: Interrupt, payload: unknown) {
-  if (props.busy) return
+  if (props.busy || props.interrupts.length !== 1 || validateApproval(schemaOf(interrupt), payload).length) return
   emit('resume', [{
     interruptId: interrupt.id,
     status: 'resolved',
@@ -111,6 +109,9 @@ function submitChoice(interrupt: Interrupt, payload: unknown) {
 }
 
 watch(() => props.interrupts, interrupts => {
+  const active = new Set(interrupts.map(interrupt => interrupt.id))
+  for (const id of Object.keys(answers)) if (!active.has(id)) delete answers[id]
+  for (const id of Object.keys(rootAnswers)) if (!active.has(id)) delete rootAnswers[id]
   for (const interrupt of interrupts) {
     answers[interrupt.id] ??= {}
     const schema = schemaOf(interrupt)
@@ -142,11 +143,12 @@ watch(() => props.interrupts, interrupts => {
     <article v-for="item in interruptViews" :key="item.interrupt.id" class="interrupt-card__item">
       <p>{{ item.interrupt.message || t('interrupt.defaultMessage') }}</p>
 
-      <div v-if="item.quickChoices.length" class="interrupt-choices">
+      <p v-if="unsupportedApprovalSchema(item.schema).length" class="interrupt-validation" role="status">{{ t('interrupt.unsupportedSchema') }}</p>
+      <div v-else-if="hasQuickChoices" class="interrupt-choices">
         <el-button
           v-for="choice in item.quickChoices"
           :key="JSON.stringify(choice.value)"
-          :disabled="busy"
+          :disabled="busy || validateApproval(item.schema, choice.payload).length > 0"
           @click="submitChoice(item.interrupt, choice.payload)"
         >{{ choice.label }}</el-button>
       </div>
@@ -175,8 +177,8 @@ watch(() => props.interrupts, interrupts => {
           </el-checkbox-group>
 
           <el-switch v-else-if="field.schema.type === 'boolean'" v-model="answers[item.interrupt.id][field.name]" :disabled="busy" />
-          <el-input-number v-else-if="field.schema.type === 'number' || field.schema.type === 'integer'" v-model="answers[item.interrupt.id][field.name]" :disabled="busy" />
-          <el-date-picker v-else-if="field.schema.format === 'date' || field.schema.format === 'date-time'" v-model="answers[item.interrupt.id][field.name]" type="date" value-format="YYYY-MM-DD" :disabled="busy" />
+          <el-input-number v-else-if="field.schema.type === 'number' || field.schema.type === 'integer'" v-model="answers[item.interrupt.id][field.name]" :aria-label="field.schema.title || field.name" :disabled="busy" />
+          <el-date-picker v-else-if="field.schema.format === 'date' || field.schema.format === 'date-time'" v-model="answers[item.interrupt.id][field.name]" :type="field.schema.format === 'date-time' ? 'datetime' : 'date'" :value-format="field.schema.format === 'date-time' ? 'YYYY-MM-DDTHH:mm:ssZ' : 'YYYY-MM-DD'" :aria-label="field.schema.title || field.name" :disabled="busy" />
           <el-input v-else v-model="answers[item.interrupt.id][field.name]" :type="field.schema['x-multiline'] ? 'textarea' : 'text'" :placeholder="field.schema.description" :disabled="busy" />
         </div>
       </template>
@@ -189,8 +191,13 @@ watch(() => props.interrupts, interrupts => {
         </div>
         <el-switch v-else-if="item.schema.type === 'boolean'" v-model="rootAnswers[item.interrupt.id]" :disabled="busy" />
         <el-input-number v-else-if="item.schema.type === 'number' || item.schema.type === 'integer'" v-model="rootAnswers[item.interrupt.id]" :disabled="busy" />
+        <el-checkbox-group v-else-if="item.schema.type === 'array'" v-model="rootAnswers[item.interrupt.id]" :disabled="busy">
+          <el-checkbox v-for="choice in choicesOf(item.schema.items)" :key="JSON.stringify(choice.value)" :value="choice.value">{{ choice.label }}</el-checkbox>
+        </el-checkbox-group>
+        <el-date-picker v-else-if="item.schema.format === 'date' || item.schema.format === 'date-time'" v-model="rootAnswers[item.interrupt.id]" :type="item.schema.format === 'date-time' ? 'datetime' : 'date'" :value-format="item.schema.format === 'date-time' ? 'YYYY-MM-DDTHH:mm:ssZ' : 'YYYY-MM-DD'" :disabled="busy" />
         <el-input v-else-if="item.schema.type === 'string'" v-model="rootAnswers[item.interrupt.id]" :disabled="busy" :placeholder="item.schema.description || t('message.responseSchemaInput')" />
       </template>
+      <p v-for="issue in fieldIssues(item.interrupt)" :key="`${issue.path}-${issue.keyword}`" class="interrupt-validation" role="status">{{ t('interrupt.invalidAnswer', { field: issue.label }) }}</p>
     </article>
 
     <footer v-if="!hasQuickChoices" class="interrupt-card__actions">
@@ -225,6 +232,7 @@ watch(() => props.interrupts, interrupts => {
 .interrupt-card__item { padding: var(--da-space-4); }
 .interrupt-card__item + .interrupt-card__item { border-top: 0.0625rem solid var(--da-border); }
 .interrupt-card__item p { margin: 0 0 var(--da-space-3); color: var(--da-text-secondary); line-height: 1.6; }
+.interrupt-card__item .interrupt-validation { margin-top: var(--da-space-2); color: var(--da-accent-red); font-size: var(--da-font-size-sm); }
 .interrupt-field { display: grid; gap: var(--da-space-2); margin-top: var(--da-space-3); }
 .interrupt-field label { color: var(--da-text-muted); font-size: var(--da-font-size-sm); }
 .interrupt-field em { margin-left: var(--da-space-1); color: var(--da-accent-red); font-style: normal; }
