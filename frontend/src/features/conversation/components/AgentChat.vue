@@ -16,7 +16,7 @@ import ConversationMessage from './ConversationMessage.vue'
 import ConversationProcessGroup from './ConversationProcessGroup.vue'
 import ConversationHeader from './ConversationHeader.vue'
 import ConversationInspector from './ConversationInspector.vue'
-import GeneratedArtifactCard from './GeneratedArtifactCard.vue'
+import A2uiArtifactCard from './A2uiArtifactCard.vue'
 import InterruptCard from './InterruptCard.vue'
 import { buildCancellationResumeEntry, buildConfirmationResumeEntry } from '../approval'
 import { userFacingSessionName } from '../presentation'
@@ -335,7 +335,7 @@ onBeforeUnmount(() => {
                     @preview="openFilePreview"
                     @continue="continueFromStep"
                   />
-                  <GeneratedArtifactCard
+                  <A2uiArtifactCard
                     v-for="file in generatedFilesForProcess(child.steps)"
                     :key="`generated-card-${file.id}`"
                     :file="file"
@@ -373,7 +373,7 @@ onBeforeUnmount(() => {
               @preview="openFilePreview"
               @continue="continueFromStep"
             />
-            <GeneratedArtifactCard
+            <A2uiArtifactCard
               v-for="file in generatedFilesForProcess(item.steps)"
               :key="`generated-card-${file.id}`"
               :file="file"

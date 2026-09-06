@@ -51,7 +51,9 @@ A2UI 注册入口 `catalog.ts` 只负责合并基础组件和 `businessCatalog.t
 
 旧 `dataagent.ui` 由 `shared/legacy-a2ui.mjs` 在展示入口转换为 A2UI operations，历史原始数据不修改；原 `GenerativeUiCard.vue` 已移除。五种旧卡片类型均由 Catalog 渲染。`ArtifactCard` 只包含 artifactId，独立文件表保留安全 URL 和中断关联；本地预览、审批确认/取消使用作用域事件，Agent 动作仍走原 action 入口。
 
-统一工作仍未全部结束：工具生成文件的独立卡片仍需迁移，原生 A2UI 的 artifact 数据契约和后端生产端接线还需补齐。目前无法解析的 artifactId 显示无效提示，不从组件属性拼接地址或审批。AG-UI 仍是审批真源，多中断继续使用聚合表单。
+工具生成文件通过 `A2uiArtifactCard` 投影为 A2UI operations，并复用同一 Surface 入口；底层 `GeneratedArtifactCard` 只在 Catalog 内调用。原有交付对象通过独立 artifacts 表传入，组件节点只包含 artifactId；预览、审批和版本关联没有复制成另一份运行状态。
+
+统一工作仍未全部结束：原生 A2UI 的 artifact 数据契约和后端生产端接线还需补齐。目前无法解析的 artifactId 显示无效提示，不从组件属性拼接地址或审批。AG-UI 仍是审批真源，多中断继续使用聚合表单。
 
 - AgentChat 的展示派生、面板状态、头部、Inspector 和输入区已拆分。快捷键仍由编排层注册，通过输入组件的 getText/clear/setText/focus 接口操作，不再访问 XSender 实例。预览审批回执绑定打开代次、文件 ID 和中断 ID，关闭/重开或切换文件后不会标记新预览。
 - FilePreviewPanel 同时管理普通文件和 ZIP 内部文件请求，可按预览数据源继续拆分，保留现有 AbortController。

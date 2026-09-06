@@ -15,6 +15,8 @@ const props = withDefaults(defineProps<{
   legacy?: boolean
   approvalBusy?: boolean
   pendingInterruptIds?: string[]
+  artifacts?: ConversationFilePreview[]
+  compact?: boolean
 }>(), { busy: false })
 const emit = defineEmits<{ action: [action: unknown]; preview: [file: ConversationFilePreview]; confirm: [id: string]; cancel: [id: string] }>()
 const { t } = useI18n()
@@ -22,7 +24,7 @@ const expanded = ref(true)
 watch(() => props.messageId, () => { expanded.value = true })
 
 const legacyProjection = computed(() => props.legacy ? legacyUiToA2ui(props.content, props.messageId) : null)
-const artifactIndex = computed(() => new Map(legacyProjection.value?.artifacts.map(file => [file.id, file]) ?? []))
+const artifactIndex = computed(() => new Map((props.legacy ? legacyProjection.value?.artifacts ?? [] : props.artifacts ?? []).map(file => [file.id, file])))
 provide(A2UI_ARTIFACTS, {
   lookup: id => artifactIndex.value.get(id),
   pending: id => Boolean(props.pendingInterruptIds?.includes(id)),
@@ -51,8 +53,8 @@ function handleAction(action: unknown) {
     <b>{{ t('a2ui.retiredTitle') }}</b>
     <p>{{ t('a2ui.retiredDescription') }}</p>
   </section>
-  <section v-else-if="!removed" class="a2ui-card" :aria-busy="busy" :data-message-id="messageId">
-    <button class="a2ui-card__header" type="button" :aria-expanded="expanded" @click="expanded = !expanded">
+  <section v-else-if="!removed" class="a2ui-card" :class="{ 'a2ui-card--compact': compact }" :aria-busy="busy" :data-message-id="messageId">
+    <button v-if="!compact" class="a2ui-card__header" type="button" :aria-expanded="expanded" @click="expanded = !expanded">
       <span class="a2ui-card__mark" aria-hidden="true">▦</span>
       <span class="a2ui-card__heading">
         <b>{{ legacyProjection?.title || (surfaceIds.length === 1 ? surfaceIds[0].replace(/[-_]+/g, ' ') : t('a2ui.generated')) }}</b>
@@ -62,7 +64,7 @@ function handleAction(action: unknown) {
       <span class="a2ui-card__status" role="status"><i></i>{{ legacyProjection ? t(`generated.${legacyProjection.status}`) : busy ? t('a2ui.processing') : t('a2ui.interactive') }}</span>
       <span class="a2ui-card__chevron" :class="{ expanded }" aria-hidden="true">›</span>
     </button>
-    <div v-show="expanded" class="a2ui-card__body">
+    <div v-show="compact || expanded" class="a2ui-card__body">
       <NativeA2uiSurface
         v-if="operations.length"
         :operations="operations"
@@ -78,6 +80,8 @@ function handleAction(action: unknown) {
 
 <style scoped>
 .a2ui-card { width: 100%; min-width: 0; overflow: hidden; border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-lg); background: var(--da-surface-1); animation: a2ui-arrive 180ms ease-out; }
+.a2ui-card--compact { overflow: visible; border: 0; border-radius: 0; background: transparent; animation: none; }
+.a2ui-card--compact > .a2ui-card__body { overflow: visible; padding: 0; }
 .a2ui-card__header { display: flex; width: 100%; align-items: center; gap: var(--da-space-3); padding: var(--da-space-4); border: 0; color: var(--da-text-primary); background: transparent; text-align: left; cursor: pointer; }
 .a2ui-card__header:hover { background: var(--da-surface-2); }
 .a2ui-card__mark { display: grid; width: 2rem; height: 2rem; flex: 0 0 auto; place-items: center; border: 0.0625rem solid var(--da-border); border-radius: var(--da-radius-sm); color: var(--da-accent-blue); font-size: 1.25rem; }
