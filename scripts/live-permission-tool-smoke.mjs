@@ -47,6 +47,7 @@ try {
   const pending = await client.listPermissions(sessionId)
   assert.equal(pending.length, 1)
   assert.equal(pending[0].action, 'external_directory')
+  for (const resource of pending[0].resources) await expect(card.locator('.interrupt-resources')).toContainText(resource)
   await page.reload()
   await expect(card).toBeVisible({ timeout: 15000 })
   await card.getByRole('button', { name: decision === 'once' ? '仅本次允许' : '拒绝', exact: true }).click()

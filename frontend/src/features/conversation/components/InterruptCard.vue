@@ -13,7 +13,8 @@ const props = withDefaults(defineProps<{
   variant: 'default',
 })
 const emit = defineEmits<{ resume: [entries: ResumeEntry[]] }>()
-const { t } = useI18n()
+const { t, locale } = useI18n()
+const resourceLabel = computed(() => locale.value === 'zh-CN' ? '请求访问的资源' : 'Requested resources')
 
 type Schema = Record<string, any>
 const answers = reactive<Record<string, Record<string, any>>>({})
@@ -68,7 +69,10 @@ const interruptViews = computed(() => props.interrupts.map(interrupt => {
     : fields.length === 1 && fields[0].schema.type !== 'array' && !fields[0].schema['x-custom']
       ? fields[0].choices.map(choice => ({ ...choice, payload: { [fields[0].name]: choice.value } }))
       : []
-  return { interrupt, schema, fields, rootChoices, quickChoices }
+  const rawResources = interrupt.metadata?.resources
+  const resources = (Array.isArray(rawResources) ? rawResources : typeof rawResources === 'string' ? [rawResources] : [])
+    .filter((resource: unknown): resource is string => typeof resource === 'string' && Boolean(resource.trim()))
+  return { interrupt, schema, fields, rootChoices, quickChoices, resources }
 }))
 
 function payloadOf(interrupt: Interrupt) {
@@ -147,6 +151,12 @@ watch(() => props.interrupts, interrupts => {
 
     <article v-for="item in interruptViews" :key="item.interrupt.id" class="interrupt-card__item">
       <p>{{ item.interrupt.message || t('interrupt.defaultMessage') }}</p>
+      <div v-if="item.resources.length" class="interrupt-resources">
+        <strong>{{ resourceLabel }}</strong>
+        <ul :aria-label="resourceLabel">
+          <li v-for="(resource, index) in item.resources" :key="index"><code>{{ resource }}</code></li>
+        </ul>
+      </div>
 
       <p v-if="unsupportedApprovalSchema(item.schema).length" class="interrupt-validation" role="status">{{ t('interrupt.unsupportedSchema') }}</p>
       <div v-else-if="hasQuickChoices" class="interrupt-choices">
@@ -240,6 +250,9 @@ watch(() => props.interrupts, interrupts => {
 .interrupt-card__item p { margin: 0 0 var(--da-space-3); color: var(--da-text-secondary); line-height: 1.6; }
 .interrupt-card__item .interrupt-validation { margin-top: var(--da-space-2); color: var(--da-accent-red); font-size: var(--da-font-size-sm); }
 .interrupt-field { display: grid; gap: var(--da-space-2); margin-top: var(--da-space-3); }
+.interrupt-resources { margin-bottom: var(--da-space-3); color: var(--da-text-secondary); font-size: var(--da-font-size-sm); }
+.interrupt-resources ul { max-height: 12rem; overflow: auto; margin: var(--da-space-2) 0 0; padding-left: var(--da-space-4); }
+.interrupt-resources code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .interrupt-field label { color: var(--da-text-muted); font-size: var(--da-font-size-sm); }
 .interrupt-field em { margin-left: var(--da-space-1); color: var(--da-accent-red); font-style: normal; }
 .interrupt-choices { display: flex; flex-wrap: wrap; gap: var(--da-space-2); }

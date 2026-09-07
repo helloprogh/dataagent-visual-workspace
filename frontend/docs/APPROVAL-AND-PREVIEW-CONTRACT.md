@@ -6,6 +6,8 @@
 
 主中断卡片提供取消入口：将当前所有待办一次提交为 cancelled，不伪造 schema 答案，busy 时禁用。表单取消由上游 cancel 接口处理；权限中断映射为 reject。取消待办不等于停止整个运行，模型可能继续解释取消结果。
 
+权限 metadata.resources 的字符串资源按纯文本列表展示，审批前可核对完整路径；不生成链接或解析 HTML，不展示非字符串对象。长路径换行，多资源列表滚动显示，不丢弃列表尾部资源。
+
 支持：
 
 - 根级 string、number、integer、boolean，以及由标量 enum/const/oneOf const 构成的选项。

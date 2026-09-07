@@ -134,3 +134,8 @@ node scripts/live-ui-smoke.mjs
 - 会话 `ses_f81d1b911ffelOhLFHn02h7r8p` 严格检查仍失败，但浏览器诊断确认 loadingControls=0、pendingCards=0，恢复提示为“本次生成未完成 / Step interrupted / 重试”。因此不能称为 UI 持续等待或未退出运行。
 - 对旧测试会话再次调用 interrupt 返回 `interrupted:false`，结合原生工具 error/aborted，说明当前进程已无活动执行；缺口是持久化 outcome/time.idle，并非已经证实后台仍运行。尚未修改独立 OpenCode 服务仓库或安装版本。
 - `LIVE_PERMISSION_UI_ONLY=1` 是明确限缩到 UI/工具结果的诊断模式：会话 `ses_f81d09a9cffeWGophGelqTyYou` 通过真实拒绝、read 拒绝原因、UI 退出运行、待办清空及刷新无重复待办。默认严格终态断言保持原样，不能将该模式报告为服务终态已修复。
+
+### 审批资源展示
+
+- 权限卡片现在显示完整请求资源列表，纯文本呈现，长路径可换行，多项资源可滚动；不创建链接或解析 HTML。
+- 真实会话 `ses_f81cb7916ffea40nyLuQuoNyNg` 核对卡片包含上游所有请求资源后，允许只读样例、回复与刷新恢复通过。窄屏及不可信字符串由浏览器回归验证。
