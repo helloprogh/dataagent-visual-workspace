@@ -7,6 +7,7 @@ import { createFrontendMcpHandler } from './mcp-frontend-server.mjs'
 import { createA2uiMcpHandler } from './mcp-a2ui-server.mjs'
 import { languageFromCookie, languageInstruction } from './language.mjs'
 import { OpenCodeClient } from './opencode-client.mjs'
+import { ensureMcpConnected } from './mcp-status.mjs'
 import { streamMock } from './mock-scenario.mjs'
 import { SessionRegistry } from './session-registry.mjs'
 import { applyCors, openSse, writeSse } from './sse.mjs'
@@ -194,15 +195,7 @@ const ensureFrontendTools = async (threadId, tools, adapterBaseUrl) => {
 const ensureA2uiTool = async (adapterBaseUrl) => {
   const serverName = 'agui_a2ui'
   const url = `${adapterBaseUrl}/mcp/a2ui`
-  if (mcpRegistrations.get(serverName) === url) return
-  await client.disconnectMcp(serverName).catch((error) => {
-    if (!/not found|404|unknown/i.test(error.message)) throw error
-  })
-  await client.addMcp(serverName, url)
-  await client.connectMcp(serverName).catch((error) => {
-    if (!/already|connected|409/i.test(error.message)) throw error
-  })
-  mcpRegistrations.set(serverName, url)
+  await ensureMcpConnected(client, mcpRegistrations, serverName, url)
 }
 
 export const resolveOpenCodeSession = async (threadId) => {

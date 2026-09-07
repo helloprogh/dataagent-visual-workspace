@@ -64,6 +64,29 @@ try {
     await expect(page.getByTestId('file-preview-panel')).toContainText(marker)
     console.log(JSON.stringify({ check: 'real uploaded file read and history replay', result: 'passed', url: sessionUrl }))
   }
+  if (process.env.LIVE_UI_A2UI === '1') {
+    await page.getByRole('button', { name: '新建需求', exact: true }).click()
+    await expect(page.locator('.model-selector')).toContainText(model.name)
+    const components = [
+      { id: 'root', component: 'Column', children: ['metric', 'action'] },
+      { id: 'metric', component: 'MetricCard', title: '真实联调计数', value: 7 },
+      { id: 'action', component: 'ActionButton', label: '确认联调', action: { event: { name: 'live_confirm' } } },
+    ]
+    await page.locator('.agent-chat__composer [contenteditable=true]').first().fill(`请调用 render_a2ui 工具生成界面，不要用Markdown模拟。参数：${JSON.stringify({ surfaceId: 'live-check', components })}。用户点击live_confirm后，调用同一工具同一surfaceId，仅把metric的value改为8。不要读取或修改文件。`)
+    await page.locator('.elx-x-sender__send-button').click()
+    const surface = page.getByTestId('a2ui-activity-renderer')
+    await expect(surface).toContainText('真实联调计数', { timeout: 90000 })
+    await expect(surface.getByRole('button', { name: '确认联调', exact: true })).toBeEnabled({ timeout: 90000 })
+    const actionRequest = page.waitForRequest(request => new URL(request.url()).pathname === '/dataagent/web/api/agui' && Boolean(request.postDataJSON()?.forwardedProps?.a2uiAction))
+    await surface.getByRole('button', { name: '确认联调', exact: true }).click()
+    const action = (await actionRequest).postDataJSON().forwardedProps.a2uiAction
+    assert.ok(JSON.stringify(action).includes('live_confirm'))
+    await expect(surface.getByText('8', { exact: true })).toBeVisible({ timeout: 90000 })
+    await expect(page.locator('.elx-x-sender__loading-button')).toHaveCount(0, { timeout: 90000 })
+    await page.reload()
+    await expect(surface.getByText('8', { exact: true })).toBeVisible({ timeout: 15000 })
+    console.log(JSON.stringify({ check: 'real A2UI generation action update and replay', result: 'passed', url: page.url() }))
+  }
   assert.deepEqual(errors, [])
 } finally {
   await browser.close()

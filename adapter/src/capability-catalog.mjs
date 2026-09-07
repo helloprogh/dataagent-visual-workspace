@@ -1,3 +1,4 @@
+import { mcpEntries } from './mcp-status.mjs'
 const asRecord = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {}
 
 const firstArray = (value, keys = []) => {
@@ -30,7 +31,7 @@ const toolEntriesFrom = (value) => firstArray(value, ['tools', 'items', 'data'])
   })
   .filter(Boolean)
 
-const mcpEntriesFrom = (value) => Object.entries(asRecord(value)).map(([name, raw]) => {
+const mcpEntriesFrom = (value) => mcpEntries(value).map(([name, raw]) => {
   const status = asRecord(raw)
   const state = String(status.status ?? 'unknown')
   const labels = {
