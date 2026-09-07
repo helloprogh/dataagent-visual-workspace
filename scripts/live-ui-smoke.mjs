@@ -182,6 +182,22 @@ try {
     const sessionUrl = page.url()
     await page.reload()
     await expect(form).toBeVisible({ timeout: 15000 })
+    if (process.env.LIVE_UI_HITL_CANCEL === '1') {
+      assert.ok(process.env.OPENCODE_BASE_URL, 'Cancellation verification requires direct service configuration')
+      const resumeRequest = page.waitForRequest(request => new URL(request.url()).pathname === '/dataagent/web/api/agui' && Array.isArray(request.postDataJSON()?.resume))
+      await form.getByRole('button', { name: '取消', exact: true }).click()
+      const resume = (await resumeRequest).postDataJSON().resume
+      assert.equal(resume.length, 1)
+      assert.equal(resume[0].status, 'cancelled')
+      await expect(form).toHaveCount(0, { timeout: 90000 })
+      await expect(page.locator('.elx-x-sender__loading-button')).toHaveCount(0, { timeout: 90000 })
+      const sessionId = new URLSearchParams(new URL(sessionUrl).hash.split('?')[1]).get('session')
+      assert.deepEqual(await new OpenCodeClient().listForms(sessionId), [])
+      await page.reload()
+      await expect(page.locator('.model-selector')).toContainText(model.name)
+      await expect(form).toHaveCount(0)
+      console.log(JSON.stringify({ check: 'real question cancellation clears upstream and replay', result: 'passed', url: sessionUrl }))
+    } else {
     await form.getByRole('combobox').click()
     await page.getByRole('option', { name: '继续联调', exact: true }).click()
     const resumeRequest = page.waitForRequest(request => new URL(request.url()).pathname === '/dataagent/web/api/agui' && Array.isArray(request.postDataJSON()?.resume))
@@ -195,6 +211,7 @@ try {
     await expect(page.locator('.assistant-content').last()).toContainText('APPROVAL_LIVE_OK', { timeout: 15000 })
     await expect(form).toHaveCount(0)
     console.log(JSON.stringify({ check: 'real question interrupt reload resume and replay', result: 'passed', url: sessionUrl }))
+    }
   }
   assert.deepEqual(errors, [])
 } finally {

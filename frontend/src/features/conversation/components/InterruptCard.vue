@@ -99,6 +99,11 @@ function submit() {
   } as ResumeEntry)))
 }
 
+function cancel() {
+  if (props.busy || !props.interrupts.length) return
+  emit('resume', props.interrupts.map(interrupt => ({ interruptId: interrupt.id, status: 'cancelled' } as ResumeEntry)))
+}
+
 function submitChoice(interrupt: Interrupt, payload: unknown) {
   if (props.busy || props.interrupts.length !== 1 || validateApproval(schemaOf(interrupt), payload).length) return
   emit('resume', [{
@@ -200,8 +205,9 @@ watch(() => props.interrupts, interrupts => {
       <p v-for="issue in fieldIssues(item.interrupt)" :key="`${issue.path}-${issue.keyword}`" class="interrupt-validation" role="status">{{ t('interrupt.invalidAnswer', { field: issue.label }) }}</p>
     </article>
 
-    <footer v-if="!hasQuickChoices" class="interrupt-card__actions">
-      <el-button type="primary" :loading="busy" :disabled="!canSubmit" @click="submit">{{ t('interrupt.continue') }}</el-button>
+    <footer class="interrupt-card__actions">
+      <el-button :disabled="busy" @click="cancel">{{ t('app.cancel') }}</el-button>
+      <el-button v-if="!hasQuickChoices" type="primary" :loading="busy" :disabled="!canSubmit" @click="submit">{{ t('interrupt.continue') }}</el-button>
     </footer>
   </section>
 </template>

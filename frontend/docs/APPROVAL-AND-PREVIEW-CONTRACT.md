@@ -4,6 +4,8 @@
 
 `approvalSchema.ts` 定义当前前端可呈现并验证的 responseSchema 子集。表单展示、文件快速确认及运行时 resume 使用同一验证逻辑；cancelled 决策不按 resolved 答案验证。
 
+主中断卡片提供取消入口：将当前所有待办一次提交为 cancelled，不伪造 schema 答案，busy 时禁用。表单取消由上游 cancel 接口处理；权限中断映射为 reject。取消待办不等于停止整个运行，模型可能继续解释取消结果。
+
 支持：
 
 - 根级 string、number、integer、boolean，以及由标量 enum/const/oneOf const 构成的选项。

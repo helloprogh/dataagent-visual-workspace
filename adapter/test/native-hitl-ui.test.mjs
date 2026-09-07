@@ -33,7 +33,10 @@ test('interrupt UI is driven by responseSchema rather than permission-specific c
   assert.match(card, /\.enum/)
   assert.match(card, /\.oneOf/)
   assert.doesNotMatch(card, /\['once',\s*'always',\s*'reject'\]/)
-  assert.doesNotMatch(card, /status:\s*['"]cancelled['"]/)
+  // Cancellation is a protocol lifecycle action, not a fabricated schema answer.
+  assert.match(card, /status:\s*['"]cancelled['"]/)
+  assert.match(card, /function cancel\(\)[\s\S]*?if \(props\.busy \|\| !props\.interrupts\.length\) return/)
+  assert.match(card, /interrupts\.map\(interrupt => \(\{ interruptId: interrupt\.id, status: 'cancelled'/)
   assert.doesNotMatch(templateOf(card), /取消本次运行/)
   assert.doesNotMatch(templateOf(card), /AG-UI|CopilotKit|OpenCode/i)
 })

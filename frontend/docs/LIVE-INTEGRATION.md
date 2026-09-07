@@ -106,3 +106,9 @@ node scripts/live-ui-smoke.mjs
 - 在 `LIVE_UI_MODEL=1` 基础上设置 `LIVE_UI_MODEL_SEND=1` 和明确的 `LIVE_UI_MODEL_ID`，才会向替代模型发送无工具、无文件操作的随机标记请求；该检查会消耗对应模型额度。
 - 会话 `ses_f836a7795ffed6c82zP6WsgVIk` 通过：切换到 `ling-3.0-flash-fin-free`、清除模型缓存后恢复、真实回复、SSE 正常完成且无 RUN_ERROR、上游 succeeded、助手消息记录同一 providerID/id、刷新后回复和模型保持。
 - 只证明该模型的一次文本生成链路，不证明所有模型、工具调用或提供商故障恢复。
+
+## 真实表单取消
+
+- 主中断卡片新增取消入口，按完整待办列表提交 cancelled；无需填写必填答案，运行中禁用。
+- `LIVE_UI_HITL=1` + `LIVE_UI_HITL_CANCEL=1` + 真实上游配置，验证刷新恢复表单后取消、实际 resume 状态、上游表单清空、再次刷新无重复待办。
+- 会话 `ses_f83689f37ffechJteSVp13DuY2` 通过。取消表单不等于停止模型，模型可继续解释取消；权限拒绝和多表单真实取消仍待验证，单/多待办请求结构由浏览器 mock 回归覆盖。
