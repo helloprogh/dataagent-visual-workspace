@@ -26,6 +26,34 @@ try {
   if (process.env.LIVE_UI_COLD !== '1') await page.goto(baseURL)
   await expect(page.locator('.model-selector')).toContainText(model.name, { timeout: 15000 })
   console.log(JSON.stringify({ check: 'real default model selectable', result: 'passed', model: model.name }))
+  if (process.env.LIVE_UI_MODEL === '1') {
+    assert.ok(process.env.OPENCODE_BASE_URL, 'LIVE_UI_MODEL requires direct service configuration')
+    const client = new OpenCodeClient()
+    const response = await page.request.get(new URL('/dataagent/web/api/model', baseURL).href)
+    assert.ok(response.ok())
+    const body = await response.json()
+    const catalog = body.data?.data ?? body.data ?? body
+    const alternate = catalog.find(item => item.enabled !== false && (item.id !== model.id || item.providerID !== model.providerID))
+    assert.ok(alternate, 'Live service must expose an alternate model')
+    const created = await page.request.post(new URL('/dataagent/web/api/session', baseURL).href, {
+      data: { title: `UI model check ${new Date().toISOString()}`, model: { providerID: model.providerID, id: model.id } },
+    })
+    assert.ok(created.ok())
+    const sessionId = (await created.json()).data.id
+    await page.goto(new URL(`/#/chat?session=${sessionId}`, baseURL).href)
+    await page.reload()
+    await expect(page.locator('.model-selector')).toContainText(model.name)
+    await page.locator('.model-selector').click()
+    const switched = page.waitForResponse(response => new URL(response.url()).pathname.endsWith(`/session/${sessionId}/model`) && response.request().method() === 'POST')
+    await page.getByRole('option').filter({ hasText: alternate.name }).first().click()
+    assert.ok((await switched).ok())
+    const persisted = await client.getSession(sessionId)
+    assert.equal(persisted.model?.providerID, alternate.providerID)
+    assert.equal(persisted.model?.id, alternate.id)
+    await page.reload()
+    await expect(page.locator('.model-selector')).toContainText(alternate.name)
+    console.log(JSON.stringify({ check: 'real model switch persistence and same-browser reload', result: 'passed', sessionId, model: alternate.name, note: 'No generation requested on alternate model; clean-browser restoration remains unverified.' }))
+  }
   if (process.env.LIVE_UI_SEND === '1') {
     await page.getByRole('button', { name: '新建需求', exact: true }).click()
     await expect(page.locator('.model-selector')).toContainText(model.name)
