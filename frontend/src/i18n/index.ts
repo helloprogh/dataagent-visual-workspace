@@ -7,6 +7,7 @@ const localeStorageKey = 'dataagent.locale.v1'
 
 const messages = {
   'zh-CN': {
+    table: { empty: '暂无数据', pagination: '表格分页', first: '首页', previous: '上一页', next: '下一页', last: '末页', page: '第 {page} / {pages} 页 · 共 {count} 行' },
     app: {
       renameTitle: '重命名',
       renamePrompt: '输入需求名称',
@@ -195,6 +196,7 @@ const messages = {
     },
   },
   'en-US': {
+    table: { empty: 'No data', pagination: 'Table pagination', first: 'First', previous: 'Previous', next: 'Next', last: 'Last', page: 'Page {page} of {pages} · {count} rows' },
     app: {
       renameTitle: 'Rename',
       renamePrompt: 'Enter request name',

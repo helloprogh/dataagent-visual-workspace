@@ -5,6 +5,7 @@ import { MarkdownRenderer } from 'x-markdown-vue'
 import { appTheme } from '../shared/theme/theme'
 import { createVueComponent } from './createVueComponent'
 import EChartView from './EChartView.vue'
+import DataTableView from './DataTableView.vue'
 
 
 const bindable = (type: z.ZodTypeAny) => z.union([type, z.object({ path: z.string() })])
@@ -51,24 +52,7 @@ const DataTable = createVueComponent({
     columns: z.array(columnDef),
     rows: bindable(z.array(z.union([z.array(z.union([z.string(), z.number()])), z.record(z.string(), z.any())]))),
   }),
-} as any, ({ props }: any) => {
-  const columns: { key: string; label: string }[] = (props.columns ?? []).map((column: any) => typeof column === 'string'
-    ? { key: column, label: column }
-    : { key: String(column?.key ?? ''), label: String(column?.label ?? column?.title ?? column?.key ?? '') })
-  const rows: any[] = (props.rows ?? []).map((row: any) => Array.isArray(row) ? row : columns.map(column => row?.[column.key] ?? ''))
-  const cell = { padding: '0.5rem 0.625rem', borderBottom: '0.0625rem solid var(--da-border)', fontSize: '0.8125rem', textAlign: 'left' as const }
-  return h('div', { style: { ...cardStyle, overflowX: 'auto' } }, [
-    props.title ? h('p', { style: titleStyle }, String(props.title)) : null,
-    h('table', { style: { width: '100%', borderCollapse: 'collapse' } }, [
-      h('thead', [h('tr', columns.map(column => h('th', { key: column.key, style: { ...cell, color: 'var(--da-text-muted)', background: 'var(--da-surface-2)' } }, column.label)))]),
-      h('tbody', rows.map((row, rowIndex) => h(
-        'tr',
-        { key: rowIndex },
-        row.map((value: unknown, columnIndex: number) => h('td', { key: columnIndex, style: cell }, String(value))),
-      ))),
-    ]),
-  ])
-})
+} as any, ({ props }: any) => h(DataTableView, { title: props.title, columns: props.columns ?? [], rows: props.rows ?? [] }))
 
 const chartSchema = z.object({ title: boundString.optional(), xField: z.string(), yField: z.string(), data: bindable(rowData) })
 const BarChart = createVueComponent({ name: 'BarChart', schema: chartSchema } as any, ({ props }: any) =>
