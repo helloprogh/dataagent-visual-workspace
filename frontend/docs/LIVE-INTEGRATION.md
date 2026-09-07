@@ -119,3 +119,12 @@ node scripts/live-ui-smoke.mjs
 - `node scripts/live-permission-smoke.mjs` 需要真实上游配置。通过原生权限 API 创建专用测试会话的 external_directory 请求（explore agent），不执行目录访问；断言实际 ask，再验证未收到流式事件时 Adapter 仍恢复正确待办和授权选项。
 - 真实会话 `ses_f8362d9c3ffe9VuvlWrMkfYZEK` 通过；请求已通过原生拒绝接口清理。此项为权限 API 与恢复链路联调，不代表浏览器点击授权后工具继续执行已通过。
 - 已有本地待办与外部客户端处理结果的对账仍需完善，本轮只覆盖本地记录缺失后的恢复。
+
+## 进行中：真实工具权限拒绝后收尾
+
+- `live-permission-tool-smoke.mjs` 使用独立会话目录和只读专用外部样例。须显式传入 `LIVE_PERMISSION_FIXTURE`；不配置全局权限，不选择始终允许。将 `scripts/fixtures/permission-marker.txt` 的样例内容放在已授权、且位于会话项目之外的测试目录，再传入绝对路径。
+- 仓库内样例不会触发外部目录权限，已改为另一个授权工作区中的专用测试样例。
+- 会话 `ses_f82469700ffej6HQHLzqKVDy3U`：实际出现 external_directory 权限，刷新后点击拒绝；上游 read 工具状态为 error/aborted，原因 The user declined this tool call，权限列表为空。
+- 最初等待固定回复 90 秒超时；随后查明原生拒绝语义为中断，不保证解释回复。将断言修正为 interrupted 终态后，会话 `ses_f820b5e20ffeAXJ30xQYJrMNJR` 仍在 20 秒内没有 outcome，确认收尾缺口并非仅测试预期错误。两个失败测试会话已另行发送 interrupt 清理，清理不计入成功证据。
+- `LIVE_PERMISSION_DECISION=once` 对照会话 `ses_f820c5789ffe5DdwJ1yxjxmlc9` 通过：真实权限出现、刷新恢复、点击仅本次允许、读取专用外部样例、正确回复、待办清空及历史重放。
+- 本次提交记录允许分支成功和拒绝分支可复现失败，不宣称权限链路全部正常。默认 decision 为 reject，当前服务版本上该模式预期仍失败；脚本是显式真实联调入口，不加入普通 CI。
