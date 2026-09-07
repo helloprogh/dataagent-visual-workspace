@@ -46,6 +46,24 @@ try {
       console.log(JSON.stringify({ check: 'real browser stop', result: 'passed', url: page.url(), note: 'UI and interrupt HTTP verified; backend quiescence requires separate verification.' }))
     }
   }
+  if (process.env.LIVE_UI_FILE === '1') {
+    await page.getByRole('button', { name: '新建需求', exact: true }).click()
+    await expect(page.locator('.model-selector')).toContainText(model.name)
+    const marker = `FILE_${crypto.randomUUID().replaceAll('-', '')}`
+    await page.locator('input[type=file]').setInputFiles({ name: 'ui-live-marker.txt', mimeType: 'text/plain', buffer: Buffer.from(`Verification marker: ${marker}\n`) })
+    await page.locator('.agent-chat__composer [contenteditable=true]').first().fill('只读取本次上传的 ui-live-marker.txt，回复其中 Verification marker 的完整值。可以使用只读工具，但不要读取其他文件、不要修改文件。')
+    await page.locator('.elx-x-sender__send-button').click()
+    await expect(page).toHaveURL(/session=/, { timeout: 20000 })
+    await expect(page.locator('.elx-x-sender__loading-button')).toHaveCount(0, { timeout: 90000 })
+    await expect(page.locator('.assistant-content').last()).toContainText(marker, { timeout: 10000 })
+    const sessionUrl = page.url()
+    await page.reload()
+    await expect(page.locator('.assistant-content').last()).toContainText(marker, { timeout: 15000 })
+    await expect(page.locator('.attachment-card').filter({ hasText: 'ui-live-marker.txt' }).first()).toBeVisible()
+    await page.locator('.attachment-card').filter({ hasText: 'ui-live-marker.txt' }).first().click()
+    await expect(page.getByTestId('file-preview-panel')).toContainText(marker)
+    console.log(JSON.stringify({ check: 'real uploaded file read and history replay', result: 'passed', url: sessionUrl }))
+  }
   assert.deepEqual(errors, [])
 } finally {
   await browser.close()
