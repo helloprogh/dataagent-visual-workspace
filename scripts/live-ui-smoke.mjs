@@ -33,7 +33,8 @@ try {
     assert.ok(response.ok())
     const body = await response.json()
     const catalog = body.data?.data ?? body.data ?? body
-    const alternate = catalog.find(item => item.enabled !== false && (item.id !== model.id || item.providerID !== model.providerID))
+    const alternate = catalog.find(item => item.enabled !== false && (item.id !== model.id || item.providerID !== model.providerID)
+      && (!process.env.LIVE_UI_MODEL_ID || item.id === process.env.LIVE_UI_MODEL_ID))
     assert.ok(alternate, 'Live service must expose an alternate model')
     const created = await page.request.post(new URL('/dataagent/web/api/session', baseURL).href, {
       data: { title: `UI model check ${new Date().toISOString()}`, model: { providerID: model.providerID, id: model.id } },
@@ -56,6 +57,32 @@ try {
     await page.reload()
     await expect(page.locator('.model-selector')).toContainText(alternate.name)
     console.log(JSON.stringify({ check: 'real model switch persistence and cache-free reload', result: 'passed', sessionId, model: alternate.name, note: 'No generation requested on alternate model.' }))
+    if (process.env.LIVE_UI_MODEL_SEND === '1') {
+      assert.ok(process.env.LIVE_UI_MODEL_ID, 'Explicit LIVE_UI_MODEL_ID required before generating on an alternate model')
+      const marker = `MODEL_${crypto.randomUUID().replaceAll('-', '')}`
+      await page.locator('.agent-chat__composer [contenteditable=true]').first().fill(`只回复 ${marker}，不调用工具、不读取或修改文件。`)
+      const streamed = page.waitForResponse(response => new URL(response.url()).pathname === '/dataagent/web/api/agui' && response.request().method() === 'POST')
+      await page.locator('.elx-x-sender__send-button').click()
+      await expect(page.locator('.assistant-content').last()).toContainText(marker, { timeout: 90000 })
+      await expect(page.locator('.elx-x-sender__loading-button')).toHaveCount(0, { timeout: 15000 })
+      const stream = await streamed
+      assert.ok(stream.ok())
+      const events = await stream.text()
+      assert.ok(events.includes('TEXT_MESSAGE_CONTENT') && events.includes('RUN_FINISHED') && !events.includes('RUN_ERROR'))
+      const finished = await client.getSession(sessionId)
+      assert.equal(finished.outcome, 'succeeded')
+      assert.equal(finished.model?.id, alternate.id)
+      assert.equal(finished.model?.providerID, alternate.providerID)
+      const history = await client.json(`/api/session/${encodeURIComponent(sessionId)}/message?limit=10&order=desc`, {}, 'Unable to verify generated message model')
+      const assistant = (Array.isArray(history) ? history : history.data).find(item => item.type === 'assistant')
+      assert.ok(assistant, 'Upstream must persist an assistant message')
+      assert.equal(assistant.model?.id, alternate.id)
+      assert.equal(assistant.model?.providerID, alternate.providerID)
+      await page.reload()
+      await expect(page.locator('.assistant-content').last()).toContainText(marker, { timeout: 15000 })
+      await expect(page.locator('.model-selector')).toContainText(alternate.name)
+      console.log(JSON.stringify({ check: 'generation after real model switch and history replay', result: 'passed', sessionId, model: alternate.name }))
+    }
   }
   if (process.env.LIVE_UI_SEND === '1') {
     await page.getByRole('button', { name: '新建需求', exact: true }).click()
