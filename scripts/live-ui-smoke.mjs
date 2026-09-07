@@ -52,7 +52,10 @@ try {
     assert.equal(persisted.model?.id, alternate.id)
     await page.reload()
     await expect(page.locator('.model-selector')).toContainText(alternate.name)
-    console.log(JSON.stringify({ check: 'real model switch persistence and same-browser reload', result: 'passed', sessionId, model: alternate.name, note: 'No generation requested on alternate model; clean-browser restoration remains unverified.' }))
+    await page.evaluate(() => localStorage.removeItem('dataagent.model.selection.v5.by-session'))
+    await page.reload()
+    await expect(page.locator('.model-selector')).toContainText(alternate.name)
+    console.log(JSON.stringify({ check: 'real model switch persistence and cache-free reload', result: 'passed', sessionId, model: alternate.name, note: 'No generation requested on alternate model.' }))
   }
   if (process.env.LIVE_UI_SEND === '1') {
     await page.getByRole('button', { name: '新建需求', exact: true }).click()

@@ -17,7 +17,7 @@ test('composer facade fills starter, focuses with slash and clears when switchin
   await expect(input).toContainText('/')
   await page.getByText('会话 B', { exact: true }).click()
   await expect(input).toBeEmpty()
-  await expect(page.locator('.model-selector')).toContainText('GPT A')
+  await expect(page.locator('.model-selector')).toContainText('Claude B')
 })
 
 test('composer file selection remains local and removing attachment updates runtime queue', async ({ page }) => {

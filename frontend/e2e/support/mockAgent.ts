@@ -24,6 +24,9 @@ export async function mockBaseApi(page: Page, handler?: (route: Route, url: URL)
       return route.fulfill({ contentType: 'text/event-stream', body: sse([{ type: 'RUN_STARTED', threadId: body.threadId, runId: body.runId }, { type: 'RUN_FINISHED', threadId: body.threadId, runId: body.runId, ...(interrupts.length ? { outcome: { type: 'interrupt', interrupts } } : {}) }]) })
     }
     if (handler && await handler(route, url)) return
+    if (route.request().method() === 'GET' && /\/session\/[^/]+$/.test(url.pathname)) {
+      return json(route, { data: { model: url.pathname.endsWith('/session-b') ? { providerID: 'anthropic', id: 'claude-b' } : { providerID: 'openai', id: 'gpt-a' } } })
+    }
     if (route.request().method() === 'GET' && url.pathname === '/dataagent/web/api/session') {
       return json(route, {
         data: [

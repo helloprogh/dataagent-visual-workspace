@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
-import { getDefaultModel, getSelectedModel, listModels, switchSessionModel } from '../api/model'
+import { getDefaultModel, getSessionModel, listModels, switchSessionModel } from '../api/model'
 import type { ModelCatalogItem, ModelSelection } from '../types'
 
 const props = defineProps<{
@@ -43,6 +43,7 @@ async function load() {
   loadError.value = ''
   emit('selected', null)
   try {
+    const sessionModel = sessionId ? await getSessionModel(sessionId, controller.signal) : null
     let catalog: ModelCatalogItem[] = []
     let defaultModel: ModelCatalogItem | null = null
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -63,9 +64,9 @@ async function load() {
       })
     }
     if (request !== generation) return
+    if (sessionModel && !catalog.some(model => keyOf(model) === keyOf(sessionModel))) catalog.push(sessionModel)
     models.value = catalog
-    const remembered = sessionId ? getSelectedModel(sessionId) : null
-    const initial = catalog.find(model => remembered && keyOf(model) === keyOf(remembered))
+    const initial = catalog.find(model => sessionModel && keyOf(model) === keyOf(sessionModel))
       ?? catalog.find(model => defaultModel && keyOf(model) === keyOf(defaultModel))
       ?? catalog[0] ?? null
     if (initial) {

@@ -68,6 +68,12 @@ export async function getDefaultModel(signal?: AbortSignal): Promise<ModelCatalo
   return normalizeModel(root?.model ?? root)
 }
 
+export async function getSessionModel(sessionId: string, signal?: AbortSignal): Promise<ModelCatalogItem | null> {
+  const body = await requestJson<unknown>(dataAgentWebApi(`/session/${encodeURIComponent(sessionId)}`), { signal }, '会话模型加载失败')
+  const session = unwrapData<any>(body)
+  return normalizeModel(session?.model)
+}
+
 export async function switchSessionModel(sessionId: string, model: ModelSelection) {
   const id = sessionId.trim()
   if (!id) throw new Error('sessionId 不能为空')

@@ -49,6 +49,7 @@ const isDirectUpstreamApi = (req, url) => {
   if (req.method === 'POST' && url.pathname === `${API_BASE}/skill/upload`) return true
   if (req.method === 'DELETE' && new RegExp(`^${API_BASE}/skill/upload/delete/[^/]+$`).test(url.pathname)) return true
   if (req.method === 'GET' && url.pathname === `${API_BASE}/session`) return true
+  if (req.method === 'GET' && new RegExp(`^${API_BASE}/session/[^/]+$`).test(url.pathname)) return true
   if (req.method === 'POST' && url.pathname === `${API_BASE}/session`) return true
   if (req.method === 'GET' && url.pathname === `${API_BASE}/model`) return true
   if (req.method === 'GET' && url.pathname === `${API_BASE}/model/default`) return true
