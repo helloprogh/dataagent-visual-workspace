@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { interruptFromPermission } from './permission-interrupt.mjs'
 import { GenerativeUiStream } from './generative-ui.mjs'
 import { A2uiStream, isRenderA2uiTool } from './a2ui.mjs'
 import { uiContentFromToolOutput } from '../../shared/generative-ui.mjs'
@@ -541,35 +542,7 @@ export class OpenCodeAguiConverter {
   }
 
   interrupt(raw) {
-    const requestId = String(raw.id ?? raw.requestID ?? raw.requestId ?? randomUUID())
-    const explicitToolCallId = raw.toolCallID ?? raw.toolCallId ?? raw.callID ?? raw.callId ?? raw.partID
-    const toolCallId = explicitToolCallId ?? [...this.openTools].at(-1)
-    const action = raw.action ?? raw.permission ?? raw.type ?? 'operation'
-    const resources = raw.resources ?? raw.patterns ?? raw.paths
-    const interrupt = {
-      id: requestId,
-      reason: toolCallId ? 'tool_call' : 'input_required',
-      message: `工具 ${action} 请求人工授权。`,
-      ...(toolCallId ? { toolCallId: String(toolCallId) } : {}),
-      responseSchema: {
-        type: 'object',
-        required: ['decision'],
-        properties: {
-          decision: {
-            type: 'string',
-            enum: ['once', 'always', 'reject'],
-            'x-enumNames': ['仅本次允许', '始终允许', '拒绝'],
-            title: '授权决定',
-          },
-        },
-        additionalProperties: false,
-      },
-      metadata: {
-        source: 'opencode2',
-        action,
-        ...(resources ? { resources } : {}),
-      },
-    }
+    const interrupt = interruptFromPermission({ ...raw, id: raw.id ?? raw.requestID ?? raw.requestId ?? randomUUID() }, [...this.openTools].at(-1))
     return [
       taskActivity(this.runId, { mode: 'async', status: 'waiting_permission', permission: raw }),
       ...this.finish({ type: 'interrupt', interrupts: [interrupt] }),

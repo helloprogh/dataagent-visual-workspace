@@ -94,13 +94,14 @@ test('AG-UI hydration finishes successfully when no interrupt is pending', async
   })
 })
 
-test('AG-UI hydration recovers an OpenCode form missed before adapter restart', async () => {
+test('AG-UI hydration recovers forms and permissions missed before adapter restart', async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'dataagent-hydrate-form-'))
   const stateFile = path.join(directory, 'sessions.json')
   const registry = new SessionRegistry(stateFile)
   await registry.set('thread-form', 'opencode-session-form')
   let listedSessionId = ''
   const client = {
+    listPermissions: async () => [{ id: 'per_restore', action: 'read', resources: ['fixture'], source: { type: 'tool', id: 'tool-permission' } }],
     listForms: async sessionId => {
       listedSessionId = sessionId
       return [{
@@ -130,6 +131,9 @@ test('AG-UI hydration recovers an OpenCode form missed before adapter restart', 
     const events = parseEvents(await response.text())
     assert.equal(events.at(-1).outcome.type, 'interrupt')
     assert.equal(events.at(-1).outcome.interrupts[0].id, 'frm_restore')
+    assert.equal(events.at(-1).outcome.interrupts.length, 2)
+    assert.equal(events.at(-1).outcome.interrupts[1].id, 'per_restore')
+    assert.equal(events.at(-1).outcome.interrupts[1].toolCallId, 'tool-permission')
     assert.equal(listedSessionId, 'opencode-session-form')
     assert.equal((await new SessionRegistry(stateFile).pendingInterrupts('thread-form'))[0].metadata.kind, 'form')
   }, client)

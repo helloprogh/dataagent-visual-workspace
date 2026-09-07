@@ -3,6 +3,7 @@ import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { buildCapabilityCatalog } from './capability-catalog.mjs'
 import { interruptFromForm } from './converter.mjs'
+import { interruptFromPermission } from './permission-interrupt.mjs'
 import { runFinished, runStarted, stateSnapshot } from './agui.mjs'
 import { createServer as createAgentServer } from './server.mjs'
 import { FileStorage } from './file-storage.mjs'
@@ -240,6 +241,8 @@ const hydrateAgent = async (req, res, client) => {
     const sessionId = mapped?.sessionId || threadId
     const forms = await client.listForms(sessionId).catch(() => [])
     pending = (Array.isArray(forms) ? forms : []).map(interruptFromForm).filter(Boolean)
+    const permissions = await client.listPermissions?.(sessionId).catch(() => []) ?? []
+    pending.push(...(Array.isArray(permissions) ? permissions : []).map(item => interruptFromPermission(item)).filter(Boolean))
     if (pending.length) await registry.setPendingInterrupts(threadId, pending)
   }
 

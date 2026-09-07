@@ -232,6 +232,10 @@ export class OpenCodeClient {
     return this.json(`/api/session/${encodeURIComponent(sessionId)}/form`, {}, 'Unable to list OpenCode forms')
   }
 
+  async listPermissions(sessionId) {
+    return this.json(`/api/session/${encodeURIComponent(sessionId)}/permission`, {}, 'Unable to list OpenCode permissions')
+  }
+
   async replyForm(sessionId, formId, answer) {
     return this.json(`/api/session/${encodeURIComponent(sessionId)}/form/${encodeURIComponent(formId)}/reply`, {
       method: 'POST',

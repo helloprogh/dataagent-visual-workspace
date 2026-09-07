@@ -112,3 +112,10 @@ node scripts/live-ui-smoke.mjs
 - 主中断卡片新增取消入口，按完整待办列表提交 cancelled；无需填写必填答案，运行中禁用。
 - `LIVE_UI_HITL=1` + `LIVE_UI_HITL_CANCEL=1` + 真实上游配置，验证刷新恢复表单后取消、实际 resume 状态、上游表单清空、再次刷新无重复待办。
 - 会话 `ses_f83689f37ffechJteSVp13DuY2` 通过。取消表单不等于停止模型，模型可继续解释取消；权限拒绝和多表单真实取消仍待验证，单/多待办请求结构由浏览器 mock 回归覆盖。
+
+## 遗漏权限请求的恢复
+
+- 修复 hydration 仅补查表单的遗漏：本地没有待办记录时，同时读取真实上游会话权限；权限事件和恢复共用转换逻辑，并保留 V2 source 工具关联。
+- `node scripts/live-permission-smoke.mjs` 需要真实上游配置。通过原生权限 API 创建专用测试会话的 external_directory 请求（explore agent），不执行目录访问；断言实际 ask，再验证未收到流式事件时 Adapter 仍恢复正确待办和授权选项。
+- 真实会话 `ses_f8362d9c3ffe9VuvlWrMkfYZEK` 通过；请求已通过原生拒绝接口清理。此项为权限 API 与恢复链路联调，不代表浏览器点击授权后工具继续执行已通过。
+- 已有本地待办与外部客户端处理结果的对账仍需完善，本轮只覆盖本地记录缺失后的恢复。
