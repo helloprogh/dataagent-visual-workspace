@@ -11,14 +11,16 @@ const props = defineProps<{
   disabled?: boolean
 }>()
 
-const emit = defineEmits<{ selected: [model: ModelSelection] }>()
+const emit = defineEmits<{ selected: [model: ModelSelection | null] }>()
 const models = ref<ModelCatalogItem[]>([])
 const selectedKey = ref('')
 const loading = ref(false)
 const changing = ref(false)
-const { t } = useI18n()
+const loadError = ref('')
+const { t, locale } = useI18n()
 let generation = 0
-onBeforeUnmount(() => { generation += 1 })
+let pending: AbortController | null = null
+onBeforeUnmount(() => { generation += 1; pending?.abort() })
 
 const disabled = computed(() => Boolean(props.disabled || loading.value || changing.value))
 const modelByKey = computed(() => new Map(models.value.map(model => [`${model.providerID}::${model.id}`, model])))
@@ -29,13 +31,37 @@ function keyOf(model: ModelSelection) {
 }
 
 async function load() {
+  pending?.abort()
+  const controller = new AbortController()
+  pending = controller
   const request = ++generation
   const sessionId = props.sessionId
   loading.value = true
   changing.value = false
   selectedKey.value = ''
+  models.value = []
+  loadError.value = ''
+  emit('selected', null)
   try {
-    const [catalog, defaultModel] = await Promise.all([listModels(), getDefaultModel()])
+    let catalog: ModelCatalogItem[] = []
+    let defaultModel: ModelCatalogItem | null = null
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const result = await Promise.allSettled([listModels(controller.signal), getDefaultModel(controller.signal)])
+      controller.signal.throwIfAborted()
+      catalog = result[0].status === 'fulfilled' ? result[0].value : []
+      defaultModel = result[1].status === 'fulfilled' ? result[1].value : null
+      if (defaultModel && defaultModel.enabled !== false && !catalog.some(item => keyOf(item) === keyOf(defaultModel!))) catalog.push(defaultModel)
+      if (catalog.length) break
+      if (attempt === 2) {
+        const failure = result.find(item => item.status === 'rejected')
+        throw failure?.status === 'rejected' ? failure.reason : new Error(locale.value === 'zh-CN' ? '模型服务尚未就绪，请刷新重试' : 'Model service is not ready. Refresh to retry.')
+      }
+      await new Promise<void>((resolve, reject) => {
+        const abort = () => { clearTimeout(timer); reject(controller.signal.reason) }
+        const timer = setTimeout(() => { controller.signal.removeEventListener('abort', abort); resolve() }, 500 * (attempt + 1))
+        controller.signal.addEventListener('abort', abort, { once: true })
+      })
+    }
     if (request !== generation) return
     models.value = catalog
     const remembered = sessionId ? getSelectedModel(sessionId) : null
@@ -51,7 +77,7 @@ async function load() {
     }
   } catch (error) {
     if (request !== generation) return
-    ElMessage.error(error instanceof Error ? error.message : String(error))
+    loadError.value = error instanceof Error ? error.message : String(error)
   } finally {
     if (request === generation) loading.value = false
   }
@@ -110,9 +136,12 @@ watch(() => props.sessionId, load, { immediate: true })
       <small class="model-option__provider">{{ model.providerID }}</small>
     </el-option>
   </el-select>
+  <el-button v-if="loadError" class="model-retry" text :disabled="props.disabled || loading" :title="loadError" :aria-label="`${t('app.refresh')} ${t('model.select')}`" @click="load">{{ t('app.refresh') }}</el-button>
+  <span v-if="loadError" class="model-load-error" role="status">{{ loadError }}</span>
 </template>
 
 <style scoped>
+.model-load-error { color: var(--da-text-muted); font-size: var(--da-font-size-xs); }
 .model-selector {
   width: max-content;
   min-width: 0;

@@ -9,6 +9,7 @@ const page = await browser.newPage({ locale: 'zh-CN' })
 const errors = []
 page.on('pageerror', error => errors.push(error.message))
 try {
+  if (process.env.LIVE_UI_COLD === '1') await page.goto(baseURL)
   let model
   let emptyModelResponses = 0
   await expect.poll(async () => {
@@ -20,7 +21,7 @@ try {
     return Boolean(model?.name)
   }, { timeout: 15000, message: 'Wait for real model service readiness; this does not test cold-start UI recovery' }).toBe(true)
   if (emptyModelResponses) console.log(JSON.stringify({ check: 'model service warmup', emptyModelResponses }))
-  await page.goto(baseURL)
+  if (process.env.LIVE_UI_COLD !== '1') await page.goto(baseURL)
   await expect(page.locator('.model-selector')).toContainText(model.name, { timeout: 15000 })
   console.log(JSON.stringify({ check: 'real default model selectable', result: 'passed', model: model.name }))
   if (process.env.LIVE_UI_SEND === '1') {

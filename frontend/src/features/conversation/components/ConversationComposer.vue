@@ -15,7 +15,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   submit: []
   stop: []
-  selected: [model: ModelSelection]
+  selected: [model: ModelSelection | null]
   files: [files: File[]]
   removeAttachment: [id: string]
   retryAttachment: [id: string]

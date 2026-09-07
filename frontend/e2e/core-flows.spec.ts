@@ -83,11 +83,11 @@ test('switching conversation during model loading ignores the old response', asy
   })
   await page.goto('/#/chat?session=session-a')
   await expect.poll(() => loads).toBe(1)
+  const cancelled = page.waitForEvent('requestfailed', request => request.url().endsWith('/model'))
   await page.getByText('会话 B', { exact: true }).click()
+  await cancelled
   await expect(page.locator('.model-selector')).toContainText('Claude B')
-  const response = page.waitForResponse(async response => response.url().endsWith('/model') && (await response.text()).includes('Stale model'))
   release()
-  await response
   await expect(page.locator('.model-selector')).toContainText('Claude B')
 })
 
