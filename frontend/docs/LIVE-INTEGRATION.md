@@ -128,3 +128,9 @@ node scripts/live-ui-smoke.mjs
 - 最初等待固定回复 90 秒超时；随后查明原生拒绝语义为中断，不保证解释回复。将断言修正为 interrupted 终态后，会话 `ses_f820b5e20ffeAXJ30xQYJrMNJR` 仍在 20 秒内没有 outcome，确认收尾缺口并非仅测试预期错误。两个失败测试会话已另行发送 interrupt 清理，清理不计入成功证据。
 - `LIVE_PERMISSION_DECISION=once` 对照会话 `ses_f820c5789ffe5DdwJ1yxjxmlc9` 通过：真实权限出现、刷新恢复、点击仅本次允许、读取专用外部样例、正确回复、待办清空及历史重放。
 - 本次提交记录允许分支成功和拒绝分支可复现失败，不宣称权限链路全部正常。默认 decision 为 reject，当前服务版本上该模式预期仍失败；脚本是显式真实联调入口，不加入普通 CI。
+
+### 拒绝分支的进一步定位
+
+- 会话 `ses_f81d1b911ffelOhLFHn02h7r8p` 严格检查仍失败，但浏览器诊断确认 loadingControls=0、pendingCards=0，恢复提示为“本次生成未完成 / Step interrupted / 重试”。因此不能称为 UI 持续等待或未退出运行。
+- 对旧测试会话再次调用 interrupt 返回 `interrupted:false`，结合原生工具 error/aborted，说明当前进程已无活动执行；缺口是持久化 outcome/time.idle，并非已经证实后台仍运行。尚未修改独立 OpenCode 服务仓库或安装版本。
+- `LIVE_PERMISSION_UI_ONLY=1` 是明确限缩到 UI/工具结果的诊断模式：会话 `ses_f81d09a9cffeWGophGelqTyYou` 通过真实拒绝、read 拒绝原因、UI 退出运行、待办清空及刷新无重复待办。默认严格终态断言保持原样，不能将该模式报告为服务终态已修复。

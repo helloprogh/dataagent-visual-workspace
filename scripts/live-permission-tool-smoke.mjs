@@ -54,7 +54,13 @@ try {
     await expect(page.locator('.assistant-content').last()).toContainText('PERMISSION_FIXTURE_8c2ab3d9', { timeout: 90000 })
   } else {
     // Native permission refusal interrupts the execution; it need not produce an explanation.
-    await expect.poll(async () => (await client.getSession(sessionId)).outcome, { timeout: 20000, message: 'Rejected tool must reach native interrupted terminal state' }).toBe('interrupted')
+    await expect(page.locator('.run-recovery')).toContainText('Step interrupted', { timeout: 20000 })
+    const history = await client.json(`/api/session/${sessionId}/message?limit=20`, {}, 'verify rejected tool')
+    const tools = (Array.isArray(history) ? history : history.data).flatMap(item => item.content ?? []).filter(item => item.type === 'tool')
+    assert.ok(tools.some(tool => tool.name === 'read' && tool.state?.status === 'error' && tool.state?.error?.message === 'The user declined this tool call'))
+    if (process.env.LIVE_PERMISSION_UI_ONLY !== '1') {
+      await expect.poll(async () => (await client.getSession(sessionId)).outcome, { timeout: 20000, message: 'Rejected tool must reach native interrupted terminal state' }).toBe('interrupted')
+    }
   }
   await expect(page.locator('.elx-x-sender__loading-button')).toHaveCount(0, { timeout: 15000 })
   assert.deepEqual(await client.listPermissions(sessionId), [])
@@ -62,8 +68,13 @@ try {
   await expect(page.locator('.model-selector')).toContainText(model.name, { timeout: 15000 })
   if (decision === 'once') await expect(page.locator('.assistant-content').last()).toContainText('PERMISSION_FIXTURE_8c2ab3d9', { timeout: 15000 })
   await expect(card).toHaveCount(0)
-  console.log(JSON.stringify({ check: 'real tool permission', decision, sessionId, result: 'passed' }))
+  console.log(JSON.stringify({ check: 'real tool permission', decision, sessionId, result: 'passed', scope: process.env.LIVE_PERMISSION_UI_ONLY === '1' ? 'UI and tool response only; durable native outcome excluded' : 'including durable native outcome for rejection' }))
 } catch (error) {
+  console.log(JSON.stringify({ check: 'failure diagnostics', sessionId,
+    loadingControls: await page.locator('.elx-x-sender__loading-button').count(),
+    pendingCards: await page.locator('.interrupt-card').count(),
+    recovery: await page.locator('.run-recovery').allTextContents(),
+  }))
   // Cleanup is not success evidence: retain the original failed assertion.
   if (sessionId) await client.json(`/api/session/${sessionId}/interrupt`, { method: 'POST' }, 'Cleanup failed test run').catch(() => undefined)
   throw error
