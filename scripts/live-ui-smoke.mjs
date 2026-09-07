@@ -9,12 +9,18 @@ const page = await browser.newPage({ locale: 'zh-CN' })
 const errors = []
 page.on('pageerror', error => errors.push(error.message))
 try {
+  let model
+  let emptyModelResponses = 0
+  await expect.poll(async () => {
+    const response = await page.request.get(new URL('/dataagent/web/api/model/default', baseURL).href)
+    assert.ok(response.ok())
+    const body = await response.json()
+    model = body.data?.data ?? body.data ?? body
+    if (!model?.name) emptyModelResponses++
+    return Boolean(model?.name)
+  }, { timeout: 15000, message: 'Wait for real model service readiness; this does not test cold-start UI recovery' }).toBe(true)
+  if (emptyModelResponses) console.log(JSON.stringify({ check: 'model service warmup', emptyModelResponses }))
   await page.goto(baseURL)
-  const response = await page.request.get(new URL('/dataagent/web/api/model/default', baseURL).href)
-  assert.ok(response.ok())
-  const body = await response.json()
-  const model = body.data?.data ?? body.data ?? body
-  assert.ok(model.name, `Default model unavailable: response keys ${Object.keys(body).join(',')}; data keys ${Object.keys(body.data ?? {}).join(',')}`)
   await expect(page.locator('.model-selector')).toContainText(model.name, { timeout: 15000 })
   console.log(JSON.stringify({ check: 'real default model selectable', result: 'passed', model: model.name }))
   if (process.env.LIVE_UI_SEND === '1') {
@@ -86,6 +92,31 @@ try {
     await page.reload()
     await expect(surface.getByText('8', { exact: true })).toBeVisible({ timeout: 15000 })
     console.log(JSON.stringify({ check: 'real A2UI generation action update and replay', result: 'passed', url: page.url() }))
+  }
+  if (process.env.LIVE_UI_HITL === '1') {
+    await page.getByRole('button', { name: '新建需求', exact: true }).click()
+    await expect(page.locator('.model-selector')).toContainText(model.name)
+    await page.locator('.agent-chat__composer [contenteditable=true]').first().fill('这是无副作用的表单联调。请调用 question 工具问我是否继续联调，提供“继续联调”和“取消联调”两个单选选项，等待我的选择。选继续后只回复 APPROVAL_LIVE_OK。不要读取或修改任何文件，不要执行shell。')
+    await page.locator('.elx-x-sender__send-button').click()
+    const form = page.locator('.interrupt-card')
+    await expect(form).toBeVisible({ timeout: 90000 })
+    await expect(page.locator('.elx-x-sender__loading-button')).toHaveCount(0, { timeout: 15000 })
+    const sessionUrl = page.url()
+    await page.reload()
+    await expect(form).toBeVisible({ timeout: 15000 })
+    await form.getByRole('combobox').click()
+    await page.getByRole('option', { name: '继续联调', exact: true }).click()
+    const resumeRequest = page.waitForRequest(request => new URL(request.url()).pathname === '/dataagent/web/api/agui' && Array.isArray(request.postDataJSON()?.resume))
+    await form.getByRole('button', { name: /继续/ }).click()
+    const resume = (await resumeRequest).postDataJSON().resume
+    assert.equal(resume.length, 1)
+    assert.equal(resume[0].status, 'resolved')
+    await expect(page.locator('.assistant-content').last()).toContainText('APPROVAL_LIVE_OK', { timeout: 90000 })
+    await expect(form).toHaveCount(0)
+    await page.reload()
+    await expect(page.locator('.assistant-content').last()).toContainText('APPROVAL_LIVE_OK', { timeout: 15000 })
+    await expect(form).toHaveCount(0)
+    console.log(JSON.stringify({ check: 'real question interrupt reload resume and replay', result: 'passed', url: sessionUrl }))
   }
   assert.deepEqual(errors, [])
 } finally {
