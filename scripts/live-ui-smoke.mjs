@@ -1,9 +1,11 @@
 // Explicit opt-in browser integration check. No route interception or mock API.
 import assert from 'node:assert/strict'
 import { chromium, expect } from '@playwright/test'
+import { OpenCodeClient } from '../adapter/src/opencode-client.mjs'
 
 const baseURL = process.env.LIVE_UI_URL
 if (!baseURL) throw new Error('Set LIVE_UI_URL to the running real frontend')
+if (process.env.LIVE_UI_STOP === '1' && !process.env.OPENCODE_BASE_URL) throw new Error('LIVE_UI_STOP requires OPENCODE_BASE_URL and service credentials for upstream verification')
 const browser = await chromium.launch({ headless: true })
 const page = await browser.newPage({ locale: 'zh-CN' })
 const errors = []
@@ -43,14 +45,31 @@ try {
     await expect(page.locator('.assistant-content')).toContainText('UI_LIVE_OK', { timeout: 15000 })
     console.log(JSON.stringify({ check: 'real browser send', result: 'passed', url: page.url() }))
     if (process.env.LIVE_UI_STOP === '1') {
+      const client = new OpenCodeClient()
+      const sessionId = new URLSearchParams(new URL(page.url()).hash.split('?')[1]).get('session')
+      assert.ok(sessionId)
+      const before = await client.getSession(sessionId)
       await page.locator('.agent-chat__composer [contenteditable=true]').first().fill('不调用工具、不修改文件，逐行列出从1到10000的数字。')
       await page.locator('.elx-x-sender__send-button').click()
       await expect(page.locator('.elx-x-sender__loading-button')).toBeVisible()
+      await expect.poll(async () => (await client.getSession(sessionId)).time.updated, { timeout: 15000 }).not.toBe(before.time.updated)
       const interrupted = page.waitForResponse(response => /\/session\/[^/]+\/interrupt$/.test(new URL(response.url()).pathname) && response.request().method() === 'POST')
       await page.locator('.elx-x-sender__loading-button').click()
       assert.ok((await interrupted).ok(), 'real interrupt request must succeed')
       await expect(page.locator('.elx-x-sender__loading-button')).toHaveCount(0)
-      console.log(JSON.stringify({ check: 'real browser stop', result: 'passed', url: page.url(), note: 'UI and interrupt HTTP verified; backend quiescence requires separate verification.' }))
+      let terminal
+      await expect.poll(async () => {
+        terminal = await client.getSession(sessionId)
+        return terminal.outcome === 'interrupted' && terminal.time.idle > (before.time.idle ?? 0)
+      }, { timeout: 15000, message: 'New run must reach upstream interrupted terminal state' }).toBe(true)
+      const terminalTime = JSON.stringify(terminal.time)
+      for (let sample = 0; sample < 3; sample++) {
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        const observed = await client.getSession(sessionId)
+        assert.equal(observed.outcome, 'interrupted')
+        assert.equal(JSON.stringify(observed.time), terminalTime, 'session must remain unchanged after interruption')
+      }
+      console.log(JSON.stringify({ check: 'real browser stop', result: 'passed', url: page.url(), outcome: terminal.outcome, observationMs: 3000 }))
     }
   }
   if (process.env.LIVE_UI_FILE === '1') {
