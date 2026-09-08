@@ -13,5 +13,6 @@ adapter/.data/
 artifacts/
 .local/npm-cache/
 .local/playwright/
+.local/live-delivery/
 test-results/
 playwright-report/

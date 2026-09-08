@@ -79,7 +79,7 @@ node scripts/live-ui-smoke.mjs
 - 真实切换失败恢复。
 - 工具目录接口的服务版本兼容与错误提示。
 - 权限审批、拒绝/取消及多中断的真实联调（question 表单已通过）。
-- 真实交付物预览与业务工作流。
+- 真实业务工作流的退回修改、版本追踪及多文件复杂交付（下述小型销售验收闭环已通过）。
 
 接口检查通过不代表模型调用、浏览器流程或完整业务链路已通过。图表异常处理草稿尚未完成，未纳入本次联调提交。
 
@@ -139,3 +139,14 @@ node scripts/live-ui-smoke.mjs
 
 - 权限卡片现在显示完整请求资源列表，纯文本呈现，长路径可换行，多项资源可滚动；不创建链接或解析 HTML。
 - 真实会话 `ses_f81cb7916ffea40nyLuQuoNyNg` 核对卡片包含上游所有请求资源后，允许只读样例、回复与刷新恢复通过。窄屏及不可信字符串由浏览器回归验证。
+
+## 真实交付物生成与业务验收闭环
+
+`node scripts/live-delivery-smoke.mjs` 需要真实上游 URL/凭据及 Playwright 浏览器。脚本启动临时 Adapter/Vite，在唯一 `.local/live-delivery/<uuid>` 目录内运行，文件保留供人工核对，不进入 Git。会消耗默认模型额度。
+
+- 输入三笔销售金额，真实 write 工具生成 report.md，核对磁盘内容包含 total: 300 和 count: 3；交付卡片经 A2UI 展示并打开实际文件预览。
+- question 表单等待人工验收；断言 release.json 在验收前不存在。刷新后重新预览报告，并通过预览面板确认，断言仅提交一次 resolved resume，内容为验收通过。
+- 真实工具随后生成 release.json；磁盘 JSON 与预期完全一致。刷新后发布文件仍可预览，已无待办和确认按钮。
+- 交付侧栏恰有两个输出文件；下载 URL 返回的 JSON 与磁盘一致。全程只有初次生成与验收恢复两次 Agent 请求，预览、刷新、列表和下载不会新建 Run。
+- 完整增强检查会话 `ses_f81116f93ffeFLS4TQfhZAzsYE` 通过，产物目录 `.local/live-delivery/f7a8bf9f-d1b1-433b-aee4-c8cd0bb45b39`。首轮基础验证 `ses_f8112f032ffeOlwUMSKNlIedi8` 也通过。
+- 范围：这是隔离的小型销售验收流程，证明真实生成到验收发布的闭环，不代表现有 demo-sales 的全部需求/设计/开发/测试阶段、退回修改或复杂打包交付已完成验收。
