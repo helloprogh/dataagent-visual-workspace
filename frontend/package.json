@@ -16,7 +16,8 @@
     "typecheck": "vue-tsc -b",
     "test:e2e": "playwright test",
     "check:offline": "node scripts/offline-check.mjs",
-    "check:design": "node scripts/design-guard.mjs && node scripts/contrast-check.mjs",
+    "check:design": "node scripts/design-guard.mjs && node scripts/contrast-check.mjs && node scripts/export-style-pack.mjs --check",
+    "export:style-pack": "node scripts/export-style-pack.mjs",
     "diagnose:npm": "node scripts/npm-diagnose.mjs"
   },
   "dependencies": {
