@@ -15,6 +15,7 @@ Canonical references:
 - Tokens: `frontend/src/shared/styles/tokens.css`
 - Shared component refinements: `frontend/src/shared/styles/base.css`
 - Fixed design scenarios: `frontend/design-evals/scenarios.json`
+- Same-stack style replication: `frontend/style-pack/README.md`
 
 This file governs user-facing product UI. Runtime protocol semantics remain owned by the AG-UI/A2UI contract documents.
 
@@ -230,3 +231,26 @@ For a user-facing PR, include:
 - any reusable review feedback added back to this file or to `coverage-gaps.md`
 
 A design rule is not considered established merely because it sounds reasonable. Prefer rules backed by repeated product review, an existing shipped pattern, or a failure reproduced by the fixed scenarios.
+
+## 12. Same-stack style replication
+
+When another frontend uses the same Vue 3 + Vite + Element Plus + Element-Plus-X stack and needs to reproduce this project's visual style, prefer **direct reuse of the canonical style layer** over translating the design into a new framework-neutral abstraction.
+
+Use:
+
+```bash
+npm run export:style-pack
+```
+
+The export contract is documented in `frontend/style-pack/README.md` and `frontend/style-pack/component-contract.md`.
+
+Replication rules:
+
+- `tokens.css`, `base.css`, `app.css`, `index.css`, and `theme.ts` remain canonical in this repository; the style pack is generated from them rather than maintained as a second copy.
+- Preserve `.dataagent-app` as the root scope in the target application.
+- Preserve project-owned hooks around matching Element-Plus-X/Element Plus components, especially the composer, model selector, user bubble, attachment and diagnostic-detail wrappers.
+- Reuse the target product's own business components and semantics. The goal is to reproduce the visual language, not to import Data Agent runtime behavior.
+- Use `frontend/style-pack/replication-evals.json` for cross-project visual review in addition to this repository's product-specific design scenarios.
+- If a stable style hook changes in the source project, update `component-contract.md` in the same change so downstream projects have an explicit migration signal.
+
+A same-stack target that copies only token values but not the framework bridge and stable wrapper contract should not be considered a high-fidelity replication.
