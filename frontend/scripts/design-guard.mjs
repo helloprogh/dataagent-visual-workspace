@@ -27,6 +27,12 @@ function relative(file) {
   return path.relative(repoRoot, file).replaceAll(path.sep, '/')
 }
 
+function styleContent(file, text) {
+  if (file.endsWith('.css')) return text
+  if (!file.endsWith('.vue')) return ''
+  return [...text.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map(match => match[1]).join('\n')
+}
+
 for (const required of [designPath, tokensPath, styleIndexPath, scenariosPath]) {
   if (!fs.existsSync(required)) errors.push(`Missing required design-system file: ${relative(required)}`)
 }
@@ -93,7 +99,8 @@ if (errors.length === 0) {
     }
 
     if (file === tokensPath) continue
-    for (const match of text.matchAll(/(--da-[a-z0-9-]+)\s*:/gi)) {
+    const styles = styleContent(file, text)
+    for (const match of styles.matchAll(/(--da-[a-z0-9-]+)\s*:/gi)) {
       if (canonicalPrefixes.some(prefix => match[1].startsWith(prefix))) {
         errors.push(`${relative(file)} redefines canonical token ${match[1]}; define shared --da-* tokens only in tokens.css`)
       }
