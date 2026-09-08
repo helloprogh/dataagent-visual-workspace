@@ -166,3 +166,10 @@ node scripts/live-ui-smoke.mjs
 - 会话 `ses_f809a7c6cffeqFvV8owwpF8ry3` 的生成、验收、发布、打包和预览下载全部通过。预览/下载未新增 Agent 请求。
 - 这证明单次包交付功能，不证明同路径 ZIP 被覆盖后可恢复旧包；二进制版本存档仍待实现。
 - 同时设置 `LIVE_DELIVERY_REVISE=1` 的组合检查尚未完整通过：`ses_f8097663cffetGvVoHFpFgNPWj` 已完成修订验收并生成 ZIP，但进程在最终校验前 exit 1 且无异常输出；`ses_f8099cd9affeVcmLumQhy1VIPB` 也曾提前退出，其待办已清理。不能将文件存在作为浏览器包预览/下载已通过的替代证据。
+
+### 已有组合交付结果的独立验收
+
+- `LIVE_DELIVERY_REPLAY_SESSION=ses_f8097663cffetGvVoHFpFgNPWj node scripts/live-delivery-replay.mjs`（PowerShell 请先设置对应环境变量）只恢复已有测试会话，不发送提示或审批、不改业务文件，也不消耗模型生成额度。
+- 从真实会话读取目录，并限制为 `.local/live-delivery` 子目录；确认上游 succeeded、无表单、磁盘发布 JSON=350/4，ZIP 文件清单及内容正确。
+- 真实浏览器连续两次（含刷新）验证：v1=300、v2=350；ZIP 两个条目可预览，报告为350；下载与磁盘 ZIP 字节一致；交付列表4项，无待审批；零新 Agent 请求、零页面异常。
+- 此检查已通过，补齐上述组合会话原先缺失的最终浏览器验收。长脚本提前退出的原因仍未查明，不能称为已修复脚本稳定性；本次新进程未复现页面崩溃。
