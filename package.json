@@ -15,6 +15,7 @@
     "build:gallery": "npm run build:gallery -w frontend",
     "check:offline": "npm run check:offline -w frontend",
     "check:design": "npm run check:design -w frontend",
+    "export:style-pack": "npm run export:style-pack -w frontend",
     "test": "npm test -w adapter",
     "test:e2e": "npm run test:e2e -w frontend",
     "check:ui": "npm run check:design && npm run typecheck && npm run build -w frontend && npm run test:e2e",
