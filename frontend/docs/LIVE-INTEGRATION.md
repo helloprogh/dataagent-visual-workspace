@@ -167,6 +167,11 @@ node scripts/live-ui-smoke.mjs
 - 这证明单次包交付功能，不证明同路径 ZIP 被覆盖后可恢复旧包；二进制版本存档仍待实现。
 - 同时设置 `LIVE_DELIVERY_REVISE=1` 的组合检查尚未完整通过：`ses_f8097663cffetGvVoHFpFgNPWj` 已完成修订验收并生成 ZIP，但进程在最终校验前 exit 1 且无异常输出；`ses_f8099cd9affeVcmLumQhy1VIPB` 也曾提前退出，其待办已清理。不能将文件存在作为浏览器包预览/下载已通过的替代证据。
 
+### 交付版本标签的边界
+
+- 交付列表与预览统一显示来源：保留成功 write 内容的文本显示版本号；workspace 路径文件显示“当前文件”（英文 Current file），包括 ZIP 和缺少历史内容的旧记录。
+- 这只消除历史版本标签的误导，不提供二进制历史存档能力。组合会话的真实浏览器复验同时检查 ZIP 的当前文件标签。
+
 ### 已有组合交付结果的独立验收
 
 - `LIVE_DELIVERY_REPLAY_SESSION=ses_f8097663cffetGvVoHFpFgNPWj node scripts/live-delivery-replay.mjs`（PowerShell 请先设置对应环境变量）只恢复已有测试会话，不发送提示或审批、不改业务文件，也不消耗模型生成额度。

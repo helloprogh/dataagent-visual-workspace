@@ -147,7 +147,9 @@ export function useConversationArtifacts(
       const key = file.name.trim().toLocaleLowerCase()
       const version = (versions.get(key) ?? 0) + 1
       versions.set(key, version)
-      return { ...file, version, ...(file === approvalTarget ? { approvalInterruptId: approval!.id } : {}) }
+      const versionSource = file.url.startsWith(dataAgentWebApi('/agui/workspace-'))
+        ? 'workspace' as const : file.sourcePath && file.url.startsWith('blob:') ? 'history' as const : undefined
+      return { ...file, version, ...(versionSource ? { versionSource } : {}), ...(file === approvalTarget ? { approvalInterruptId: approval!.id } : {}) }
     })
   })
 
@@ -169,7 +171,8 @@ export function useConversationArtifacts(
       && latest.mimeType === current.mimeType
       && latest.approvalInterruptId === current.approvalInterruptId
       && latest.approvalResolved === current.approvalResolved
-      && latest.version === current.version) return
+      && latest.version === current.version
+      && latest.versionSource === current.versionSource) return
     activePreview.value = { ...current, ...latest }
   }, { deep: true })
 

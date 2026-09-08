@@ -56,6 +56,7 @@ try {
     }
     await cards.filter({ hasText: 'delivery.zip' }).first().locator('.generated-artifact-card__main').click()
     await expect(preview.locator('.archive-preview__entry')).toHaveCount(2)
+    await expect(preview.locator('.file-preview-panel__version')).toHaveText('当前文件')
     await preview.locator('.archive-preview__entry').filter({ hasText: 'report.md' }).click()
     await expect(preview.locator('.archive-preview__content')).toContainText('total: 350')
     await preview.locator('.archive-preview__entry').filter({ hasText: 'release.json' }).click()

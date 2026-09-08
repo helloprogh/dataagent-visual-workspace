@@ -7,7 +7,7 @@ import { appTheme } from '../../../shared/theme/theme'
 import { dataAgentWebApi } from '../../../shared/config/api'
 import { readBoundedText } from '../../../shared/api/readBoundedText'
 import { buildCancellationResumeEntry, buildConfirmationResumeEntry } from '../approval'
-import { fileBadgeLabel, fileDownloadUrl, fileKindLabel, formatFileSize, type ArchiveEntry, type ConversationFilePreview } from '../types/filePreview'
+import { fileBadgeLabel, fileDownloadUrl, fileKindLabel, fileVersionLabel, formatFileSize, type ArchiveEntry, type ConversationFilePreview } from '../types/filePreview'
 import InterruptCard from './InterruptCard.vue'
 
 const props = withDefaults(defineProps<{
@@ -24,7 +24,7 @@ const emit = defineEmits<{
   close: []
   resume: [entries: ResumeEntry[]]
 }>()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const MAX_TEXT_BYTES = 1024 * 1024
 const content = ref('')
@@ -236,7 +236,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <div class="file-preview-panel__actions">
-        <span v-if="file.version" class="file-preview-panel__version">v{{ file.version }}</span>
+        <span v-if="fileVersionLabel(file, locale)" class="file-preview-panel__version">{{ fileVersionLabel(file, locale) }}</span>
         <a :href="fileDownloadUrl(file)" :download="file.name" :aria-label="t('preview.download')" :title="t('preview.download')">↓</a>
         <a :href="fileDownloadUrl(file)" target="_blank" rel="noreferrer" :aria-label="t('preview.openNew')">↗</a>
         <button type="button" :aria-label="t('preview.close')" @click="emit('close')">×</button>

@@ -10,6 +10,8 @@ export type ConversationFilePreview = {
   approvalResolved?: boolean
   category?: 'input' | 'output'
   version?: number
+  /** Whether the displayed bytes come from retained write history or a mutable path. */
+  versionSource?: 'history' | 'workspace'
   createdAt?: number
   /** Internal correlation for files created by a tool in an assistant turn. */
   sourceMessageId?: string
@@ -21,6 +23,11 @@ export type ArchiveEntry = {
   path: string
   kind: 'file' | 'directory'
   size: number
+}
+
+export function fileVersionLabel(file: Pick<ConversationFilePreview, 'version' | 'versionSource'>, locale: string) {
+  if (file.versionSource === 'workspace') return locale === 'zh-CN' ? '当前文件' : 'Current file'
+  return file.version ? `v${file.version}` : ''
 }
 
 /** Archive manifests are for preview; downloads must return the original bytes. */

@@ -22,6 +22,7 @@ test('same-path successful writes preview and download their original content af
       await cards.nth(index).locator('.generated-artifact-card__main').click()
       const panel = page.getByTestId('file-preview-panel')
       await expect(panel).toContainText(`total: ${total}`)
+      await expect(panel.locator('.file-preview-panel__version')).toHaveText(`v${index + 1}`)
       const downloading = page.waitForEvent('download')
       await panel.getByRole('link', { name: '下载文件', exact: true }).click()
       const download = await downloading
