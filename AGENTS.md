@@ -8,6 +8,7 @@ Use `/design.md` to decide hierarchy, composition, copy, responsive behavior, st
 - AG-UI runtime behavior: `frontend/docs/ag-ui-contract.md`
 - Generated UI / A2UI: `frontend/docs/A2UI-ARTIFACT-CONTRACT.md`
 - File approval and preview: `frontend/docs/APPROVAL-AND-PREVIEW-CONTRACT.md`
+- Replicating this visual style into another Vue 3 + Vite + Element Plus + Element-Plus-X project: `frontend/style-pack/README.md` and `frontend/style-pack/component-contract.md`
 
 Rules:
 
@@ -15,6 +16,8 @@ Rules:
 - Treat `frontend/src/shared/styles/tokens.css` as the single source of project design tokens and `base.css` as the shared component bridge/refinement layer.
 - For generic generated UI, extend the A2UI catalog instead of introducing another rendering protocol.
 - Preserve light/dark themes, responsive behavior, focus visibility, reduced motion, and existing AG-UI/HITL semantics.
+- For same-stack cross-project style replication, use `npm run export:style-pack`; do not hand-maintain a second copy of the canonical styles in this repository.
+- Keep stable project-owned style hooks documented in `frontend/style-pack/component-contract.md` when changing Element Plus / Element-Plus-X wrappers.
 - Run `npm run check:design -w frontend` plus the relevant typecheck/build/browser tests before declaring UI work complete.
 - If review feedback is reusable across surfaces, encode it in `/design.md` and, when mechanical, add or extend a deterministic check. If it is not yet generalizable, record it in `frontend/design-evals/coverage-gaps.md` instead of turning it into a global rule.
 
