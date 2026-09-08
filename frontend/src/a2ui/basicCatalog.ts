@@ -68,7 +68,7 @@ const List = createVueComponent(ListApi, ({ props, buildChild }: any) => h('div'
 
 const Card = createVueComponent(CardApi, ({ props, buildChild }: any) => h('section', { style: {
   width: 'calc(100% - 1rem)', margin: gap, padding: '0.875rem 1rem', border, borderRadius: 'var(--da-radius-md)',
-  color: 'var(--da-text-primary)', background: 'var(--da-surface-1)', boxShadow: 'var(--da-shadow-sm)',
+  color: 'var(--da-text-primary)', background: 'var(--da-surface-1)', boxShadow: 'var(--da-shadow-card)',
 } }, props.child ? [buildChild(props.child)] : []))
 
 const Tabs = createVueComponent(TabsApi, ({ props, buildChild, state }: any) => {
@@ -105,7 +105,7 @@ const Button = createVueComponent(ButtonApi, ({ props, buildChild, busy }: any) 
   'aria-busy': busy ? 'true' : undefined,
   onClick: busy || props.isValid === false ? undefined : props.action,
   style: { margin: gap, padding: '0.5rem 0.875rem', border: props.variant === 'borderless' ? 0 : border, borderRadius: radius,
-    color: props.variant === 'primary' ? 'var(--da-on-accent, #fff)' : 'var(--da-text-primary)',
+    color: props.variant === 'primary' ? 'var(--da-text-on-accent)' : 'var(--da-text-primary)',
     background: props.variant === 'primary' ? 'var(--da-accent-primary)' : props.variant === 'borderless' ? 'transparent' : 'var(--da-surface-1)',
     cursor: props.isValid === false ? 'not-allowed' : 'pointer', opacity: props.isValid === false ? 0.55 : 1 },
 }, props.child ? [buildChild(props.child)] : []))
@@ -114,7 +114,7 @@ function fieldShell(label: unknown, id: string, control: VNode, errors?: unknown
   return h('div', { style: { display: 'grid', gap: '0.3125rem', width: 'calc(100% - 1rem)', margin: gap } }, [
     label ? h('label', { for: id, style: { color: 'var(--da-text-secondary)', fontSize: '0.8125rem', fontWeight: 650 } }, String(label)) : null,
     control,
-    errors?.length ? h('small', { style: { color: 'var(--da-danger, #dc2626)' } }, String(errors[0])) : null,
+    errors?.length ? h('small', { style: { color: 'var(--da-accent-red)' } }, String(errors[0])) : null,
   ])
 }
 
