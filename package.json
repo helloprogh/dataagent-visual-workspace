@@ -14,12 +14,13 @@
     "build:scenario": "npm run build:scenario -w frontend",
     "build:gallery": "npm run build:gallery -w frontend",
     "check:offline": "npm run check:offline -w frontend",
+    "check:design": "npm run check:design -w frontend",
     "test": "npm test -w adapter",
     "test:e2e": "npm run test:e2e -w frontend",
-    "check:ui": "npm run typecheck && npm run build -w frontend && npm run test:e2e",
+    "check:ui": "npm run check:design && npm run typecheck && npm run build -w frontend && npm run test:e2e",
     "typecheck": "npm run typecheck -w frontend",
     "build": "npm run build -w adapter && npm run build -w frontend",
-    "check": "npm test && npm run typecheck && npm run build"
+    "check": "npm test && npm run check:design && npm run typecheck && npm run build"
   },
   "engines": {
     "node": ">=20.19.0"
