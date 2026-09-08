@@ -1,4 +1,4 @@
-import { computed, watch, type Ref } from 'vue'
+import { computed, onScopeDispose, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Interrupt, Message } from '@ag-ui/client'
 import type { PendingAttachment } from './useAgentConversation'
@@ -18,6 +18,13 @@ export function useConversationArtifacts(
   activePreview: Ref<ConversationFilePreview | null>,
 ) {
   const { t } = useI18n()
+  // Successful native text writes retain their submitted content in persisted
+  // tool history. Preview that version, never the mutable workspace pathname.
+  const snapshots = new Map<string, { text: string; url: string }>()
+  onScopeDispose(() => {
+    for (const snapshot of snapshots.values()) URL.revokeObjectURL(snapshot.url)
+    snapshots.clear()
+  })
 
   function previewFromPart(message: Message, part: any, index: number): ConversationFilePreview | null {
     if (!['image', 'audio', 'video', 'document', 'file'].includes(part?.type)) return null
@@ -40,10 +47,20 @@ export function useConversationArtifacts(
     return generatedArtifactsFromTool(call, successfulToolIds).map((artifact: any) => {
       const query = new URLSearchParams({ path: artifact.sourcePath })
       const route = artifact.archive ? '/agui/workspace-archive' : '/agui/workspace-file'
+      let url = `${dataAgentWebApi(route)}?${query.toString()}`
+      if (typeof artifact.snapshotText === 'string') {
+        let snapshot = snapshots.get(artifact.id)
+        if (!snapshot || snapshot.text !== artifact.snapshotText) {
+          if (snapshot) URL.revokeObjectURL(snapshot.url)
+          snapshot = { text: artifact.snapshotText, url: URL.createObjectURL(new Blob([artifact.snapshotText], { type: artifact.mimeType })) }
+          snapshots.set(artifact.id, snapshot)
+        }
+        url = snapshot.url
+      }
       return {
         id: artifact.id,
         name: artifact.name,
-        url: `${dataAgentWebApi(route)}?${query.toString()}`,
+        url,
         mimeType: artifact.mimeType,
         category: 'output',
         sourceMessageId,
@@ -139,6 +156,10 @@ export function useConversationArtifacts(
   // the latest delivery, so the right-side approval footer does not disappear
   // during this normal streaming race.
   watch(deliverables, files => {
+    const activeUrls = new Set(files.map(file => file.url))
+    for (const [id, snapshot] of snapshots) {
+      if (!activeUrls.has(snapshot.url)) { URL.revokeObjectURL(snapshot.url); snapshots.delete(id) }
+    }
     const current = activePreview.value
     if (!current) return
     const latest = files.find(file => file.id === current.id)

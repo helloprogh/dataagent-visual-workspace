@@ -41,7 +41,9 @@ export function generatedArtifactsFromTool(call, successfulToolIds) {
   if (tool === 'write') {
     const sourcePath = String(input.path ?? '').trim()
     const name = basename(sourcePath)
-    return sourcePath && name ? [{ id: `generated-${call.id}`, sourcePath, name, mimeType: generatedArtifactMimeType(name), archive: false }] : []
+    return sourcePath && name ? [{ id: `generated-${call.id}`, sourcePath, name, mimeType: generatedArtifactMimeType(name), archive: false,
+      ...(typeof input.content === 'string' ? { snapshotText: input.content } : {}),
+    }] : []
   }
 
   if (!['bash', 'shell'].includes(tool)) return []
