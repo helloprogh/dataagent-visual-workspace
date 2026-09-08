@@ -24,7 +24,7 @@ This writes a copy-ready directory to:
 frontend/dist/dataagent-style-pack/
 ```
 
-The exported pack contains the current canonical styles/theme implementation plus the integration contract and replication guidance in this directory.
+The exported pack contains the current canonical styles/theme implementation plus integration guidance and selected reference Vue files.
 
 ## What is canonical
 
@@ -50,6 +50,25 @@ This matters because the style is produced by the combination of:
 6. stable class hooks around Element-Plus-X components.
 
 Copying only the colors will not reproduce the project accurately.
+
+## Reference Vue files
+
+The exporter also places selected current source files under `reference/`:
+
+```text
+reference/main.ts
+reference/App.vue
+reference/components/AgentMark.vue
+reference/components/ConversationSidebar.vue
+reference/components/ConversationHeader.vue
+reference/components/ConversationComposer.vue
+reference/components/ConversationMessage.vue
+reference/components/ModelSelector.vue
+```
+
+These are **reference-only**. They exist so another coding agent can see the exact Element Plus / Element-Plus-X structure, project-owned class hooks, shell background, density, spacing and responsive decisions that generated the accepted UI.
+
+Do not bulk-copy their business logic into the target project. Adapt the target project's existing components and keep its own state/API/i18n semantics.
 
 ## Target-project installation
 
@@ -94,7 +113,7 @@ import { initializeTheme } from './shared/theme/theme'
 initializeTheme()
 ```
 
-The exact source project's `main.ts` is exported as `reference/main.ts` for comparison.
+Compare with the exported `reference/main.ts` when the target project already has additional plugins.
 
 ### 4. Add the root scope
 
@@ -108,9 +127,21 @@ The target application's user-facing shell should have:
 
 ### 5. Preserve stable style hooks
 
-Read `component-contract.md` before adapting chat/input/message components. These hooks are intentionally part of the same-stack visual contract.
+Read `guidance/component-contract.md` before adapting chat/input/message components. These hooks are intentionally part of the same-stack visual contract.
 
 For example, an Element-Plus-X sender wrapped by `.agent-chat__composer` receives the current gradient border, background, focus glow and auxiliary-action treatment without copying those rules into the component.
+
+### 6. Use references to adapt, not replace
+
+When a target component has an equivalent source reference:
+
+1. compare its Element Plus / Element-Plus-X primitive;
+2. compare wrapper class names and structure;
+3. copy the stable visual hook when semantics match;
+4. keep the target component's props, API calls, state and route behavior;
+5. only copy scoped CSS if the behavior is truly visual and not already supplied by shared `base.css`/`app.css`.
+
+This produces much higher fidelity than prompting an agent from screenshots while avoiding a fork of Data Agent business code.
 
 ## Adoption modes
 
@@ -118,13 +149,13 @@ For example, an Element-Plus-X sender wrapped by `.agent-chat__composer` receive
 
 Use when the target product should look recognizably like Data Agent.
 
-Copy all exported style/theme files, preserve the class contract, and use the same Element Plus / Element-Plus-X primitives where equivalent functionality exists.
+Copy all exported style/theme files, preserve the class contract, use the same Element Plus / Element-Plus-X primitives where equivalent functionality exists, and use the exported Vue files as structural references.
 
 ### Shared brand, different product layout
 
 Use when the target app has different information architecture.
 
-Reuse `tokens.css`, `base.css`, theme initialization, buttons/inputs/surface conventions and the signature input treatment, but keep the target project's own layout. Use `/design.md` principles for hierarchy rather than copying Data Agent page structure blindly.
+Reuse `tokens.css`, `base.css`, theme initialization, buttons/inputs/surface conventions and the signature input treatment, but keep the target project's own layout. Use the exported `guidance/source-design.md` principles for hierarchy rather than copying Data Agent page structure blindly.
 
 ## What not to copy for style alone
 
@@ -134,17 +165,18 @@ A target project can reproduce the style while having completely different busin
 
 ## Agent workflow in the target repository
 
-Copy `AGENTS.snippet.md` into the target repo's existing agent guidance and provide the exported pack as the style source.
+Merge `guidance/AGENTS.snippet.md` into the target repo's existing agent guidance and provide the exported pack as the style source.
 
 For UI changes, the coding agent should:
 
 1. inspect the existing target component before replacing it;
-2. use the exported `--da-*` tokens instead of inventing a palette;
-3. use Element Plus / Element-Plus-X primitives before rebuilding controls;
-4. preserve the stable class hooks where the matching source style exists;
-5. check dark and light themes;
-6. compare against `replication-evals.json` instead of judging from one screenshot;
-7. keep product semantics from the target project rather than importing Data Agent behavior.
+2. inspect the closest exported Vue reference when one exists;
+3. use the exported `--da-*` tokens instead of inventing a palette;
+4. use Element Plus / Element-Plus-X primitives before rebuilding controls;
+5. preserve the stable class hooks where the matching source style exists;
+6. check dark and light themes;
+7. compare against `guidance/replication-evals.json` instead of judging from one screenshot;
+8. keep product semantics from the target project rather than importing Data Agent behavior.
 
 ## Fidelity test
 
@@ -161,4 +193,4 @@ A same-stack replica should preserve all of these:
 - equivalent light/dark theme behavior;
 - reduced-motion and visible keyboard focus.
 
-Use `replication-evals.json` as the fixed review set.
+Use `guidance/replication-evals.json` as the fixed review set.
