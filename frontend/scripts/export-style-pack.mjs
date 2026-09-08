@@ -8,8 +8,8 @@ const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 const repoRoot = path.resolve(frontendRoot, '..')
 const checkOnly = process.argv.includes('--check')
 const outputRoot = checkOnly
-  ? fs.mkdtempSync(path.join(os.tmpdir(), 'dataagent-style-pack-'))
-  : path.join(frontendRoot, 'dist', 'dataagent-style-pack')
+  ? fs.mkdtempSync(path.join(os.tmpdir(), 'dataagent-frontend-kit-'))
+  : path.join(frontendRoot, 'dist', 'dataagent-frontend-kit')
 
 const sourceFiles = [
   ['src/shared/styles/tokens.css', 'src/shared/styles/tokens.css'],
