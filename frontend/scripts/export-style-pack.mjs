@@ -25,8 +25,10 @@ const sourceFiles = [
   ['src/features/conversation/components/ConversationComposer.vue', 'reference/components/ConversationComposer.vue'],
   ['src/features/conversation/components/ConversationMessage.vue', 'reference/components/ConversationMessage.vue'],
   ['src/features/model/components/ModelSelector.vue', 'reference/components/ModelSelector.vue'],
+  ['docs/UI-ARCHITECTURE.md', 'reference/source-ui-architecture.md'],
   ['style-pack/README.md', 'README.md'],
-  ['style-pack/component-contract.md', 'guidance/component-contract.md'],
+  ['style-pack/frontend-architecture-guidance.md', 'guidance/frontend-architecture-guidance.md'],
+  ['style-pack/pattern-catalog.md', 'guidance/pattern-catalog.md'],
   ['style-pack/AGENTS.snippet.md', 'guidance/AGENTS.snippet.md'],
   ['style-pack/replication-evals.json', 'guidance/replication-evals.json'],
 ]
@@ -40,7 +42,7 @@ function ensureParent(file) {
 }
 
 function copy(source, destination) {
-  if (!fs.existsSync(source)) throw new Error(`Missing style-pack source: ${path.relative(repoRoot, source)}`)
+  if (!fs.existsSync(source)) throw new Error(`Missing frontend-kit source: ${path.relative(repoRoot, source)}`)
   ensureParent(destination)
   fs.copyFileSync(source, destination)
 }
@@ -61,7 +63,17 @@ for (const [source, destination] of repoFiles) {
 }
 
 const pkg = JSON.parse(fs.readFileSync(path.join(frontendRoot, 'package.json'), 'utf8'))
-const stackNames = ['vue', 'element-plus', 'vue-element-plus-x', 'vite', 'typescript', '@vitejs/plugin-vue']
+const stackNames = [
+  'vue',
+  'element-plus',
+  'vue-element-plus-x',
+  'vue-router',
+  'vue-i18n',
+  'echarts',
+  'vite',
+  'typescript',
+  '@vitejs/plugin-vue',
+]
 const peerStack = {
   generatedFrom: 'frontend/package.json',
   node: pkg.engines?.node ?? null,
@@ -92,11 +104,12 @@ const manifestFiles = exportedFiles
   .sort((a, b) => a.path.localeCompare(b.path))
 
 const manifest = {
-  format: 'dataagent-same-stack-style-pack-v1',
+  format: 'dataagent-same-stack-frontend-kit-v2',
   source: {
     repository: 'helloprogh/dataagent-visual-workspace',
     canonicalStyles: 'frontend/src/shared/styles',
     canonicalTheme: 'frontend/src/shared/theme/theme.ts',
+    classNamesArePortableContract: false,
     referencesAreCopyOnly: true,
   },
   files: manifestFiles,
@@ -120,7 +133,9 @@ const requiredOutput = [
   'reference/components/ConversationComposer.vue',
   'reference/components/ConversationMessage.vue',
   'reference/components/ModelSelector.vue',
-  'guidance/component-contract.md',
+  'reference/source-ui-architecture.md',
+  'guidance/frontend-architecture-guidance.md',
+  'guidance/pattern-catalog.md',
   'guidance/AGENTS.snippet.md',
   'guidance/replication-evals.json',
   'guidance/source-design.md',
@@ -128,7 +143,7 @@ const requiredOutput = [
 
 for (const relative of requiredOutput) {
   if (!fs.existsSync(path.join(outputRoot, relative))) {
-    throw new Error(`Style pack export is incomplete: ${relative}`)
+    throw new Error(`Frontend kit export is incomplete: ${relative}`)
   }
 }
 
@@ -140,31 +155,44 @@ const exportedBase = fs.readFileSync(path.join(outputRoot, 'src/shared/styles/ba
 const canonicalBase = fs.readFileSync(path.join(frontendRoot, 'src/shared/styles/base.css'), 'utf8')
 if (exportedBase !== canonicalBase) throw new Error('Exported base.css drifted from canonical source')
 
-const stableHooks = [
-  '.dataagent-app',
-  '.agent-chat__header',
-  '.agent-chat__composer-wrap',
-  '.agent-chat__composer',
-  '.composer-input-actions',
-  '.model-selector',
-  '.message-bubble--user',
-  '.attachment-chip',
-  '.process-step__content',
-]
-const componentContract = fs.readFileSync(path.join(frontendRoot, 'style-pack/component-contract.md'), 'utf8')
-for (const hook of stableHooks) {
-  if (!canonicalBase.includes(hook)) throw new Error(`Stable style hook disappeared from base.css: ${hook}`)
-  if (!componentContract.includes(hook)) throw new Error(`Stable style hook is undocumented in component-contract.md: ${hook}`)
-}
-
 const mainSource = fs.readFileSync(path.join(frontendRoot, 'src/main.ts'), 'utf8')
 for (const requiredImport of [
-  "element-plus/dist/index.css",
-  "element-plus/theme-chalk/dark/css-vars.css",
-  "./shared/styles/index.css",
+  'element-plus/dist/index.css',
+  'element-plus/theme-chalk/dark/css-vars.css',
+  './shared/styles/index.css',
   'initializeTheme()',
 ]) {
-  if (!mainSource.includes(requiredImport)) throw new Error(`Style pack integration source is missing ${requiredImport}`)
+  if (!mainSource.includes(requiredImport)) throw new Error(`Frontend kit integration source is missing ${requiredImport}`)
+}
+
+const architectureGuidance = fs.readFileSync(path.join(frontendRoot, 'style-pack/frontend-architecture-guidance.md'), 'utf8')
+for (const marker of [
+  '## 2. Recommended source structure',
+  '## 3. Dependency direction',
+  '## 6. State management',
+  '## 7. API layer',
+  '## 11. Element Plus usage',
+  '## 12. Element-Plus-X usage',
+  '## 22. Testing strategy',
+  '## 24. Architectural anti-patterns',
+  '## 25. New-feature workflow for coding agents',
+]) {
+  if (!architectureGuidance.includes(marker)) throw new Error(`Architecture guidance is missing required section: ${marker}`)
+}
+
+const patternCatalog = fs.readFileSync(path.join(frontendRoot, 'style-pack/pattern-catalog.md'), 'utf8')
+for (const marker of [
+  '## 1. Application shell',
+  '## 3. Primary chat/query/command input',
+  '## 5. User-authored / selected-content bubble',
+  '## 7. Evidence surface',
+  '## 8. Diagnostic / execution detail',
+  '## 15. Replication rule',
+]) {
+  if (!patternCatalog.includes(marker)) throw new Error(`Pattern catalog is missing required pattern: ${marker}`)
+}
+if (!patternCatalog.includes('does **not** define cross-project class names')) {
+  throw new Error('Pattern catalog must explicitly keep target-project class names target-owned')
 }
 
 const evals = JSON.parse(fs.readFileSync(path.join(frontendRoot, 'style-pack/replication-evals.json'), 'utf8'))
@@ -174,7 +202,7 @@ if (!Array.isArray(evals.scenarios) || evals.scenarios.length < 7) {
 
 if (checkOnly) {
   fs.rmSync(outputRoot, { recursive: true, force: true })
-  console.log('Same-stack style pack check passed: canonical styles, Vue references, hook contract, theme integration and evals export cleanly.')
+  console.log('Same-stack frontend kit check passed: canonical styles, architecture guidance, semantic patterns, Vue references, theme integration and evals export cleanly.')
 } else {
-  console.log(`Data Agent style pack exported to ${path.relative(repoRoot, outputRoot).replaceAll(path.sep, '/')}`)
+  console.log(`Data Agent frontend kit exported to ${path.relative(repoRoot, outputRoot).replaceAll(path.sep, '/')}`)
 }
