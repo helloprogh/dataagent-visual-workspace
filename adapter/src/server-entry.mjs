@@ -2,8 +2,7 @@ import http from 'node:http'
 import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { buildCapabilityCatalog } from './capability-catalog.mjs'
-import { interruptFromForm } from './converter.mjs'
-import { interruptFromPermission } from './permission-interrupt.mjs'
+import { reconcileInterrupts } from './reconcile-interrupts.mjs'
 import { runFinished, runStarted, stateSnapshot } from './agui.mjs'
 import { createServer as createAgentServer } from './server.mjs'
 import { FileStorage } from './file-storage.mjs'
@@ -235,15 +234,19 @@ const hydrateAgent = async (req, res, client) => {
   // fresh registry for hydration so this gateway observes the latest commit
   // written by the streaming adapter before RUN_FINISHED(interrupt) was sent.
   const registry = new SessionRegistry()
-  let pending = await registry.pendingInterrupts(threadId)
-  if (!pending.length) {
-    const mapped = await registry.get(threadId)
-    const sessionId = mapped?.sessionId || threadId
-    const forms = await client.listForms(sessionId).catch(() => [])
-    pending = (Array.isArray(forms) ? forms : []).map(interruptFromForm).filter(Boolean)
-    const permissions = await client.listPermissions?.(sessionId).catch(() => []) ?? []
-    pending.push(...(Array.isArray(permissions) ? permissions : []).map(item => interruptFromPermission(item)).filter(Boolean))
-    if (pending.length) await registry.setPendingInterrupts(threadId, pending)
+  const cached = await registry.pendingInterrupts(threadId)
+  const cachedReceipt = JSON.stringify(await registry.lastResume(threadId))
+  const mapped = await registry.get(threadId)
+  let pending = await reconcileInterrupts(client, mapped?.sessionId || threadId, cached)
+  // A stream/resume can commit while the upstream reads are in flight. Do not
+  // overwrite that newer local correlation with this older hydration snapshot.
+  await registry.refresh()
+  const current = await registry.pendingInterrupts(threadId)
+  if (JSON.stringify(current) !== JSON.stringify(cached)
+    || JSON.stringify(await registry.lastResume(threadId)) !== cachedReceipt) {
+    pending = current
+  } else if (JSON.stringify(pending) !== JSON.stringify(current)) {
+    await registry.setPendingInterrupts(threadId, pending)
   }
 
   openSse(res)

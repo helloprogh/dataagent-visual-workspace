@@ -11,6 +11,39 @@ const parseEvents = (text) => text
   .filter(Boolean)
   .map(line => JSON.parse(line.slice(6)))
 
+test('hydration clears externally resolved cached forms in both response and registry', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'dataagent-hydrate-resolved-'))
+  const stateFile = path.join(directory, 'sessions.json')
+  const registry = new SessionRegistry(stateFile)
+  await registry.set('resolved-thread', 'native-session')
+  await registry.setPendingInterrupts('resolved-thread', [{ id: 'old-form', metadata: { kind: 'form' } }])
+  await withServer(stateFile, async baseUrl => {
+    const response = await fetch(`${baseUrl}/dataagent/web/api/agui?mode=hydrate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ threadId: 'resolved-thread', runId: 'hydrate', state: {}, forwardedProps: { dataagent: { mode: 'hydrate' } } }),
+    })
+    assert.equal(parseEvents(await response.text()).at(-1).outcome.type, 'success')
+    assert.deepEqual(await new SessionRegistry(stateFile).pendingInterrupts('resolved-thread'), [])
+  }, { listForms: async () => [] })
+})
+
+test('hydration does not overwrite newer stream correlation during upstream reads', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'dataagent-hydrate-race-'))
+  const stateFile = path.join(directory, 'sessions.json')
+  const registry = new SessionRegistry(stateFile)
+  await registry.set('racing-thread', 'native-session')
+  await registry.setPendingInterrupts('racing-thread', [{ id: 'old', metadata: { kind: 'form' } }])
+  const latest = [{ id: 'new', metadata: { kind: 'form' } }]
+  await withServer(stateFile, async baseUrl => {
+    const response = await fetch(`${baseUrl}/dataagent/web/api/agui?mode=hydrate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ threadId: 'racing-thread', runId: 'hydrate', state: {}, forwardedProps: { dataagent: { mode: 'hydrate' } } }),
+    })
+    assert.deepEqual(parseEvents(await response.text()).at(-1).outcome.interrupts, latest)
+    assert.deepEqual(await new SessionRegistry(stateFile).pendingInterrupts('racing-thread'), latest)
+  }, { listForms: async () => { await registry.setPendingInterrupts('racing-thread', latest); return [] } })
+})
+
 async function withServer(stateFile, callback, client = { listForms: async () => [] }) {
   process.env.ADAPTER_STATE_FILE = stateFile
   const { createServer } = await import(`../src/server-entry.mjs?hydrate-test=${Date.now()}-${Math.random()}`)
@@ -23,6 +56,25 @@ async function withServer(stateFile, callback, client = { listForms: async () =>
     await new Promise(resolve => server.close(resolve))
   }
 }
+
+test('hydration cannot resurrect an approval resolved while its upstream snapshot was loading', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'dataagent-hydrate-receipt-'))
+  const stateFile = path.join(directory, 'sessions.json')
+  const registry = new SessionRegistry(stateFile)
+  await registry.set('receipt-thread', 'native-session')
+  const receipt = { signature: 'resolved-during-read' }
+  await withServer(stateFile, async baseUrl => {
+    const response = await fetch(`${baseUrl}/dataagent/web/api/agui?mode=hydrate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ threadId: 'receipt-thread', runId: 'hydrate', state: {}, forwardedProps: { dataagent: { mode: 'hydrate' } } }),
+    })
+    assert.equal(parseEvents(await response.text()).at(-1).outcome.type, 'success')
+    assert.deepEqual(await new SessionRegistry(stateFile).lastResume('receipt-thread'), receipt)
+  }, { listForms: async () => {
+    await registry.resolveInterrupts('receipt-thread', receipt)
+    return [{ id: 'resolved-form', fields: [{ key: 'decision', type: 'string' }] }]
+  } })
+})
 
 test('AG-UI hydration restores persisted pending interrupts without prompting OpenCode', async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'dataagent-hydrate-'))
