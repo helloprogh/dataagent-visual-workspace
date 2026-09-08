@@ -7,6 +7,7 @@ import { createServer as createViteServer } from 'vite'
 import { chromium, expect } from '@playwright/test'
 import { OpenCodeClient } from '../adapter/src/opencode-client.mjs'
 import { createServer } from '../adapter/src/server-entry.mjs'
+import { readZipEntries, readZipEntry } from '../adapter/src/archive-preview.mjs'
 
 assert.ok(process.env.OPENCODE_BASE_URL, 'Configure real OpenCode URL and credentials')
 const revise = process.env.LIVE_DELIVERY_REVISE === '1'
@@ -111,6 +112,37 @@ try {
   assert.deepEqual(JSON.parse(await readFile(await download.path(), 'utf8')), expectedRelease)
   assert.equal(agentRequests.length, revise ? 3 : 2, 'Delivery browsing and downloading must remain local')
   console.log(JSON.stringify({ check: 'real delivery generation preview approval release replay', result: 'passed', sessionId, workspace }))
+  if (process.env.LIVE_DELIVERY_ARCHIVE === '1') {
+    await page.keyboard.press('Escape')
+    const command = `Compress-Archive -LiteralPath '${path.join(workspace, 'report.md')}', '${path.join(workspace, 'release.json')}' -DestinationPath '${path.join(workspace, 'delivery.zip')}'`
+    await page.locator('.agent-chat__composer [contenteditable=true]').first().fill(`现在授权仅进行本次发布打包：通过shell工具执行PowerShell命令 ${command}。只允许读取这两个已生成文件并创建这个delivery.zip，不执行其他命令，不修改原文件，不访问其他目录。完成后回复 DELIVERY_PACKAGED。`)
+    await page.locator('.elx-x-sender__send-button').click()
+    await expect(page.locator('.assistant-content').last()).toContainText('DELIVERY_PACKAGED', { timeout: 120000 })
+    await expect(page.locator('.elx-x-sender__loading-button')).toHaveCount(0, { timeout: 15000 })
+    const bytes = await readFile(path.join(workspace, 'delivery.zip'))
+    const entries = readZipEntries(bytes)
+    assert.deepEqual(entries.map(entry => entry.path).sort(), ['release.json', 'report.md'])
+    assert.deepEqual(JSON.parse(readZipEntry(bytes, entries.find(entry => entry.path === 'release.json')).toString('utf8')), expectedRelease)
+    const archive = page.getByTestId('generated-artifact-card').filter({ hasText: 'delivery.zip' }).first()
+    await expect(archive).toBeVisible()
+    await archive.locator('.generated-artifact-card__main').click()
+    await expect(preview.locator('.archive-preview__entry')).toHaveCount(2)
+    await preview.locator('.archive-preview__entry').filter({ hasText: 'report.md' }).click()
+    await expect(preview.locator('.archive-preview__content')).toContainText(`total: ${expectedRelease.total}`)
+    await preview.locator('.archive-preview__entry').filter({ hasText: 'release.json' }).click()
+    await expect(preview.locator('.archive-preview__content')).toContainText('accepted')
+    await page.reload()
+    await expect(archive).toBeVisible({ timeout: 15000 })
+    await archive.locator('.generated-artifact-card__main').click()
+    await expect(preview.locator('.archive-preview__entry')).toHaveCount(2)
+    const downloadingArchive = page.waitForEvent('download')
+    await preview.getByRole('link', { name: '下载文件', exact: true }).click()
+    const downloadedArchive = await downloadingArchive
+    assert.equal(downloadedArchive.suggestedFilename(), 'delivery.zip')
+    assert.deepEqual(await readFile(await downloadedArchive.path()), bytes)
+    assert.equal(agentRequests.length, revise ? 4 : 3)
+    console.log(JSON.stringify({ check: 'real multi-file ZIP delivery preview and download', result: 'passed', sessionId, workspace }))
+  }
 } catch (error) {
   console.log(JSON.stringify({ stage: 'failure', sessionId, recovery: await page.locator('.run-recovery').allTextContents() }))
   if (sessionId) await client.json(`/api/session/${sessionId}/interrupt`, { method: 'POST' }, 'cleanup').catch(() => undefined)

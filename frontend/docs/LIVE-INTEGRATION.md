@@ -158,3 +158,11 @@ node scripts/live-ui-smoke.mjs
 - 真实会话 `ses_f80d5126fffe8aumA05uXHQIU7` 通过完整修订闭环：v1=300、v2=350；刷新后仍各自正确；再次验收发布 JSON 为 total=350/count=4；侧栏三个版本项；真实浏览器下载内容一致。
 - 单元测试覆盖成功/失败写入及空文件；浏览器回归覆盖同路径两版预览与下载、刷新恢复、不读取可变文件接口。
 - 此修复是成功文本 write 的历史内容恢复，不是任意工具输出的字节级存档。缺少 content 的旧记录、shell 生成的压缩包仍使用文件路径，不能据此宣称其旧版本已固定。
+
+### 多文件打包与 ZIP 预览
+
+- `LIVE_DELIVERY_ARCHIVE=1` 在验收发布后，额外授权 Agent 仅执行专用目录内 report.md/release.json 的 Compress-Archive 打包，生成 delivery.zip；不读取业务项目文件、不覆盖原文件。
+- 实际检查 ZIP 中恰好两个预期文件，发布 JSON 数据正确；交付卡片可展开报告和 JSON，刷新后仍能打开目录；真实浏览器下载字节与磁盘 ZIP 完全一致。
+- 会话 `ses_f809a7c6cffeqFvV8owwpF8ry3` 的生成、验收、发布、打包和预览下载全部通过。预览/下载未新增 Agent 请求。
+- 这证明单次包交付功能，不证明同路径 ZIP 被覆盖后可恢复旧包；二进制版本存档仍待实现。
+- 同时设置 `LIVE_DELIVERY_REVISE=1` 的组合检查尚未完整通过：`ses_f8097663cffetGvVoHFpFgNPWj` 已完成修订验收并生成 ZIP，但进程在最终校验前 exit 1 且无异常输出；`ses_f8099cd9affeVcmLumQhy1VIPB` 也曾提前退出，其待办已清理。不能将文件存在作为浏览器包预览/下载已通过的替代证据。
