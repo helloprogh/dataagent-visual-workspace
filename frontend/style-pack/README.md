@@ -17,13 +17,15 @@ Because the stack is the same, the preferred strategy is direct reuse of the shi
 From the repository root:
 
 ```bash
-npm run export:style-pack
+npm run export:frontend-kit
 ```
+
+`npm run export:style-pack` remains as a compatibility alias.
 
 This writes a copy-ready directory to:
 
 ```text
-frontend/dist/dataagent-style-pack/
+frontend/dist/dataagent-frontend-kit/
 ```
 
 ## Exported contents
