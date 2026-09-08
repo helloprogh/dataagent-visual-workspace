@@ -1,4 +1,5 @@
 import { dataAgentWebApi } from '../../../shared/config/api'
+import { isSourceCodeFile } from '../../../../../shared/generated-artifacts.mjs'
 
 export type ConversationFilePreview = {
   id: string
@@ -44,6 +45,7 @@ export function fileBadgeLabel(file: Pick<ConversationFilePreview, 'name' | 'mim
 }
 
 export function fileKindLabel(file: Pick<ConversationFilePreview, 'name' | 'mimeType'>) {
+  if (isSourceCodeFile(file.name)) return '文本'
   const extension = file.name.split('.').pop()?.toLowerCase() ?? ''
   if (file.mimeType === 'text/markdown' || ['md', 'markdown', 'mdx'].includes(extension)) return 'Markdown'
   if (file.mimeType.startsWith('image/')) return '图片'

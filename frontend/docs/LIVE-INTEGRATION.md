@@ -175,6 +175,13 @@ node scripts/live-ui-smoke.mjs
 - 使用剪贴板粘贴多行需求；直接 fill 的尝试未发请求，不计入真实执行。首次进入开发阶段的尝试在表单到达前判断，随后改为明确等待上游表单后通过。
 - 这是隔离功能验收，不是现有 demo-sales 的生产业务验收；其 mock 验证证据、待发布状态和用户未提交修改均保持原样。
 
+### 五阶段交付正文复验（含源码）
+
+- 设置 `LIVE_BUSINESS_REPLAY_SESSION=ses_f7f6aee23ffejDPla5xhJbimEp`（PowerShell 使用环境变量赋值），执行 `node scripts/live-business-replay.mjs`，其余真实服务环境配置同上。
+- 已通过：需求、设计、transform.cjs、验证、发布五个文件正文与磁盘一致；下载一致；刷新后再次通过；不发新 Run、不审批、不执行交付代码。补齐上节未覆盖正文的边界。
+- 支持常见 JS/TS、Python、Shell/PowerShell 源码的纯文本预览及 ZIP 内源码条目；内容经文本插值显示而非脚本执行。未知二进制文件仍仅提供下载。
+- 生成脚本现也要求正文一致，但本轮没有重新生成整套文件，证据来自上述已完成真实会话的只读复验。
+
 ### 交付版本标签的边界
 
 - 交付列表与预览统一显示来源：保留成功 write 内容的文本显示版本号；workspace 路径文件显示“当前文件”（英文 Current file），包括 ZIP 和缺少历史内容的旧记录。

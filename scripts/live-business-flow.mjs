@@ -84,6 +84,7 @@ try {
     await expect(card).toBeVisible({ timeout: 20000 })
     await card.locator('.generated-artifact-card__main').click()
     await expect(preview).toContainText(name)
+    await expect(preview.locator('pre')).toHaveText(await readFile(path.join(workspace, name), 'utf8'))
     const downloading = page.waitForEvent('download')
     await preview.getByRole('link', { name: '下载文件', exact: true }).click()
     const download = await downloading

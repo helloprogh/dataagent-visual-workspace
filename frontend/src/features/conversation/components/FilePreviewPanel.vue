@@ -9,6 +9,7 @@ import { readBoundedText } from '../../../shared/api/readBoundedText'
 import { buildCancellationResumeEntry, buildConfirmationResumeEntry } from '../approval'
 import { fileBadgeLabel, fileDownloadUrl, fileKindLabel, fileVersionLabel, formatFileSize, type ArchiveEntry, type ConversationFilePreview } from '../types/filePreview'
 import InterruptCard from './InterruptCard.vue'
+import { isSourceCodeFile } from '../../../../../shared/generated-artifacts.mjs'
 
 const props = withDefaults(defineProps<{
   file: ConversationFilePreview
@@ -45,6 +46,7 @@ let archiveController: AbortController | null = null
 
 const extension = computed(() => props.file.name.split('.').pop()?.toLowerCase() ?? '')
 const kind = computed(() => {
+  if (isSourceCodeFile(props.file.name)) return 'text'
   if (props.file.mimeType === 'text/markdown' || ['md', 'markdown', 'mdx'].includes(extension.value)) return 'markdown'
   if (props.file.mimeType.startsWith('image/')) return 'image'
   if (props.file.mimeType === 'application/pdf' || extension.value === 'pdf') return 'pdf'
@@ -78,6 +80,7 @@ const archiveTreeEntries = computed(() => {
 })
 const archiveEntryKind = computed(() => {
   const name = archiveEntryPath.value.toLowerCase()
+  if (isSourceCodeFile(name)) return 'text'
   if (archiveEntryMimeType.value === 'text/markdown' || /\.(?:md|markdown|mdx)$/.test(name)) return 'markdown'
   if (archiveEntryMimeType.value.startsWith('image/')) return 'image'
   if (archiveEntryMimeType.value === 'application/pdf' || name.endsWith('.pdf')) return 'pdf'

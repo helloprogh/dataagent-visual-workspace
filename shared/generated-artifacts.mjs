@@ -12,7 +12,11 @@ const basename = (value) => value.split(/[\\/]/).pop()?.trim() ?? ''
 
 export const artifactPathKey = (value) => String(value ?? '').trim().replace(/\\/g, '/').toLocaleLowerCase()
 
+// Source code is displayed as inert text, never loaded as a script or HTML page.
+export const isSourceCodeFile = (filename) => /\.(?:cjs|mjs|js|jsx|ts|tsx|py|sh|ps1)$/i.test(filename)
+
 export function generatedArtifactMimeType(filename) {
+  if (isSourceCodeFile(filename)) return 'text/plain'
   const extension = filename.split('.').pop()?.toLocaleLowerCase()
   if (['md', 'markdown', 'mdx'].includes(extension ?? '')) return 'text/markdown'
   if (extension === 'pdf') return 'application/pdf'

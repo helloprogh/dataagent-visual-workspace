@@ -7,6 +7,7 @@ export type GeneratedArtifact = {
 }
 
 export function generatedArtifactMimeType(filename: string): string
+export function isSourceCodeFile(filename: string): boolean
 export function artifactPathKey(value: unknown): string
 export function generatedArtifactsFromTool(
   call: unknown,
