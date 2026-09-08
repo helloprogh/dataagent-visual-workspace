@@ -18,6 +18,13 @@ const sourceFiles = [
   ['src/shared/styles/index.css', 'src/shared/styles/index.css'],
   ['src/shared/theme/theme.ts', 'src/shared/theme/theme.ts'],
   ['src/main.ts', 'reference/main.ts'],
+  ['src/app/App.vue', 'reference/App.vue'],
+  ['src/features/conversation/components/AgentMark.vue', 'reference/components/AgentMark.vue'],
+  ['src/features/conversation/components/ConversationSidebar.vue', 'reference/components/ConversationSidebar.vue'],
+  ['src/features/conversation/components/ConversationHeader.vue', 'reference/components/ConversationHeader.vue'],
+  ['src/features/conversation/components/ConversationComposer.vue', 'reference/components/ConversationComposer.vue'],
+  ['src/features/conversation/components/ConversationMessage.vue', 'reference/components/ConversationMessage.vue'],
+  ['src/features/model/components/ModelSelector.vue', 'reference/components/ModelSelector.vue'],
   ['style-pack/README.md', 'README.md'],
   ['style-pack/component-contract.md', 'guidance/component-contract.md'],
   ['style-pack/AGENTS.snippet.md', 'guidance/AGENTS.snippet.md'],
@@ -90,6 +97,7 @@ const manifest = {
     repository: 'helloprogh/dataagent-visual-workspace',
     canonicalStyles: 'frontend/src/shared/styles',
     canonicalTheme: 'frontend/src/shared/theme/theme.ts',
+    referencesAreCopyOnly: true,
   },
   files: manifestFiles,
 }
@@ -105,6 +113,13 @@ const requiredOutput = [
   'src/shared/styles/index.css',
   'src/shared/theme/theme.ts',
   'reference/main.ts',
+  'reference/App.vue',
+  'reference/components/AgentMark.vue',
+  'reference/components/ConversationSidebar.vue',
+  'reference/components/ConversationHeader.vue',
+  'reference/components/ConversationComposer.vue',
+  'reference/components/ConversationMessage.vue',
+  'reference/components/ModelSelector.vue',
   'guidance/component-contract.md',
   'guidance/AGENTS.snippet.md',
   'guidance/replication-evals.json',
@@ -125,9 +140,41 @@ const exportedBase = fs.readFileSync(path.join(outputRoot, 'src/shared/styles/ba
 const canonicalBase = fs.readFileSync(path.join(frontendRoot, 'src/shared/styles/base.css'), 'utf8')
 if (exportedBase !== canonicalBase) throw new Error('Exported base.css drifted from canonical source')
 
+const stableHooks = [
+  '.dataagent-app',
+  '.agent-chat__header',
+  '.agent-chat__composer-wrap',
+  '.agent-chat__composer',
+  '.composer-input-actions',
+  '.model-selector',
+  '.message-bubble--user',
+  '.attachment-chip',
+  '.process-step__content',
+]
+const componentContract = fs.readFileSync(path.join(frontendRoot, 'style-pack/component-contract.md'), 'utf8')
+for (const hook of stableHooks) {
+  if (!canonicalBase.includes(hook)) throw new Error(`Stable style hook disappeared from base.css: ${hook}`)
+  if (!componentContract.includes(hook)) throw new Error(`Stable style hook is undocumented in component-contract.md: ${hook}`)
+}
+
+const mainSource = fs.readFileSync(path.join(frontendRoot, 'src/main.ts'), 'utf8')
+for (const requiredImport of [
+  "element-plus/dist/index.css",
+  "element-plus/theme-chalk/dark/css-vars.css",
+  "./shared/styles/index.css",
+  'initializeTheme()',
+]) {
+  if (!mainSource.includes(requiredImport)) throw new Error(`Style pack integration source is missing ${requiredImport}`)
+}
+
+const evals = JSON.parse(fs.readFileSync(path.join(frontendRoot, 'style-pack/replication-evals.json'), 'utf8'))
+if (!Array.isArray(evals.scenarios) || evals.scenarios.length < 7) {
+  throw new Error('Same-stack replication evals must keep at least seven fixed scenarios')
+}
+
 if (checkOnly) {
   fs.rmSync(outputRoot, { recursive: true, force: true })
-  console.log('Same-stack style pack check passed: canonical styles, theme, guidance and stack snapshot export cleanly.')
+  console.log('Same-stack style pack check passed: canonical styles, Vue references, hook contract, theme integration and evals export cleanly.')
 } else {
   console.log(`Data Agent style pack exported to ${path.relative(repoRoot, outputRoot).replaceAll(path.sep, '/')}`)
 }
