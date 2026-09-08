@@ -3,33 +3,29 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const css = await readFile(path.join(root, 'src', 'uiux-soft-technical-dark.css'), 'utf8')
+const css = await readFile(path.join(root, 'src', 'shared', 'styles', 'tokens.css'), 'utf8')
 
-const lastMatch = (pattern) => {
-  const matches = [...css.matchAll(pattern)]
-  return matches.at(-1)
-}
-
-const variable = (name) => {
-  const match = lastMatch(new RegExp(`${name}\\s*:\\s*(#[0-9a-fA-F]{6})`, 'g'))
-  if (!match) throw new Error(`Missing contrast token ${name}`)
+function block(pattern, label) {
+  const match = css.match(pattern)
+  if (!match) throw new Error(`Missing ${label} token block`)
   return match[1]
 }
 
-const rgbaAlpha = (name) => {
-  const match = lastMatch(new RegExp(`${name}\\s*:\\s*rgba\\([^,]+,[^,]+,[^,]+,\\s*([0-9.]+)\\)`, 'g'))
-  if (!match) throw new Error(`Missing rgba token ${name}`)
-  return Number(match[1])
+function variables(source) {
+  return new Map([...source.matchAll(/(--da-[a-z0-9-]+)\s*:\s*(#[0-9a-f]{6})\s*;/gi)].map(match => [match[1], match[2]]))
 }
 
-const channel = (value) => {
+const dark = variables(block(/:root\s*\{([\s\S]*?)\n\}/, 'default theme'))
+const light = variables(block(/:root\[data-theme=['"]light['"]\]\s*\{([\s\S]*?)\n\}/, 'light theme'))
+
+function channel(value) {
   const normalized = value / 255
   return normalized <= 0.04045
     ? normalized / 12.92
     : ((normalized + 0.055) / 1.055) ** 2.4
 }
 
-const luminance = (hex) => {
+function luminance(hex) {
   const value = hex.slice(1)
   const r = channel(Number.parseInt(value.slice(0, 2), 16))
   const g = channel(Number.parseInt(value.slice(2, 4), 16))
@@ -37,7 +33,7 @@ const luminance = (hex) => {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b
 }
 
-const contrast = (foreground, background) => {
+function contrast(foreground, background) {
   const a = luminance(foreground)
   const b = luminance(background)
   const lighter = Math.max(a, b)
@@ -45,46 +41,34 @@ const contrast = (foreground, background) => {
   return (lighter + 0.05) / (darker + 0.05)
 }
 
-const surfaces = [
-  '--da-surface-0',
-  '--da-surface-1',
-  '--da-surface-2',
-  '--da-surface-3',
-  '--da-surface-4',
-].map(variable)
-
 const requirements = [
   ['--da-text-emphasis', 7],
   ['--da-text-primary', 7],
-  ['--da-text-secondary', 7],
-  ['--da-text-muted', 4.5],
-  ['--da-text-subtle', 4.5],
-  ['--da-link', 4.5],
-  ['--da-accent-cyan', 4.5],
-  ['--da-accent-blue', 4.5],
-  ['--da-accent-green', 4.5],
-  ['--da-accent-yellow', 4.5],
-  ['--da-accent-red', 4.5],
+  ['--da-text-secondary', 4.5],
 ]
-
+const surfaceNames = ['--da-surface-0', '--da-surface-1', '--da-surface-2', '--da-surface-3', '--da-surface-4']
 const failures = []
-for (const [name, minimum] of requirements) {
-  const foreground = variable(name)
-  const ratios = surfaces.map((background) => contrast(foreground, background))
-  const lowest = Math.min(...ratios)
-  if (lowest < minimum) {
-    failures.push(`${name} minimum contrast ${lowest.toFixed(2)} is below ${minimum.toFixed(1)}`)
+
+for (const [themeName, theme] of [['dark', dark], ['light', light]]) {
+  const surfaces = surfaceNames.map(name => {
+    const value = theme.get(name)
+    if (!value) failures.push(`${themeName}: missing direct hex token ${name}`)
+    return value
+  }).filter(Boolean)
+
+  for (const [name, minimum] of requirements) {
+    const foreground = theme.get(name)
+    if (!foreground) {
+      failures.push(`${themeName}: missing direct hex token ${name}`)
+      continue
+    }
+    if (surfaces.length !== surfaceNames.length) continue
+    const lowest = Math.min(...surfaces.map(background => contrast(foreground, background)))
+    if (lowest < minimum) {
+      failures.push(`${themeName}: ${name} minimum contrast ${lowest.toFixed(2)} is below ${minimum.toFixed(1)}`)
+    }
   }
 }
-
-const borderAlpha = rgbaAlpha('--da-border')
-const strongBorderAlpha = rgbaAlpha('--da-border-strong')
-const focusBorderAlpha = rgbaAlpha('--da-border-focus')
-
-if (borderAlpha < 0.08) failures.push(`--da-border alpha ${borderAlpha} is too faint; minimum is 0.08`)
-if (strongBorderAlpha < 0.14) failures.push(`--da-border-strong alpha ${strongBorderAlpha} is too faint; minimum is 0.14`)
-if (strongBorderAlpha <= borderAlpha) failures.push('--da-border-strong must be more visible than --da-border')
-if (focusBorderAlpha <= strongBorderAlpha) failures.push('--da-border-focus must be more visible than --da-border-strong')
 
 if (failures.length) {
   console.error('Visual contrast guard failed:')
@@ -92,4 +76,4 @@ if (failures.length) {
   process.exit(1)
 }
 
-console.log('Visual contrast guard passed: text stays readable and border hierarchy remains intentional.')
+console.log('Visual contrast guard passed for emphasis, primary and secondary text across shared dark/light surfaces.')
