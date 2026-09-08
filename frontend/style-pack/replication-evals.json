@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "purpose": "Fixed same-stack review cases for reproducing Data Agent visual style in another Vue + Element Plus + Element-Plus-X frontend.",
+  "scenarios": [
+    {
+      "id": "shell-dark",
+      "surface": "application shell",
+      "theme": "dark",
+      "viewport": "1440x900",
+      "required": [".dataagent-app root scope", "surface-0 workspace canvas", "quiet sidebar boundary", "blue primary action"],
+      "review": ["surface layering", "accent restraint", "operational density"],
+      "mustAvoid": ["generic SaaS dashboard", "gradient confetti", "heavy default shadows"]
+    },
+    {
+      "id": "shell-light",
+      "surface": "application shell",
+      "theme": "light",
+      "viewport": "1440x900",
+      "required": ["same geometry as dark mode", "soft canvas", "white primary surfaces", "visible borders and focus"],
+      "review": ["cross-theme identity", "contrast", "surface hierarchy"],
+      "mustAvoid": ["pure-white flattening", "dark-mode-only literals", "muddy low contrast"]
+    },
+    {
+      "id": "xsender-focus",
+      "surface": "primary Element-Plus-X sender",
+      "theme": "dark",
+      "viewport": "1200x800",
+      "required": [".agent-chat__composer wrapper", "surface-2 background", "cyan-blue-orange border", "stronger focus glow than rest state", "quiet auxiliary actions"],
+      "review": ["signature resemblance", "focus hierarchy", "input readability"],
+      "mustAvoid": ["permanent neon glow", "solid gradient background", "auxiliary actions competing with submit"]
+    },
+    {
+      "id": "controls-and-form",
+      "surface": "Element Plus form and actions",
+      "theme": "dark",
+      "viewport": "1024x768",
+      "required": ["token-mapped ElButton", "token-mapped inputs", "visible keyboard focus", "semantic destructive state"],
+      "review": ["library integration", "control consistency", "action hierarchy"],
+      "mustAvoid": ["default Element Plus blue mixed with a second palette", "pill-everything", "status rainbow"]
+    },
+    {
+      "id": "message-and-diagnostics",
+      "surface": "message plus process details",
+      "theme": "dark",
+      "viewport": "1280x900",
+      "required": ["subtle user bubble tint", "assistant/result content visually primary", "diagnostic details subdued", "bounded code/raw blocks"],
+      "review": ["primary/supporting/diagnostic hierarchy", "density", "readability"],
+      "mustAvoid": ["debug-first hierarchy", "bright user bubble", "card nesting"]
+    },
+    {
+      "id": "evidence-card",
+      "surface": "table/chart/file evidence",
+      "theme": "light",
+      "viewport": "1280x800",
+      "required": ["surface-1 or surface-2 evidence container", "hairline border", "medium radius", "restrained shadow", "clear title/context"],
+      "review": ["evidence prominence", "container restraint", "light-theme fidelity"],
+      "mustAvoid": ["decorative dashboard grid", "gradient card fill", "equal-weight metadata"]
+    },
+    {
+      "id": "narrow-responsive",
+      "surface": "narrow application view",
+      "theme": "dark",
+      "viewport": "760x900",
+      "required": ["primary work remains usable", "secondary navigation collapses first", "controls remain reachable", "style identity retained"],
+      "review": ["responsive priority", "density", "touch/focus usability"],
+      "mustAvoid": ["crushed primary content", "hidden state", "desktop-only spacing"]
+    }
+  ]
+}

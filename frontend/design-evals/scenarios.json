@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "policy": "Freeze task, data, viewport and theme for before/after comparisons. Add scenarios instead of editing an existing scenario to satisfy a new rule.",
+  "scenarios": [
+    {
+      "id": "conversation-empty-start",
+      "surface": "conversation",
+      "viewport": { "width": 1440, "height": 900 },
+      "theme": "light",
+      "task": "Open Data Agent with no active session. Present the product identity, a concise description, starter prompts and the composer so a DA can begin a data request immediately.",
+      "review": ["first-action clarity", "visual hierarchy", "density", "composer prominence"],
+      "mustAvoid": ["decorative dashboard", "duplicated primary actions", "large empty hero that pushes the composer away"]
+    },
+    {
+      "id": "conversation-streaming-execution",
+      "surface": "conversation",
+      "viewport": { "width": 1440, "height": 900 },
+      "theme": "dark",
+      "task": "Render a conversation with one user request, streaming assistant text, reasoning, two tool calls, one tool result and a generated file. Keep the answer primary while execution detail remains inspectable.",
+      "review": ["answer-over-debug hierarchy", "streaming stability", "tool trace legibility", "follow-scroll behavior"],
+      "mustAvoid": ["debug-first hierarchy", "equal-weight cards for every event", "layout jumps during streaming"]
+    },
+    {
+      "id": "hitl-response-schema",
+      "surface": "conversation-hitl",
+      "viewport": { "width": 1280, "height": 800 },
+      "theme": "light",
+      "task": "Render a pending AG-UI responseSchema approval containing one single-select question, one multi-select question and a short free-text field. The user must understand what is being approved and how to confirm or cancel.",
+      "review": ["decision clarity", "form hierarchy", "action specificity", "error/recovery state"],
+      "mustAvoid": ["approval hidden as tool output", "vague Continue button", "status conveyed only by color"]
+    },
+    {
+      "id": "a2ui-analysis-evidence",
+      "surface": "generated-ui",
+      "viewport": { "width": 1536, "height": 960 },
+      "theme": "dark",
+      "task": "Within an assistant answer, render an A2UI analysis surface containing a recommendation, three comparison metrics, a compact chart and a six-row evidence table. The generated UI should support the answer rather than look like a detached application.",
+      "review": ["claim-to-evidence relationship", "table/chart width", "token consistency", "information density"],
+      "mustAvoid": ["generic SaaS dashboard", "detached generated UI", "gradient confetti", "unrelated KPI-card grid"]
+    },
+    {
+      "id": "file-preview-delivery-approval",
+      "surface": "deliverable-preview",
+      "viewport": { "width": 1600, "height": 960 },
+      "theme": "light",
+      "task": "Open a generated Markdown deliverable in the inspector while the parent conversation stays visible. Show file identity, preview content, version context and an approval action tied to the pending delivery decision.",
+      "review": ["conversation continuity", "preview width", "approval visibility", "metadata hierarchy"],
+      "mustAvoid": ["conversation becoming secondary navigation", "nested decorative panels", "approval available only in a toast"]
+    },
+    {
+      "id": "history-operational-list",
+      "surface": "history",
+      "viewport": { "width": 1366, "height": 768 },
+      "theme": "dark",
+      "task": "Render a history list with 20 root sessions including long titles, recent timestamps and rename/open actions. The user should scan and reopen work quickly without child-agent sessions appearing as peer conversations.",
+      "review": ["scanability", "long-title behavior", "action discoverability", "root-session hierarchy"],
+      "mustAvoid": ["card per row with excessive chrome", "truncated titles with no usable context", "subagent sessions promoted to root conversations"]
+    },
+    {
+      "id": "narrow-conversation-with-inspector",
+      "surface": "responsive-conversation",
+      "viewport": { "width": 760, "height": 900 },
+      "theme": "light",
+      "task": "Start from a conversation that has an open deliverable inspector and several messages. Narrow the viewport and preserve the active task, composer and access to the deliverable without compressing the conversation into an unusable column.",
+      "review": ["responsive priority", "navigation collapse", "composer usability", "deliverable access"],
+      "mustAvoid": ["two unusably narrow columns", "important evidence silently clipped", "controls disappearing without an alternate path"]
+    }
+  ]
+}
