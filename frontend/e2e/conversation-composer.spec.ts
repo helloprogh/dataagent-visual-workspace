@@ -1,5 +1,30 @@
 import { expect, test } from '@playwright/test'
-import { mockBaseApi } from './support/mockAgent'
+import { mockBaseApi, sse } from './support/mockAgent'
+
+test('pasted multiline business requirements publish once without losing lines', async ({ page, context }) => {
+  const runs: any[] = []
+  await mockBaseApi(page, (route, url) => {
+    if (!url.pathname.endsWith('/agui')) return false
+    const body = route.request().postDataJSON()
+    runs.push(body)
+    void route.fulfill({ contentType: 'text/event-stream', body: sse([
+      { type: 'RUN_STARTED', threadId: body.threadId, runId: body.runId },
+      { type: 'RUN_FINISHED', threadId: body.threadId, runId: body.runId },
+    ]) })
+    return true
+  })
+  await page.goto('/#/chat?session=session-a')
+  await expect(page.locator('.model-selector')).toContainText('GPT A')
+  await expect(page.locator('.agent-chat__loading')).toHaveCount(0)
+  const text = '需求：只统计已审核订单。\n设计：取消订单排除。\n开发：计算金额与订单数。\n验证：等待确认。\n发布：确认后交付。'
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.evaluate(text => navigator.clipboard.writeText(text), text)
+  await page.locator('.agent-chat__composer [contenteditable=true]').first().press('Control+V')
+  await page.locator('.elx-x-sender__send-button').click()
+  await expect.poll(() => runs.length).toBe(1)
+  const content = runs[0].messages.at(-1).content
+  expect(typeof content === 'string' ? content : content.map((part: any) => part.text ?? '').join('')).toBe(text)
+})
 
 test('composer facade fills starter, focuses with slash and clears when switching sessions', async ({ page }) => {
   await mockBaseApi(page)

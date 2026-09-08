@@ -167,6 +167,14 @@ node scripts/live-ui-smoke.mjs
 - 这证明单次包交付功能，不证明同路径 ZIP 被覆盖后可恢复旧包；二进制版本存档仍待实现。
 - 同时设置 `LIVE_DELIVERY_REVISE=1` 的组合检查尚未完整通过：`ses_f8097663cffetGvVoHFpFgNPWj` 已完成修订验收并生成 ZIP，但进程在最终校验前 exit 1 且无异常输出；`ses_f8099cd9affeVcmLumQhy1VIPB` 也曾提前退出，其待办已清理。不能将文件存在作为浏览器包预览/下载已通过的替代证据。
 
+### 隔离五阶段真实业务流程
+
+- 配置真实服务凭据、PLAYWRIGHT_BROWSERS_PATH 和 NO_PROXY=127.0.0.1,localhost 后，执行 `node scripts/live-business-flow.mjs`。每次在 `.local/live-delivery/<uuid>` 创建新会话与文件，不读取现有业务项目。
+- 会话 `ses_f7f6aee23ffejDPla5xhJbimEp` 通过：需求→设计→开发→验证→发布，四次审批、五次 Run；取消订单排除后实际计算为180/2，成功 Node 工具记录和磁盘结果交叉验证，最终发布清单完整、会话 succeeded、无待办。
+- 各阶段检查刷新后交付入口与下载字节一致。本轮预览只检查面板打开，未覆盖正文内容；尤其 `.cjs` 仍仅支持下载。不得将此检查扩张为所有格式预览已通过。
+- 使用剪贴板粘贴多行需求；直接 fill 的尝试未发请求，不计入真实执行。首次进入开发阶段的尝试在表单到达前判断，随后改为明确等待上游表单后通过。
+- 这是隔离功能验收，不是现有 demo-sales 的生产业务验收；其 mock 验证证据、待发布状态和用户未提交修改均保持原样。
+
 ### 交付版本标签的边界
 
 - 交付列表与预览统一显示来源：保留成功 write 内容的文本显示版本号；workspace 路径文件显示“当前文件”（英文 Current file），包括 ZIP 和缺少历史内容的旧记录。
