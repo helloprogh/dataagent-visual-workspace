@@ -68,6 +68,9 @@ jobs:
       - name: Run offline project checks
         run: npm run check:offline
 
+      - name: Run design-system checks
+        run: npm run check:design
+
       - name: Typecheck frontend
         run: npm run typecheck
 
